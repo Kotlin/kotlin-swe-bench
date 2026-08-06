@@ -5,6 +5,31 @@ mkdir -p /logs/verifier
 
 # Apply the test patch an run the tests (repo-specific)
 cd /home/detekt
+test_files=()
+while IFS= read -r diff_header; do
+  if [[ "$diff_header" != "diff --git a/"* ]]; then
+    continue
+  fi
+
+  diff_paths="${diff_header#diff --git a/}"
+  old_path="${diff_paths%% b/*}"
+  new_path="${diff_paths#* b/}"
+  test_files+=("$old_path")
+
+  if [[ "$new_path" != "$old_path" ]]; then
+    test_files+=("$new_path")
+  fi
+done < /tests/test.patch
+
+# Restore patch-managed files so agent changes cannot block the oracle patch.
+for f in "${test_files[@]}"; do
+  if git restore --source=HEAD -- "$f" 2>/dev/null; then
+    continue
+  fi
+
+  git rm --cached -f -- "$f" 2>/dev/null || true
+  rm -f -- "$f" || exit 1
+done
 git apply --whitespace=nowarn /tests/test.patch
 
 ./gradlew clean test --continue || true
