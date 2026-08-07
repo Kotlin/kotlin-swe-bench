@@ -1,0 +1,3 @@
+services:
+  main:
+    image: kotlin-bench/linreal_cascade-editor:pr-16

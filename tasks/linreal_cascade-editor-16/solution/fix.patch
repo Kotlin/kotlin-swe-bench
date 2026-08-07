@@ -1,0 +1,596 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 391e507..b0cac7a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
++## [1.3.0] - 2026-04-28
++
++### Changed
++
++- Expanded supported block indentation from `0..3` to `0..5`
++- Added free indentation: supported blocks can now start at any indentation level, including the first block and blocks after unsupported boundaries
++- Drag-and-drop now supports free target indentation while still moving child blocks with their parent payload
++- Numbered-list prefixes now follow numbered-list ancestry with a `1.` → `a.` → `i.` cycle instead of absolute indentation depth
++- Updated indentation serialization, documentation, and regression coverage for the new outline rules
++
+ ## [1.2.0] - 2026-04-26
+
+ ### Added
+diff --git a/README.md b/README.md
+index d01f501..9f7f5f4 100644
+--- a/README.md
++++ b/README.md
+@@ -213,7 +213,7 @@ See [Undo/Redo Feature Context](docs/UndoRedoFeatureContext.md) for the hybrid h
+
+ CascadeEditor supports flat-outline indentation for paragraphs, todos, bullet lists, and numbered lists. The document remains an ordered `List<Block>`: depth is stored in `BlockAttributes.indentationLevel`, rendered as an animated leading inset, and preserved through split/merge, undo/redo, drag-and-drop, and save/load.
+
+-The default toolbar includes indent/outdent buttons when `RichTextToolbarConfig.showIndentation` is enabled, which it is by default. Commands shift the focused supported block or selected supported root blocks together with their descendants. Indentation is bounded to levels `0..3`; invalid outline moves no-op instead of producing orphaned nested blocks.
++The default toolbar includes indent/outdent buttons when `RichTextToolbarConfig.showIndentation` is enabled, which it is by default. Commands shift the focused supported block or selected supported root blocks together with their descendants. Indentation is bounded to levels `0..5`; supported blocks can use any level in that range, and invalid outline moves no-op instead of producing hidden indentation on unsupported blocks.
+
+ ```kotlin
+ CascadeEditor(
+diff --git a/docs/DocumentSerialization.md b/docs/DocumentSerialization.md
+index 9edf747..666f592 100644
+--- a/docs/DocumentSerialization.md
++++ b/docs/DocumentSerialization.md
+@@ -244,8 +244,8 @@ public fun setUnknownBlockRenderer(renderer: BlockRenderer<*>)   // NEW
+
+ - `attributes` is optional on every block entry. Missing `attributes` and missing `attributes.indentationLevel` both decode as depth `0`.
+ - `attributes` must be a JSON object. Non-object values emit `InvalidBlockAttributeParam` and fall back to depth `0`.
+-- `indentationLevel` must be a non-string integer in the supported range `0..3`. Strings, malformed values, and out-of-range values emit `InvalidBlockAttributeParam` and fall back to depth `0`.
+-- Structurally invalid but in-range indentation is normalized after decode. Examples: the first supported block at depth `1`, a supported block after an unsupported boundary at depth `1`, or a jump from depth `0` to depth `2`. These emit `InvalidBlockAttributeParam` with the normalized fallback depth.
++- `indentationLevel` must be a non-string integer in the supported range `0..5`. Strings, malformed values, and out-of-range values emit `InvalidBlockAttributeParam` and fall back to depth `0`.
++- Unsupported block types cannot carry indentation. If an unsupported block decodes with non-zero indentation, it is normalized to depth `0` and emits `InvalidBlockAttributeParam` with the normalized fallback depth.
+ - Encode omits `attributes` when the effective indentation level is `0`, keeping root-level documents compact.
+ - Decode runs outline normalization before `renumberNumberedLists()`, so loaded nested ordered lists use valid outline-aware sequence numbers.
+
+diff --git a/docs/Indentation.md b/docs/Indentation.md
+index 92af762..faa4fea 100644
+--- a/docs/Indentation.md
++++ b/docs/Indentation.md
+@@ -4,7 +4,7 @@
+
+ Indentation adds flat-outline nesting to CascadeEditor without replacing the document model with a tree. Supported blocks store a bounded `BlockAttributes.indentationLevel`, reducers shift target roots and their descendants as structural operations, and rendering turns depth into a visual leading inset. Numbered lists, serialization, toolbar state, keyboard editing behavior, and drag-and-drop all read the same block attributes, so nested documents remain consistent across editing, save/load, and reorder flows.
+
+-The V1 supported indentation block types are `Paragraph`, `Todo`, `BulletList`, and `NumberedList`. `Heading`, `Quote`, `Divider`, unknown block types, and custom block types that do not opt into indentation remain at depth `0`.
++The supported indentation block types are `Paragraph`, `Todo`, `BulletList`, and `NumberedList`. `Heading`, `Quote`, `Divider`, unknown block types, and custom block types that do not opt into indentation remain at depth `0`.
+
+ ---
+
+@@ -24,7 +24,7 @@ The V1 supported indentation block types are `Paragraph`, `Todo`, `BulletList`,
+ | `ui/LocalIndentationActions.kt` | `LocalIndentationActions` | CompositionLocal exposing indentation actions inside `CascadeEditor`. |
+ | `ui/IndentationAnimation.kt` | `IndentationAnimation` | Internal shared 150 ms FastOutSlowIn animation tokens for indentation-related transitions. |
+ | `ui/renderers/BlockIndentationModifier.kt` | `withBlockIndentation()` | Internal renderer helper that animates supported block leading inset. |
+-| `ui/renderers/OrderedListPrefixFormatter.kt` | `formatOrderedListPrefix()` | Internal renderer helper for depth-specific ordered-list prefixes. |
++| `ui/renderers/OrderedListPrefixFormatter.kt` | `resolveOrderedListPrefixStyles()`, `formatOrderedListPrefix()` | Internal single-pass prefix-style cache and formatter for ancestry-derived ordered-list prefixes. |
+
+ ### Key Design Decisions
+
+@@ -32,9 +32,11 @@ The V1 supported indentation block types are `Paragraph`, `Todo`, `BulletList`,
+
+ **Attributes separate from block type.** `BlockAttributes` belongs to `Block`, not `BlockType`, so layout metadata does not become part of every semantic block type. `Block.attributes` has a trailing default parameter to preserve existing `Block(id, type, content)` call sites.
+
+-**Bounded V1 depth.** `indentationLevel` is validated in the range `0..3`. Reducers no-op instead of clamping when an indent command or drag move would create an invalid outline.
++**Bounded free depth.** `indentationLevel` is validated in the range `0..5`. Supported blocks may use any level in that range, including the first block in a document and the first supported block after an unsupported boundary. Reducers no-op instead of clamping when an indent command or drag move would create an invalid outline.
+
+-**Supported-type contract.** `BlockType.supportsIndentation` is true only for `Paragraph`, `Todo`, `BulletList`, and `NumberedList`. Unsupported blocks do not receive hidden indentation through reducers, rendering, or serialization. They are hard outline boundaries: they do not own children, they terminate preceding supported subtrees, and later supported blocks start a new outline segment.
++**Supported-type contract.** `BlockType.supportsIndentation` is true only for `Paragraph`, `Todo`, `BulletList`, and `NumberedList`. Unsupported blocks do not receive hidden indentation through reducers, rendering, or serialization. They are hard outline boundaries: they do not own children, they terminate preceding supported subtrees, and later supported blocks start a new outline segment that can begin at any supported indentation level.
++
++**Ordered-list style follows numbered ancestry.** Numbered-list marker style is derived from the nearest shallower numbered-list ancestor, not from absolute indentation level. The visible style cycles `decimal -> lower alpha -> lower roman -> decimal`, while the model still stores only decimal `BlockType.NumberedList(number)` values. `CascadeEditor` precomputes the marker-style map in a single pass for each block snapshot; list prefix rows use O(1) lookup and do not receive the full block list.
+
+ **Reducer and public state share validation.** `IndentationStateCalculator` uses the same target resolution and outline checks as the `IndentForward` / `IndentBackward` reducers, so toolbar enablement matches the actual command result.
+
+@@ -90,11 +92,11 @@ Block renderer receives Block(attributes.indentationLevel = N)
+        -> unsupported block types use 0
+        -> supported block inset = N * CascadeEditorTheme.dimensions.indentUnit
+        -> inset animates horizontally
+-  -> NumberedList prefix is formatted by depth:
+-       depth 0: 1.
+-       depth 1: a.
+-       depth 2: i.
+-       depth 3: A.
++  -> NumberedList prefix is formatted by numbered-list ancestry:
++       no numbered-list ancestor: 1.
++       parent style decimal: a.
++       parent style lower alpha: i.
++       parent style lower roman: 1.
+ ```
+
+ ### Drag-and-Drop
+@@ -187,8 +189,8 @@ val indentationActions = LocalIndentationActions.current
+ | Core model | `Block.attributes` stores persistent indentation metadata; `BlockType.supportsIndentation` declares supported semantics. |
+ | Reducers | `IndentForward`, `IndentBackward`, conversion, split, merge, replace, insert, delete, move, and drag completion preserve or clear attributes according to type support. |
+ | Numbered lists | `renumberNumberedLists()` scopes sequences by depth and derived parent within a supported outline segment, then stores decimal numbers in `BlockType.NumberedList(number)`. Unsupported blocks reset numbering scope and outline ancestry. |
+-| Rendering | `withBlockIndentation()` applies animated leading inset through `IndentationAnimation`; ordered-list prefixes are depth-formatted at render time. |
+-| Serialization | `DocumentSchema.CURRENT_VERSION = 2`; supported non-zero indentation is encoded under `attributes.indentationLevel`; invalid or structurally orphaned decode values warn and fall back to normalized depths. |
++| Rendering | `withBlockIndentation()` applies animated leading inset through `IndentationAnimation`; ordered-list prefix styles are precomputed from numbered-list ancestry and formatted with an O(1) per-block lookup at render time. |
++| Serialization | `DocumentSchema.CURRENT_VERSION = 2`; supported non-zero indentation is encoded under `attributes.indentationLevel`; out-of-range or unsupported-block indentation values warn and fall back to normalized depths. |
+ | Toolbar | Default toolbar shows indent/outdent buttons when `RichTextToolbarConfig.showIndentation` is true; custom toolbars use indentation locals. |
+ | History | Built-in indentation commands and drag completion are structural transactions when routed through the history-aware holder boundary. |
+ | Drag | Drag state stores roots, full payload IDs, payload index metadata, original depths, and future root depth; hover resolution uses a cached block index, prevents invalid drops before completion, and pins unsupported primary roots to depth `0`. |
+@@ -197,8 +199,8 @@ val indentationActions = LocalIndentationActions.current
+
+ ## 7. Edge Cases & Known Constraints
+
+-- The first block in a document must be depth `0`.
+-- A supported block cannot be more than one level deeper than the nearest preceding supported block in the same outline segment.
++- Supported blocks can use any indentation level in `0..5`, including skipped levels such as `0, 1, 2, 2, 4`.
++- The first block in a document and the first supported block after an unsupported boundary may be indented.
+ - Unsupported block types must remain at depth `0`; conversion into unsupported types clears indentation and normalizes former descendants into a new supported outline segment.
+ - `IndentForward` is all-or-no-op. It does not clamp to an alternate legal depth when the exact one-level shift would be invalid.
+ - `IndentBackward` leaves root targets already at depth `0` unchanged; other selected roots in the same command can still move.
+@@ -214,11 +216,12 @@ val indentationActions = LocalIndentationActions.current
+
+ | Term | Definition |
+ |------|------------|
+-| **Indentation level** | Persistent integer depth stored in `BlockAttributes.indentationLevel`. V1 supports `0..3`. |
++| **Indentation level** | Persistent integer depth stored in `BlockAttributes.indentationLevel`. Supported range is `0..5`. |
+ | **Supported block** | A block whose `BlockType.supportsIndentation` is `true`: paragraph, todo, bullet list, or numbered list. |
+ | **Flat outline** | A hierarchy represented by block order plus depth metadata, not by nested child arrays. |
+ | **Subtree** | A supported root block plus following supported blocks whose indentation depth is greater than the root depth, stopping at a same-or-shallower supported block or any unsupported block. |
+ | **Derived parent** | The nearest preceding shallower supported block in the same outline segment used to scope nested numbered-list sequences. |
++| **Numbered-list ancestry** | The nearest preceding shallower numbered-list ancestors in the same outline segment, used to choose ordered-list marker style. |
+ | **Unsupported boundary** | A block that does not support indentation. It stays at depth `0`, cannot own descendants, and resets outline validation, subtree discovery, drag payloads, and numbering ancestry. |
+ | **Target root** | A focused or selected supported block that receives an indent/outdent command. Descendants move with it. |
+ | **Future root depth** | The resolved indentation level a dragged primary root would have if dropped at the current hover target. |
+diff --git a/docs/NumberedAndBulletLists.md b/docs/NumberedAndBulletLists.md
+index 7c2cb7d..54da4db 100644
+--- a/docs/NumberedAndBulletLists.md
++++ b/docs/NumberedAndBulletLists.md
+@@ -5,12 +5,12 @@
+ CascadeEditor's block model already defined `BulletList` and `NumberedList` as block types, but they rendered as plain paragraphs with no visual distinction or list-specific editing behavior.
+
+ This feature adds:
+-- **Visual prefixes** — a non-editable `•` or depth-formatted ordered-list gutter to the left of the text field
++- **Visual prefixes** — a non-editable `•` or ancestry-formatted ordered-list gutter to the left of the text field
+ - **Auto-detection** — typing `- ` or `1. ` in a paragraph automatically converts it to the corresponding list type
+ - **Enter continuation** — pressing Enter in a list item creates a new item of the same type; pressing Enter on an empty item exits the list
+ - **Backspace un-listing** — backspace at position 0 of a list item demotes it to a paragraph
+ - **Automatic renumbering** — sequential numbers in numbered lists are corrected after structural mutations and document decode, using indentation depth and derived parent scope
+-- **Nested ordered-list formats** — stored numbers remain decimal, but rendering formats prefixes by depth (`1.`, `a.`, `i.`, `A.`)
++- **Nested ordered-list formats** — stored numbers remain decimal, but rendering cycles prefixes by numbered-list ancestry (`1.`, `a.`, `i.`, then `1.` again)
+
+ The implementation touches the core model, action reducers, rendering layer, and text observers. List numbering now integrates with block indentation through `BlockAttributes.indentationLevel`, but list content remains a flat `List<Block>` rather than a tree.
+
+@@ -24,7 +24,7 @@ The implementation touches the core model, action reducers, rendering layer, and
+ |------|---------|
+ | `core/ListUtils.kt` | `renumberNumberedLists()` — pure function that corrects sequential numbers across outline-aware sequences |
+ | `ui/observers/ListAutoDetectObserver.kt` | Text observer that detects `- ` and `N. ` trigger patterns and fires conversion callbacks |
+-| `ui/renderers/OrderedListPrefixFormatter.kt` | Presentation-only ordered prefix formatter for depth-specific decimal, alphabetic, and roman forms |
++| `ui/renderers/OrderedListPrefixFormatter.kt` | Presentation-only ordered prefix formatter for numbered-ancestry-specific decimal, alphabetic, and roman forms |
+
+ ### Modified Files
+
+@@ -35,7 +35,7 @@ The implementation touches the core model, action reducers, rendering layer, and
+ | `action/EditorAction.kt` | `SplitBlock` propagates list type to new block; structural reducers and drag/indent actions call `renumberNumberedLists()` post-processing |
+ | `registry/BlockRenderer.kt` | `DefaultBlockCallbacks.onEnter` — empty-list-item exit; `onBackspaceAtStart` — un-list conversion |
+ | `registry/BlockRegistry.kt` | Factory updated: `NumberedList` → `NumberedList(number = 1)` |
+-| `ui/renderers/TextBlockRenderer.kt` | Added list prefix row and depth-aware ordered prefixes; branching render path for list vs. non-list types |
++| `ui/renderers/TextBlockRenderer.kt` | Added list prefix row and numbered-ancestry-aware ordered prefixes; branching render path for list vs. non-list types |
+ | `ui/renderers/TextBlockField.kt` | Wired `ListAutoDetectObserver` into the combined text observation `LaunchedEffect` |
+
+ ### Key Design Choices
+@@ -48,7 +48,9 @@ The implementation touches the core model, action reducers, rendering layer, and
+
+ **Text observer pattern for auto-detection.** `ListAutoDetectObserver` follows the same observer architecture as `SlashCommandTextObserver` and `SpanMaintenanceTextObserver` — a stateful class that receives committed text diffs and reacts. This avoids coupling detection logic to the composable or the action system.
+
+-**Non-editable prefix via `Row` layout.** The prefix (`•`, `1.`, `a.`, `i.`, `A.`) is a separate `Text` composable in a `Row`, not part of the editable `TextFieldState`. This avoids cursor/span offset complications and keeps the content model clean.
++**Non-editable prefix via `Row` layout.** The prefix (`•`, `1.`, `a.`, `i.`) is a separate `Text` composable in a `Row`, not part of the editable `TextFieldState`. This avoids cursor/span offset complications and keeps the content model clean.
++
++**Ordered style follows numbered ancestry.** Absolute indentation no longer controls ordered-list marker style. A numbered list without a shallower numbered-list ancestor uses decimal. A numbered child of decimal uses lower alpha, a child of lower alpha uses lower roman, and a child of lower roman cycles back to decimal.
+
+ ---
+
+@@ -81,7 +83,7 @@ User presses Enter on non-empty numbered list item (number = 3)
+       2. New block type = NumberedList(number = 4)
+       3. New block keeps the source indentation level
+       4. renumberNumberedLists() corrects the outline sequence
+-  → Recomposition: new list item appears with the correct depth-formatted prefix
++  → Recomposition: new list item appears with the correct ancestry-formatted prefix
+ ```
+
+ ### Enter on Empty Root List Item (Exit) Flow
+@@ -233,7 +235,7 @@ All implementation helpers (`ListAutoDetectObserver`, `renumberNumberedLists`, `
+ | **Derived parent** | The nearest preceding shallower outline block used to scope nested numbering in the flat block list. Depth `0` uses a shared root parent. |
+ | **Trigger pattern** | A text pattern at position 0 of a non-list block that, when completed with a Space keypress, converts the block to a list type. `- ` for bullet, `N. ` for numbered. |
+ | **Un-list** | Converting a root list/todo block back to a Paragraph. Triggered by Backspace at position `0` for root list/todo blocks, or Enter on an empty root bullet/numbered list. Text and spans are preserved. |
+-| **Prefix gutter** | The non-editable area to the left of the text field in a list item, displaying `•` or a depth-formatted ordered prefix. Implemented as a separate `Text` composable, not part of `TextFieldState`. |
++| **Prefix gutter** | The non-editable area to the left of the text field in a list item, displaying `•` or an ancestry-formatted ordered prefix. Implemented as a separate `Text` composable, not part of `TextFieldState`. |
+ | **Quick scan** | The optimization pass in `renumberNumberedLists()` that checks whether any numbers need fixing before allocating a new list. Returns the original list by reference when no changes are needed. |
+ | **`ListAutoDetectObserver`** | Internal text observer that monitors committed visible-text changes and detects list trigger patterns. Follows the same stateful-observer pattern as `SlashCommandTextObserver`. |
+ | **`renumberNumberedLists()`** | Internal pure function that scans a block list for outline-aware `NumberedList` sequences and corrects stored decimal numbers. Called after structural reducers and decode. |
+diff --git a/editor/build.gradle.kts b/editor/build.gradle.kts
+index 60c2117..756319b 100644
+--- a/editor/build.gradle.kts
++++ b/editor/build.gradle.kts
+@@ -85,7 +85,7 @@ mavenPublishing {
+     coordinates(
+         groupId = "io.github.linreal",
+         artifactId = "cascade-editor",
+-        version = "1.2.0"
++        version = "1.3.0"
+     )
+
+     pom {
+diff --git a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/core/BlockAttributes.kt b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/core/BlockAttributes.kt
+index a2b2e73..cfeefcd 100644
+--- a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/core/BlockAttributes.kt
++++ b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/core/BlockAttributes.kt
+@@ -3,13 +3,13 @@ package io.github.linreal.cascade.editor.core
+ import androidx.compose.runtime.Immutable
+
+ private const val MIN_INDENTATION_LEVEL_VALUE: Int = 0
+-private const val MAX_INDENTATION_LEVEL_VALUE: Int = 3
++private const val MAX_INDENTATION_LEVEL_VALUE: Int = 5
+ private const val DEFAULT_INDENTATION_LEVEL_VALUE: Int = MIN_INDENTATION_LEVEL_VALUE
+
+ /**
+  * Block-level metadata that belongs to the document model rather than a block type.
+  *
+- * @property indentationLevel Persistent outline depth for blocks that participate in v1 indentation.
++ * @property indentationLevel Persistent outline depth for blocks that participate in indentation.
+  */
+ @Immutable
+ public data class BlockAttributes(
+diff --git a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/core/OutlineUtils.kt b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/core/OutlineUtils.kt
+index 2cef7be..da78df6 100644
+--- a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/core/OutlineUtils.kt
++++ b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/core/OutlineUtils.kt
+@@ -268,7 +268,6 @@ internal fun canShiftIndentation(
+     var activeRootDepth: Int? = null
+     var activeDelta = 0
+     var changed = false
+-    var previousSupportedDepth: Int? = null
+
+     for (index in blocks.indices) {
+         val block = blocks[index]
+@@ -302,24 +301,13 @@ internal fun canShiftIndentation(
+             originalDepth
+         }
+
+-        if (index == 0 && proposedDepth != BlockAttributes.MIN_INDENTATION_LEVEL) return false
+         if (proposedDepth !in BlockAttributes.MIN_INDENTATION_LEVEL..BlockAttributes.MAX_INDENTATION_LEVEL) {
+             return false
+         }
+
+         if (!block.type.supportsIndentation) {
+             if (proposedDepth != BlockAttributes.MIN_INDENTATION_LEVEL) return false
+-            previousSupportedDepth = null
+-            continue
+-        }
+-
+-        val previousDepth = previousSupportedDepth
+-        if (previousDepth == null) {
+-            if (proposedDepth != BlockAttributes.MIN_INDENTATION_LEVEL) return false
+-        } else if (proposedDepth > previousDepth + 1) {
+-            return false
+         }
+-        previousSupportedDepth = proposedDepth
+     }
+
+     return changed
+@@ -442,15 +430,13 @@ internal fun List<Int>.toContiguousRanges(): List<IntRange> {
+ /**
+  * Validates the outline invariants that indentation reducers are allowed to create.
+  *
+- * The nearest preceding supported block in the current outline segment is the structural
+- * anchor for gap checks. Unsupported blocks are accepted only at depth 0 and reset that
+- * segment, which prevents hidden hierarchy on block types without indentation behavior.
++ * Supported blocks may use any persisted indentation lane in the supported range.
++ * Unsupported blocks are accepted only at depth 0, which prevents hidden hierarchy on
++ * block types without indentation behavior.
+  */
+ internal fun List<Block>.isValidIndentationOutline(): Boolean {
+     if (isEmpty()) return true
+-    if (first().attributes.indentationLevel != BlockAttributes.MIN_INDENTATION_LEVEL) return false
+
+-    var previousSupportedDepth: Int? = null
+     for (block in this) {
+         val depth = block.attributes.indentationLevel
+         if (depth !in BlockAttributes.MIN_INDENTATION_LEVEL..BlockAttributes.MAX_INDENTATION_LEVEL) {
+@@ -459,17 +445,7 @@ internal fun List<Block>.isValidIndentationOutline(): Boolean {
+
+         if (!block.type.supportsIndentation) {
+             if (depth != BlockAttributes.MIN_INDENTATION_LEVEL) return false
+-            previousSupportedDepth = null
+-            continue
+-        }
+-
+-        val previousDepth = previousSupportedDepth
+-        if (previousDepth == null) {
+-            if (depth != BlockAttributes.MIN_INDENTATION_LEVEL) return false
+-        } else if (depth > previousDepth + 1) {
+-            return false
+         }
+-        previousSupportedDepth = depth
+     }
+
+     return true
+@@ -488,23 +464,16 @@ internal fun normalizeIndentationOutlineWithReport(
+
+     val normalized = ArrayList<Block>(blocks.size)
+     val changedIndices = mutableListOf<Int>()
+-    var previousSupportedDepth: Int? = null
+
+     blocks.forEachIndexed { index, block ->
+         val originalDepth = block.attributes.indentationLevel
+         val normalizedDepth = if (!block.type.supportsIndentation) {
+-            previousSupportedDepth = null
+             BlockAttributes.DEFAULT_INDENTATION_LEVEL
+         } else {
+-            val maxAllowedDepth = previousSupportedDepth
+-                ?.let { previousDepth -> previousDepth + 1 }
+-                ?: BlockAttributes.MIN_INDENTATION_LEVEL
+-            val depth = originalDepth.coerceIn(
++            originalDepth.coerceIn(
+                 BlockAttributes.MIN_INDENTATION_LEVEL,
+-                minOf(maxAllowedDepth, BlockAttributes.MAX_INDENTATION_LEVEL),
++                BlockAttributes.MAX_INDENTATION_LEVEL,
+             )
+-            previousSupportedDepth = depth
+-            depth
+         }
+
+         if (normalizedDepth == originalDepth) {
+diff --git a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/CascadeEditor.kt b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/CascadeEditor.kt
+index e7fd0dd..c9ef830 100644
+--- a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/CascadeEditor.kt
++++ b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/CascadeEditor.kt
+@@ -69,6 +69,8 @@ import io.github.linreal.cascade.editor.theme.CascadeEditorTheme
+ import io.github.linreal.cascade.editor.theme.LocalCascadeBlockStrings
+ import io.github.linreal.cascade.editor.theme.LocalCascadeStrings
+ import io.github.linreal.cascade.editor.theme.LocalCascadeTheme
++import io.github.linreal.cascade.editor.ui.renderers.LocalOrderedListPrefixStyles
++import io.github.linreal.cascade.editor.ui.renderers.resolveOrderedListPrefixStyles
+
+ /**
+  * Main editor composable for CascadeEditor.
+@@ -145,6 +147,9 @@ public fun CascadeEditor(
+     onFormattingStateChanged: ((FormattingState) -> Unit)? = null,
+ ) {
+     val state = stateHolder.state
++    val orderedListPrefixStyles = remember(state.blocks) {
++        resolveOrderedListPrefixStyles(state.blocks)
++    }
+
+     // History replay uses the live runtime holders owned by this composition.
+     // Caller-provided instances should remain stable for the lifetime of stateHolder.
+@@ -343,6 +348,7 @@ public fun CascadeEditor(
+         LocalCascadeStrings provides strings,
+         LocalCascadeBlockStrings provides blockStrings,
+         LocalTextSelectionColors provides textSelectionColors,
++        LocalOrderedListPrefixStyles provides orderedListPrefixStyles,
+         LocalEditorStateHolder provides stateHolder,
+         LocalBlockTextStates provides textStates,
+         LocalBlockSpanStates provides spanStates,
+diff --git a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/renderers/OrderedListPrefixFormatter.kt b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/renderers/OrderedListPrefixFormatter.kt
+index 1fbf992..b915b5b 100644
+--- a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/renderers/OrderedListPrefixFormatter.kt
++++ b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/renderers/OrderedListPrefixFormatter.kt
+@@ -1,34 +1,141 @@
+ package io.github.linreal.cascade.editor.ui.renderers
+
++import androidx.compose.runtime.Immutable
++import androidx.compose.runtime.ProvidableCompositionLocal
++import androidx.compose.runtime.compositionLocalOf
++import io.github.linreal.cascade.editor.core.Block
++import io.github.linreal.cascade.editor.core.BlockAttributes
++import io.github.linreal.cascade.editor.core.BlockId
+ import io.github.linreal.cascade.editor.core.BlockType
+
+ /**
+- * Formats the visible ordered-list prefix from the stored list number and outline depth.
++ * Ordered-list marker styles. Style is derived from numbered-list ancestry rather than
++ * absolute indentation so free indentation lanes do not force nested marker styles.
++ */
++internal enum class OrderedListPrefixStyle {
++    Decimal,
++    LowerAlpha,
++    LowerRoman,
++}
++
++@Immutable
++internal data class OrderedListPrefixStyles(
++    private val stylesByBlockId: Map<BlockId, OrderedListPrefixStyle>,
++) {
++    fun styleFor(blockId: BlockId): OrderedListPrefixStyle {
++        return stylesByBlockId[blockId] ?: OrderedListPrefixStyle.Decimal
++    }
++
++    companion object {
++        val Empty: OrderedListPrefixStyles = OrderedListPrefixStyles(emptyMap())
++    }
++}
++
++internal val LocalOrderedListPrefixStyles: ProvidableCompositionLocal<OrderedListPrefixStyles> =
++    compositionLocalOf { OrderedListPrefixStyles.Empty }
++
++/**
++ * Precomputes visible ordered-list styles for the current flat outline.
++ *
++ * The nearest shallower numbered-list ancestor drives a three-state cycle:
++ * decimal -> lower alpha -> lower roman -> decimal. Non-numbered supported ancestors
++ * may sit between numbered lists without resetting this ancestry. Unsupported blocks
++ * reset the outline segment.
+  *
+- * The document model stores only the decimal [number]; depth-specific alpha and roman
+- * styles are presentation details and must not be persisted back into [BlockType].
++ * This is an O(N) pass because indentation depth is bounded by
++ * [BlockAttributes.MAX_INDENTATION_LEVEL]. Renderers should use
++ * [OrderedListPrefixStyles.styleFor] for O(1) per-block lookup.
+  */
+-internal fun formatOrderedListPrefix(number: Int, depth: Int): String {
+-    val formattedNumber = when (depth) {
+-        1 -> formatAlphabetic(number, uppercase = false)
+-        2 -> formatRomanOrDecimal(number)
+-        3 -> formatAlphabetic(number, uppercase = true)
+-        else -> number.toString()
++internal fun resolveOrderedListPrefixStyles(
++    blocks: List<Block>,
++): OrderedListPrefixStyles {
++    if (blocks.isEmpty()) return OrderedListPrefixStyles.Empty
++
++    val ancestors = arrayOfNulls<OrderedListPrefixStyle>(MaxIndentationDepthCount)
++    val stylesByBlockId = linkedMapOf<BlockId, OrderedListPrefixStyle>()
++
++    for (block in blocks) {
++        if (!block.type.supportsIndentation) {
++            clearAncestors(ancestors)
++            continue
++        }
++
++        val depth = block.attributes.indentationLevel
++        clearAncestorsAtOrBelow(depth, ancestors)
++        if (block.type is BlockType.NumberedList) {
++            val style = nextStyle(nearestNumberedAncestorStyle(depth, ancestors))
++            stylesByBlockId[block.id] = style
++            ancestors[depth] = style
++        }
++    }
++
++    if (stylesByBlockId.isEmpty()) return OrderedListPrefixStyles.Empty
++    return OrderedListPrefixStyles(stylesByBlockId.toMap())
++}
++
++/**
++ * Formats the visible ordered-list prefix from the stored list number and derived style.
++ *
++ * The document model stores only the decimal [number]; alpha and roman marker styles are
++ * presentation details derived at render time.
++ */
++internal fun formatOrderedListPrefix(
++    number: Int,
++    style: OrderedListPrefixStyle,
++): String {
++    val formattedNumber = when (style) {
++        OrderedListPrefixStyle.Decimal -> number.toString()
++        OrderedListPrefixStyle.LowerAlpha -> formatAlphabetic(number)
++        OrderedListPrefixStyle.LowerRoman -> formatRomanOrDecimal(number)
+     }
+
+     return "$formattedNumber."
+ }
+
+-private fun formatAlphabetic(number: Int, uppercase: Boolean): String {
++private fun nextStyle(parentStyle: OrderedListPrefixStyle?): OrderedListPrefixStyle {
++    return when (parentStyle) {
++        null -> OrderedListPrefixStyle.Decimal
++        OrderedListPrefixStyle.Decimal -> OrderedListPrefixStyle.LowerAlpha
++        OrderedListPrefixStyle.LowerAlpha -> OrderedListPrefixStyle.LowerRoman
++        OrderedListPrefixStyle.LowerRoman -> OrderedListPrefixStyle.Decimal
++    }
++}
++
++private fun nearestNumberedAncestorStyle(
++    depth: Int,
++    ancestors: Array<OrderedListPrefixStyle?>,
++): OrderedListPrefixStyle? {
++    if (depth == 0) return null
++    for (candidateDepth in (depth - 1) downTo 0) {
++        ancestors[candidateDepth]?.let { return it }
++    }
++    return null
++}
++
++private fun clearAncestorsAtOrBelow(
++    depth: Int,
++    ancestors: Array<OrderedListPrefixStyle?>,
++) {
++    for (index in depth..ancestors.lastIndex) {
++        ancestors[index] = null
++    }
++}
++
++private fun clearAncestors(ancestors: Array<OrderedListPrefixStyle?>) {
++    for (index in ancestors.indices) {
++        ancestors[index] = null
++    }
++}
++
++private fun formatAlphabetic(number: Int): String {
+     if (number <= 0) return number.toString()
+
+-    val firstLetter = if (uppercase) 'A' else 'a'
+     val result = StringBuilder()
+     var remaining = number
+
+     while (remaining > 0) {
+         remaining -= 1
+-        result.append((firstLetter.code + remaining % AlphabetSize).toChar())
++        result.append(('a'.code + remaining % AlphabetSize).toChar())
+         remaining /= AlphabetSize
+     }
+
+@@ -52,6 +159,7 @@ private fun formatRomanOrDecimal(number: Int): String {
+ }
+
+ private const val AlphabetSize = 26
++private const val MaxIndentationDepthCount = BlockAttributes.MAX_INDENTATION_LEVEL + 1
+
+ private val RomanRange = 1..3999
+
+diff --git a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/renderers/TextBlockRenderer.kt b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/renderers/TextBlockRenderer.kt
+index 295f951..3c9e9bb 100644
+--- a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/renderers/TextBlockRenderer.kt
++++ b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/renderers/TextBlockRenderer.kt
+@@ -164,11 +164,12 @@ private fun ListPrefixRow(
+     modifier: Modifier,
+     callbacks: BlockCallbacks,
+ ) {
++    val orderedListPrefixStyles = LocalOrderedListPrefixStyles.current
+     val prefixText = when (val type = block.type) {
+         is BlockType.BulletList -> "\u2022"
+         is BlockType.NumberedList -> formatOrderedListPrefix(
+             number = type.number,
+-            depth = block.attributes.indentationLevel,
++            style = orderedListPrefixStyles.styleFor(block.id),
+         )
+         else -> return // should not happen
+     }
+diff --git a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/utils/DragUtils.kt b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/utils/DragUtils.kt
+index a4a5755..b509ea4 100644
+--- a/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/utils/DragUtils.kt
++++ b/editor/src/commonMain/kotlin/io/github/linreal/cascade/editor/ui/utils/DragUtils.kt
+@@ -153,9 +153,9 @@ public fun calculateDropTargetIndex(
+  *
+  * Y selects [visualGap]. Horizontal movement selects a raw depth in whole indent-unit
+  * steps from the primary root's original depth. Surrounding non-payload blocks and
+- * payload depth range then clamp that raw value so the eventual move cannot create
+- * outline gaps, exceed the persisted depth range, or make following non-dragged blocks
+- * become accidental descendants of the moved payload.
++ * payload depth range then clamp that raw value so the eventual move cannot exceed
++ * the persisted depth range or make following non-dragged blocks become accidental
++ * descendants of the moved payload.
+  *
+  * Returns `null` when the visual gap is inside the dragged payload or when no depth can
+  * satisfy the surrounding outline constraints.
+@@ -208,7 +208,6 @@ internal fun resolveDepthAwareDragHoverTarget(
+     } ?: payloadIndices.toContiguousRanges()
+     if (gap.isInsidePayloadRanges(payloadIndexRanges)) return null
+
+-    val previousBlock = outlineIndex.previousNonPayloadBlock(gap, payloadIndexSet)
+     val nextBlock = outlineIndex.nextNonPayloadBlock(gap, payloadIndexSet)
+
+     val primaryRootId = currentDragState.primaryRootId ?: return null
+@@ -242,18 +241,6 @@ internal fun resolveDepthAwareDragHoverTarget(
+         BlockAttributes.MAX_INDENTATION_LEVEL - deepestPayloadOffset,
+     )
+
+-    if (previousBlock == null) {
+-        // At the document start the moved root must remain a root. This also covers
+-        // the "dragging the entire document" case where there is no next block.
+-        minDepth = max(minDepth, BlockAttributes.MIN_INDENTATION_LEVEL)
+-        maxDepth = min(maxDepth, BlockAttributes.MIN_INDENTATION_LEVEL)
+-    } else if (!previousBlock.type.supportsIndentation) {
+-        // Unsupported blocks are hard outline boundaries, not parents.
+-        maxDepth = min(maxDepth, BlockAttributes.MIN_INDENTATION_LEVEL)
+-    } else {
+-        maxDepth = min(maxDepth, previousBlock.attributes.indentationLevel + 1)
+-    }
+-
+     if (!primarySupportsIndentation) {
+         minDepth = max(minDepth, BlockAttributes.MIN_INDENTATION_LEVEL)
+         maxDepth = min(maxDepth, BlockAttributes.MIN_INDENTATION_LEVEL)

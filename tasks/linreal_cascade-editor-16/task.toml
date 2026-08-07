@@ -1,0 +1,22 @@
+[metadata.source]
+repository_owner = "linreal"
+repository_name = "cascade-editor"
+repository_url = "https://github.com/linreal/cascade-editor"
+license = "MIT"
+code_change_type = "pr"
+code_change_id = "16"
+code_change_url = "https://github.com/linreal/cascade-editor/pull/16"
+issue_url = "https://github.com/linreal/cascade-editor/pull/16"
+
+[verifier]
+implemented = false
+timeout_sec = 900.0
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 1800.0
+cpus = 4
+memory_mb = 10240
+allow_internet = false

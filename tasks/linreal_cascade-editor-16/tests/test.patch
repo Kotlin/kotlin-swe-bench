@@ -1,0 +1,655 @@
+diff --git a/editor/build.gradle.kts b/editor/build.gradle.kts
+index 60c2117..76d09d9 100644
+--- a/editor/build.gradle.kts
++++ b/editor/build.gradle.kts
+@@ -49,6 +49,13 @@ kotlin {
+             implementation(libs.kotlin.test)
+             implementation(libs.kotlinx.coroutines.test)
+         }
++
++        val desktopTest by getting {
++            dependencies {
++                implementation("org.jetbrains.compose.ui:ui-test:1.10.3")
++                implementation(compose.desktop.currentOs)
++            }
++        }
+     }
+ }
+
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/BlockTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/BlockTest.kt
+index 347fc90..21824ba 100644
+--- a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/BlockTest.kt
++++ b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/BlockTest.kt
+@@ -143,12 +143,19 @@ class BlockTest {
+     }
+
+     @Test
+-    fun `BlockAttributes rejects indentation outside v1 range`() {
++    fun `BlockAttributes accepts indentation through level five`() {
++        val attributes = BlockAttributes(indentationLevel = 5)
++
++        assertEquals(5, attributes.indentationLevel)
++    }
++
++    @Test
++    fun `BlockAttributes rejects indentation outside supported range`() {
+         assertFailsWith<IllegalArgumentException> {
+             BlockAttributes(indentationLevel = -1)
+         }
+         assertFailsWith<IllegalArgumentException> {
+-            BlockAttributes(indentationLevel = 4)
++            BlockAttributes(indentationLevel = 6)
+         }
+     }
+
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DocumentSchemaDecodeTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DocumentSchemaDecodeTest.kt
+index ef9a791..06a16f3 100644
+--- a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DocumentSchemaDecodeTest.kt
++++ b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DocumentSchemaDecodeTest.kt
+@@ -235,25 +235,20 @@ class DocumentSchemaDecodeTest {
+     }
+
+     @Test
+-    fun `first supported block indentation is normalized on decode with warning`() {
+-        val json = """{"version":2,"blocks":[{"id":"b1","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":1},"content":{"kind":"text","version":1,"text":"Orphan","spans":[]}}]}"""
++    fun `first supported block indentation is preserved on decode`() {
++        val json = """{"version":2,"blocks":[{"id":"b1","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":5},"content":{"kind":"text","version":1,"text":"Indented root","spans":[]}}]}"""
+
+         val result = DocumentSchema.decodeFromStringWithReport(json)
+
+-        assertEquals(0, result.blocks[0].attributes.indentationLevel)
+-        val warning = assertIs<DocumentDecodeWarning.InvalidBlockAttributeParam>(
+-            result.warnings.single { it is DocumentDecodeWarning.InvalidBlockAttributeParam }
+-        )
+-        assertEquals(0, warning.blockIndex)
+-        assertEquals("indentationLevel=1", warning.param)
+-        assertEquals("indentationLevel=0", warning.fallback)
++        assertEquals(5, result.blocks[0].attributes.indentationLevel)
++        assertTrue(result.warnings.isEmpty())
+     }
+
+     @Test
+-    fun `normalization warning reports source index after skipped block`() {
++    fun `attribute warning reports source index after skipped block`() {
+         val json = """{"version":2,"blocks":[
+             "bad_entry",
+-            {"id":"b1","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":1},"content":{"kind":"text","version":1,"text":"Orphan","spans":[]}}
++            {"id":"b1","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":6},"content":{"kind":"text","version":1,"text":"Out of range","spans":[]}}
+         ]}"""
+
+         val result = DocumentSchema.decodeFromStringWithReport(json)
+@@ -270,27 +265,22 @@ class DocumentSchemaDecodeTest {
+             result.warnings.single { it is DocumentDecodeWarning.InvalidBlockAttributeParam }
+         )
+         assertEquals(1, attributeWarning.blockIndex)
+-        assertEquals("indentationLevel=1", attributeWarning.param)
++        assertEquals("indentationLevel=6", attributeWarning.param)
+         assertEquals("indentationLevel=0", attributeWarning.fallback)
+     }
+
+     @Test
+-    fun `supported block after unsupported boundary is normalized on decode`() {
++    fun `supported block after unsupported boundary keeps free indentation on decode`() {
+         val json = """{"version":2,"blocks":[
+             {"id":"p","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":0},"content":{"kind":"text","version":1,"text":"Parent","spans":[]}},
+             {"id":"h","type":{"typeId":"heading_2"},"attributes":{"indentationLevel":0},"content":{"kind":"text","version":1,"text":"Heading","spans":[]}},
+-            {"id":"c","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":1},"content":{"kind":"text","version":1,"text":"Child","spans":[]}}
++            {"id":"c","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":4},"content":{"kind":"text","version":1,"text":"Indented after boundary","spans":[]}}
+         ]}"""
+
+         val result = DocumentSchema.decodeFromStringWithReport(json)
+
+-        assertEquals(listOf(0, 0, 0), result.blocks.map { it.attributes.indentationLevel })
+-        val warning = assertIs<DocumentDecodeWarning.InvalidBlockAttributeParam>(
+-            result.warnings.single { it is DocumentDecodeWarning.InvalidBlockAttributeParam }
+-        )
+-        assertEquals(2, warning.blockIndex)
+-        assertEquals("indentationLevel=1", warning.param)
+-        assertEquals("indentationLevel=0", warning.fallback)
++        assertEquals(listOf(0, 0, 4), result.blocks.map { it.attributes.indentationLevel })
++        assertTrue(result.warnings.isEmpty())
+     }
+
+     @Test
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DocumentSerializationExtTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DocumentSerializationExtTest.kt
+index 68e90ab..3b99861 100644
+--- a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DocumentSerializationExtTest.kt
++++ b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DocumentSerializationExtTest.kt
+@@ -227,6 +227,25 @@ class DocumentSerializationExtTest {
+         assertEquals(1, holder.state.blocks[1].attributes.indentationLevel)
+     }
+
++    @Test
++    fun `loadFromJson preserves free indentation on first block and after unsupported boundary`() {
++        val holder = EditorStateHolder()
++        val textStates = BlockTextStates()
++        val spanStates = BlockSpanStates()
++
++        val json = """{"version":2,"blocks":[
++            {"id":"b1","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":5},"content":{"kind":"text","version":1,"text":"Indented root","spans":[]}},
++            {"id":"h1","type":{"typeId":"heading_1"},"content":{"kind":"text","version":1,"text":"Boundary","spans":[]}},
++            {"id":"b2","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":4},"content":{"kind":"text","version":1,"text":"Indented after boundary","spans":[]}}
++        ]}"""
++
++        holder.loadFromJson(json, textStates, spanStates)
++
++        assertEquals(5, holder.state.blocks[0].attributes.indentationLevel)
++        assertEquals(0, holder.state.blocks[1].attributes.indentationLevel)
++        assertEquals(4, holder.state.blocks[2].attributes.indentationLevel)
++    }
++
+     @Test
+     fun `loadFromJson clears runtime state`() {
+         val oldId = BlockId("old")
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DragUtilsTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DragUtilsTest.kt
+index ba1d9ac..f555836 100644
+--- a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DragUtilsTest.kt
++++ b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/DragUtilsTest.kt
+@@ -53,7 +53,7 @@ class DragUtilsTest {
+     // =========================================================================
+
+     @Test
+-    fun `hover target caps future depth to previous block plus one`() {
++    fun `hover target allows free depth beyond previous block plus one`() {
+         val state = draggingState(
+             blocks = listOf(
+                 block("A", depth = 0),
+@@ -72,11 +72,11 @@ class DragUtilsTest {
+         )
+
+         assertEquals(2, target?.visualGap)
+-        assertEquals(2, target?.futureRootIndentationLevel)
++        assertEquals(3, target?.futureRootIndentationLevel)
+     }
+
+     @Test
+-    fun `hover target before first block only allows root depth zero`() {
++    fun `hover target before first block allows free indentation`() {
+         val state = draggingState(
+             blocks = listOf(
+                 block("A", depth = 0),
+@@ -94,11 +94,11 @@ class DragUtilsTest {
+         )
+
+         assertEquals(0, target?.visualGap)
+-        assertEquals(0, target?.futureRootIndentationLevel)
++        assertEquals(2, target?.futureRootIndentationLevel)
+     }
+
+     @Test
+-    fun `hover target is invalid when next depth would be adopted and payload cannot fit there`() {
++    fun `hover target raises future depth to avoid adopting following non-payload block`() {
+         val state = draggingState(
+             blocks = listOf(
+                 block("A", depth = 0),
+@@ -119,11 +119,12 @@ class DragUtilsTest {
+             indentUnitPx = 24f,
+         )
+
+-        assertNull(target)
++        assertEquals(2, target?.visualGap)
++        assertEquals(2, target?.futureRootIndentationLevel)
+     }
+
+     @Test
+-    fun `hover target caps future depth by deepest dragged descendant offset`() {
++    fun `hover target allows subtree to move until deepest dragged descendant reaches max depth`() {
+         val state = draggingState(
+             blocks = listOf(
+                 block("A", depth = 0),
+@@ -143,7 +144,7 @@ class DragUtilsTest {
+         )
+
+         assertEquals(1, target?.visualGap)
+-        assertEquals(1, target?.futureRootIndentationLevel)
++        assertEquals(3, target?.futureRootIndentationLevel)
+     }
+
+     @Test
+@@ -217,7 +218,7 @@ class DragUtilsTest {
+     }
+
+     @Test
+-    fun `hover target treats previous unsupported block as outline boundary`() {
++    fun `hover target allows free indentation after previous unsupported block`() {
+         val state = draggingState(
+             blocks = listOf(
+                 block("A", depth = 0),
+@@ -236,7 +237,7 @@ class DragUtilsTest {
+         )
+
+         assertEquals(2, target?.visualGap)
+-        assertEquals(0, target?.futureRootIndentationLevel)
++        assertEquals(1, target?.futureRootIndentationLevel)
+     }
+
+     @Test
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/EditorStateTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/EditorStateTest.kt
+index 156afab..cbee192 100644
+--- a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/EditorStateTest.kt
++++ b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/EditorStateTest.kt
+@@ -78,7 +78,7 @@ class EditorStateTest {
+     }
+
+     @Test
+-    fun `DeleteBlocks normalizes remaining subtree when parent is removed`() {
++    fun `DeleteBlocks preserves free indentation when parent is removed`() {
+         val blocks = listOf(
+             createTestBlock("parent"),
+             createTestBlock("child").atDepth(1),
+@@ -90,11 +90,11 @@ class EditorStateTest {
+         val newState = DeleteBlocks(setOf(BlockId("parent"))).reduce(state)
+
+         assertEquals(listOf("child", "grandchild", "sibling"), newState.blocks.map { it.id.value })
+-        assertEquals(listOf(0, 1, 0), newState.blocks.map { it.attributes.indentationLevel })
++        assertEquals(listOf(1, 2, 0), newState.blocks.map { it.attributes.indentationLevel })
+     }
+
+     @Test
+-    fun `EditorStateHolder setState normalizes loaded outline`() {
++    fun `EditorStateHolder setState preserves free indentation`() {
+         val holder = EditorStateHolder()
+
+         holder.setState(
+@@ -106,7 +106,7 @@ class EditorStateTest {
+             )
+         )
+
+-        assertEquals(listOf(0, 1), holder.state.blocks.map { it.attributes.indentationLevel })
++        assertEquals(listOf(1, 2), holder.state.blocks.map { it.attributes.indentationLevel })
+     }
+
+     @Test
+@@ -905,7 +905,7 @@ class EditorStateTest {
+     }
+
+     @Test
+-    fun `ConvertBlockType to unsupported normalizes former descendants`() {
++    fun `ConvertBlockType to unsupported keeps former descendants as free indentation segment`() {
+         val blocks = listOf(
+             createTestBlock("parent"),
+             createTestBlock("child").atDepth(1),
+@@ -916,7 +916,7 @@ class EditorStateTest {
+         val newState = ConvertBlockType(BlockId("parent"), BlockType.Heading(1)).reduce(state)
+
+         assertEquals(BlockType.Heading(1), newState.blocks[0].type)
+-        assertEquals(listOf(0, 0, 1), newState.blocks.map { it.attributes.indentationLevel })
++        assertEquals(listOf(0, 1, 2), newState.blocks.map { it.attributes.indentationLevel })
+     }
+
+     @Test
+@@ -1005,13 +1005,13 @@ class EditorStateTest {
+     }
+
+     @Test
+-    fun `IndentForward is no-op for the first block`() {
++    fun `IndentForward indents the first block`() {
+         val block = createTestBlock("a", "First")
+         val state = EditorState.withBlocks(listOf(block)).copy(focusedBlockId = block.id)
+
+         val newState = IndentForward.reduce(state)
+
+-        assertEquals(state, newState)
++        assertEquals(1, newState.blocks[0].attributes.indentationLevel)
+     }
+
+     @Test
+@@ -1019,8 +1019,8 @@ class EditorStateTest {
+         val blocks = listOf(
+             createTestBlock("a", "Root"),
+             createTestBlock("b", "Child").atDepth(1),
+-            createTestBlock("c", "Grandchild").atDepth(2),
+-            createTestBlock("d", "Max depth target").atDepth(3),
++            createTestBlock("c", "Grandchild").atDepth(4),
++            createTestBlock("d", "Max depth target").atDepth(5),
+         )
+         val state = EditorState.withBlocks(blocks).copy(focusedBlockId = BlockId("d"))
+
+@@ -1029,6 +1029,19 @@ class EditorStateTest {
+         assertEquals(state, newState)
+     }
+
++    @Test
++    fun `IndentForward allows skipped indentation levels after shallow sibling`() {
++        val blocks = listOf(
++            createTestBlock("a", "Root").atDepth(0),
++            createTestBlock("b", "Already deep").atDepth(4),
++        )
++        val state = EditorState.withBlocks(blocks).copy(focusedBlockId = BlockId("b"))
++
++        val newState = IndentForward.reduce(state)
++
++        assertEquals(listOf(0, 5), newState.blocks.map { it.attributes.indentationLevel })
++    }
++
+     @Test
+     fun `IndentForward shifts selected parent subtree once when child is also selected`() {
+         val blocks = listOf(
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/IndentationStateCalculatorTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/IndentationStateCalculatorTest.kt
+index eb038ea..69ec9ab 100644
+--- a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/IndentationStateCalculatorTest.kt
++++ b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/IndentationStateCalculatorTest.kt
+@@ -67,7 +67,7 @@ class IndentationStateCalculatorTest {
+     }
+
+     @Test
+-    fun `selected supported blocks deeper than root enable indent backward`() {
++    fun `selected supported blocks deeper than root enable both indentation directions`() {
+         val root = block("root")
+         val firstChild = block("first-child", depth = 1)
+         val secondChild = block("second-child", depth = 1)
+@@ -79,7 +79,7 @@ class IndentationStateCalculatorTest {
+             ),
+         )
+
+-        assertFalse(result.canIndentForward)
++        assertTrue(result.canIndentForward)
+         assertTrue(result.canIndentBackward)
+         assertEquals(listOf(firstChild.id, secondChild.id), result.targetBlockIds)
+     }
+@@ -120,7 +120,7 @@ class IndentationStateCalculatorTest {
+     }
+
+     @Test
+-    fun `indent forward is disabled when structural outline rules forbid moving deeper`() {
++    fun `indent forward is enabled after unsupported boundary`() {
+         val heading = block("heading", type = BlockType.Heading(1))
+         val paragraph = block("paragraph")
+
+@@ -131,7 +131,7 @@ class IndentationStateCalculatorTest {
+             ),
+         )
+
+-        assertFalse(result.canIndentForward)
++        assertTrue(result.canIndentForward)
+         assertFalse(result.canIndentBackward)
+         assertEquals(listOf(paragraph.id), result.targetBlockIds)
+     }
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/KotlinBenchmarkIndentationTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/KotlinBenchmarkIndentationTest.kt
+new file mode 100644
+index 0000000..65531dd
+--- /dev/null
++++ b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/KotlinBenchmarkIndentationTest.kt
+@@ -0,0 +1,50 @@
++package io.github.linreal.cascade.editor
++
++import io.github.linreal.cascade.editor.action.IndentForward
++import io.github.linreal.cascade.editor.core.Block
++import io.github.linreal.cascade.editor.core.BlockAttributes
++import io.github.linreal.cascade.editor.core.BlockContent
++import io.github.linreal.cascade.editor.core.BlockId
++import io.github.linreal.cascade.editor.core.BlockType
++import io.github.linreal.cascade.editor.serialization.DocumentSchema
++import io.github.linreal.cascade.editor.state.EditorState
++import kotlin.test.Test
++import kotlin.test.assertEquals
++import kotlin.test.assertTrue
++
++class KotlinBenchmarkIndentationTest {
++    @Test
++    fun `indentation supports five persistent lanes`() {
++        assertEquals(5, BlockAttributes(indentationLevel = 5).indentationLevel)
++    }
++
++    @Test
++    fun `first supported block can be indented`() {
++        val first = paragraph("first")
++        val state = EditorState.withBlocks(listOf(first)).copy(focusedBlockId = first.id)
++
++        val result = IndentForward.reduce(state)
++
++        assertEquals(1, result.blocks.single().attributes.indentationLevel)
++    }
++
++    @Test
++    fun `deserialization preserves free indentation around unsupported boundary`() {
++        val json = """{"version":2,"blocks":[
++            {"id":"p1","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":5},"content":{"kind":"text","version":1,"text":"First","spans":[]}},
++            {"id":"h1","type":{"typeId":"heading_1"},"content":{"kind":"text","version":1,"text":"Boundary","spans":[]}},
++            {"id":"p2","type":{"typeId":"paragraph"},"attributes":{"indentationLevel":4},"content":{"kind":"text","version":1,"text":"After","spans":[]}}
++        ]}"""
++
++        val result = DocumentSchema.decodeFromStringWithReport(json)
++
++        assertEquals(listOf(5, 0, 4), result.blocks.map { it.attributes.indentationLevel })
++        assertTrue(result.warnings.isEmpty())
++    }
++
++    private fun paragraph(id: String): Block = Block(
++        id = BlockId(id),
++        type = BlockType.Paragraph,
++        content = BlockContent.Text(id),
++    )
++}
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/OrderedListPrefixFormatterTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/OrderedListPrefixFormatterTest.kt
+deleted file mode 100644
+index 68c44ae..0000000
+--- a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/OrderedListPrefixFormatterTest.kt
++++ /dev/null
+@@ -1,43 +0,0 @@
+-package io.github.linreal.cascade.editor
+-
+-import io.github.linreal.cascade.editor.ui.renderers.formatOrderedListPrefix
+-import kotlin.test.Test
+-import kotlin.test.assertEquals
+-
+-class OrderedListPrefixFormatterTest {
+-
+-    @Test
+-    fun `formats decimal prefixes at root depth`() {
+-        assertEquals("3.", formatOrderedListPrefix(number = 3, depth = 0))
+-    }
+-
+-    @Test
+-    fun `formats lower alpha prefixes at depth one`() {
+-        assertEquals("b.", formatOrderedListPrefix(number = 2, depth = 1))
+-    }
+-
+-    @Test
+-    fun `formats lower roman prefixes at depth two`() {
+-        assertEquals("iv.", formatOrderedListPrefix(number = 4, depth = 2))
+-    }
+-
+-    @Test
+-    fun `formats upper alpha prefixes at depth three`() {
+-        assertEquals("A.", formatOrderedListPrefix(number = 1, depth = 3))
+-    }
+-
+-    @Test
+-    fun `formats lower alpha overflow as spreadsheet sequence`() {
+-        assertEquals("aa.", formatOrderedListPrefix(number = 27, depth = 1))
+-    }
+-
+-    @Test
+-    fun `formats upper alpha overflow as spreadsheet sequence`() {
+-        assertEquals("AA.", formatOrderedListPrefix(number = 27, depth = 3))
+-    }
+-
+-    @Test
+-    fun `falls back to decimal outside supported roman range`() {
+-        assertEquals("4000.", formatOrderedListPrefix(number = 4000, depth = 2))
+-    }
+-}
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/OutlineUtilsTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/OutlineUtilsTest.kt
+index 9aa61e0..bf05c72 100644
+--- a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/OutlineUtilsTest.kt
++++ b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/OutlineUtilsTest.kt
+@@ -46,13 +46,13 @@ class OutlineUtilsTest {
+     }
+
+     @Test
+-    fun `canShiftIndentation rejects first supported block moving deeper`() {
++    fun `canShiftIndentation allows first supported block moving deeper`() {
+         val blocks = listOf(
+             block("first"),
+             block("second"),
+         )
+
+-        assertFalse(
++        assertTrue(
+             canShiftIndentation(
+                 blocks = blocks,
+                 targetRootIndices = listOf(0),
+@@ -116,11 +116,11 @@ class OutlineUtilsTest {
+             block("orphan", depth = 1),
+         )
+
+-        assertFalse(blocks.isValidIndentationOutline())
++        assertTrue(blocks.isValidIndentationOutline())
+     }
+
+     @Test
+-    fun `normalizeIndentationOutline outdents supported blocks after unsupported boundary`() {
++    fun `normalizeIndentationOutline preserves supported indentation after unsupported boundary`() {
+         val blocks = listOf(
+             block("root"),
+             block("heading", type = BlockType.Heading(1)),
+@@ -129,7 +129,20 @@ class OutlineUtilsTest {
+
+         val normalized = normalizeIndentationOutline(blocks)
+
+-        assertEquals(listOf(0, 0, 0), normalized.map { it.attributes.indentationLevel })
++        assertEquals(listOf(0, 0, 1), normalized.map { it.attributes.indentationLevel })
+         assertTrue(normalized.isValidIndentationOutline())
+     }
++
++    @Test
++    fun `free indentation outline allows skipped levels and indented first block`() {
++        val blocks = listOf(
++            block("first", depth = 4),
++            block("child", depth = 5),
++            block("sibling", depth = 2),
++            block("deep-sibling", depth = 4),
++        )
++
++        assertTrue(blocks.isValidIndentationOutline())
++        assertEquals(blocks, normalizeIndentationOutline(blocks))
++    }
+ }
+diff --git a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/StructuralHistoryIntegrationTest.kt b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/StructuralHistoryIntegrationTest.kt
+index 98be36b..4a65958 100644
+--- a/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/StructuralHistoryIntegrationTest.kt
++++ b/editor/src/commonTest/kotlin/io/github/linreal/cascade/editor/StructuralHistoryIntegrationTest.kt
+@@ -400,14 +400,23 @@ class StructuralHistoryIntegrationTest {
+     fun `no-op indent action through structural wrapper does not create undo step`() {
+         val blockId = BlockId("a")
+         val harness = Harness(
+-            EditorState.withBlocks(listOf(paragraph(blockId, "A"))).copy(
++            EditorState.withBlocks(
++                listOf(
++                    paragraph(blockId, "A")
++                        .withAttributes(
++                            BlockAttributes(
++                                indentationLevel = BlockAttributes.MAX_INDENTATION_LEVEL,
++                            )
++                        )
++                )
++            ).copy(
+                 focusedBlockId = blockId,
+             )
+         )
+
+         harness.callbacks.dispatch(IndentForward)
+
+-        assertEquals(listOf(0), harness.indentationLevels())
++        assertEquals(listOf(BlockAttributes.MAX_INDENTATION_LEVEL), harness.indentationLevels())
+         assertFalse(harness.stateHolder.canUndo)
+     }
+
+diff --git a/editor/src/desktopTest/kotlin/io/github/linreal/cascade/editor/ui/KotlinBenchmarkOrderedListRenderingTest.kt b/editor/src/desktopTest/kotlin/io/github/linreal/cascade/editor/ui/KotlinBenchmarkOrderedListRenderingTest.kt
+new file mode 100644
+index 0000000..677a8e9
+--- /dev/null
++++ b/editor/src/desktopTest/kotlin/io/github/linreal/cascade/editor/ui/KotlinBenchmarkOrderedListRenderingTest.kt
+@@ -0,0 +1,91 @@
++package io.github.linreal.cascade.editor.ui
++
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.runComposeUiTest
++import io.github.linreal.cascade.editor.core.Block
++import io.github.linreal.cascade.editor.core.BlockAttributes
++import io.github.linreal.cascade.editor.core.BlockContent
++import io.github.linreal.cascade.editor.core.BlockId
++import io.github.linreal.cascade.editor.core.BlockType
++import io.github.linreal.cascade.editor.state.EditorState
++import io.github.linreal.cascade.editor.state.EditorStateHolder
++import kotlin.test.Test
++
++@OptIn(ExperimentalTestApi::class)
++class KotlinBenchmarkOrderedListRenderingTest {
++    @Test
++    fun `ordered marker follows numbered ancestry across non-list blocks`() = runComposeUiTest {
++        render(
++            numbered("root", "Root", number = 1, depth = 0),
++            paragraph("bridge", "Bridge", depth = 1),
++            numbered("nested", "Nested", number = 1, depth = 2),
++        )
++
++        onNodeWithText("a.", useUnmergedTree = true).assertExists()
++    }
++
++    @Test
++    fun `ordered marker styles cycle by numbered ancestry`() = runComposeUiTest {
++        render(
++            numbered("root", "Root", number = 1, depth = 0),
++            numbered("alpha", "Alpha", number = 2, depth = 1),
++            numbered("roman", "Roman", number = 3, depth = 2),
++            numbered("cycled", "Cycled", number = 4, depth = 3),
++        )
++
++        onNodeWithText("b.", useUnmergedTree = true).assertExists()
++        onNodeWithText("iii.", useUnmergedTree = true).assertExists()
++        onNodeWithText("4.", useUnmergedTree = true).assertExists()
++    }
++
++    @Test
++    fun `unsupported block resets numbered ancestry`() = runComposeUiTest {
++        render(
++            numbered("root", "Root", number = 1, depth = 0),
++            numbered("nested", "Nested", number = 2, depth = 1),
++            heading("boundary", "Boundary"),
++            numbered("reset", "Reset", number = 7, depth = 3),
++        )
++
++        onNodeWithText("7.", useUnmergedTree = true).assertExists()
++    }
++
++    private fun androidx.compose.ui.test.ComposeUiTest.render(vararg blocks: Block) {
++        val stateHolder = EditorStateHolder(EditorState.withBlocks(blocks.toList()))
++        setContent {
++            CascadeEditor(
++                stateHolder = stateHolder,
++                toolbar = ToolbarSlot.None,
++                modifier = Modifier.fillMaxSize(),
++            )
++        }
++    }
++
++    private fun numbered(
++        id: String,
++        text: String,
++        number: Int,
++        depth: Int,
++    ): Block = Block(
++        id = BlockId(id),
++        type = BlockType.NumberedList(number = number),
++        content = BlockContent.Text(text),
++        attributes = BlockAttributes(indentationLevel = depth),
++    )
++
++    private fun paragraph(id: String, text: String, depth: Int): Block = Block(
++        id = BlockId(id),
++        type = BlockType.Paragraph,
++        content = BlockContent.Text(text),
++        attributes = BlockAttributes(indentationLevel = depth),
++    )
++
++    private fun heading(id: String, text: String): Block = Block(
++        id = BlockId(id),
++        type = BlockType.Heading(level = 2),
++        content = BlockContent.Text(text),
++    )
++}
