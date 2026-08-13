@@ -8,7 +8,7 @@ directory with its own reproducible Docker environment, instruction, gold soluti
 
 ## Dataset
 
-105 tasks across eight open-source Kotlin repositories:
+106 tasks across nine open-source Kotlin repositories:
 
 | Repository | License | Tasks |
 | :--- | :--- | ---: |
@@ -20,7 +20,8 @@ directory with its own reproducible Docker environment, instruction, gold soluti
 | [Kotlin/dataframe](https://github.com/Kotlin/dataframe) | Apache-2.0 | 5 |
 | [square/okhttp](https://github.com/square/okhttp) | Apache-2.0 | 2 |
 | [GradleUp/shadow](https://github.com/GradleUp/shadow) | Apache-2.0 | 1 |
-| **Total** | | **105** |
+| [linreal/cascade-editor](https://github.com/linreal/cascade-editor) | MIT | 1 |
+| **Total** | | **106** |
 
 For every task the dataset captures:
 

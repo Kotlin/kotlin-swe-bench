@@ -1,0 +1,17 @@
+diff --git a/editor/build.gradle.kts b/editor/build.gradle.kts
+index 60c2117..76d09d9 100644
+--- a/editor/build.gradle.kts
++++ b/editor/build.gradle.kts
+@@ -49,5 +49,12 @@ kotlin {
+             implementation(libs.kotlin.test)
+             implementation(libs.kotlinx.coroutines.test)
+         }
++
++        val desktopTest by getting {
++            dependencies {
++                implementation("org.jetbrains.compose.ui:ui-test:1.10.3")
++                implementation(compose.desktop.currentOs)
++            }
++        }
+     }
+ }

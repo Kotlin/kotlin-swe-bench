@@ -5,6 +5,7 @@ gradleup_shadow base Dockerfile.base
 hannah-sten_texify-idea base Dockerfile.base
 kotlin_dataframe base Dockerfile.base
 kotlin_dataframe base-JDK-17 Dockerfile.base-JDK-17
+linreal_cascade-editor base Dockerfile.base
 oss-review-toolkit_ort base Dockerfile.base
 oss-review-toolkit_ort base-JDK-11 Dockerfile.base-JDK-11
 pinterest_ktlint base Dockerfile.base
