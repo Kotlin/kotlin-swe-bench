@@ -70,13 +70,13 @@ upstream repository the task is derived from (e.g. `license = "Apache-2.0"`), so
 task carries the provenance of its source project's license.
 
 **Network policy.** Tasks no longer set `allow_internet`. Instead the agent runs under
-`network_mode = "allowlist"` with a fixed `allowed_hosts` list (Maven Central, the Gradle
-plugin/services hosts, Google Maven, JetBrains, and documentation mirrors) so builds can still
-resolve dependencies, while `github.com` and the open web stay unreachable — an agent cannot
-download the published upstream fix. The verifier and environment phases use `network_mode =
-"public"` so dependency resolution during build/verification is unrestricted. This policy is
-honored by the Harbor runner; confirm your runner version applies `allowed_hosts` before relying
-on it (see **Security hardening** below).
+`network_mode = "allowlist"`. Every task uses the same build-host list: Maven Central, the Gradle
+plugin and distribution services, Google Maven, JetBrains Maven and download services, and the
+Dart package registries. Documentation hosts are not allowed, including GitHub Pages and
+`docs.github.com`, so they cannot provide a route around the GitHub block. The verifier and
+environment phases use `network_mode = "public"` so dependency resolution during
+build/verification is unrestricted. This policy is honored by the Harbor runner; confirm your
+runner version applies `allowed_hosts` before relying on it (see **Security hardening** below).
 
 ### Scoring
 
@@ -144,8 +144,7 @@ task files, and one must be enforced by the runner:
   use `web_search = "disabled"`. Use the equivalent setting for other agents and confirm from the
   available tools that web search is off.
 
-The three task-file controls are applied uniformly to all 106 tasks by
-`scripts/harden_tasks.py` (idempotent; run `scripts/harden_tasks.py --check` to verify).
+The three task-file controls are present in all 106 task directories.
 
 **Before evaluating:** the Git seal runs in the task image layer, so **rebuild the base and task
 images from the hardened tasks** (`scripts/build_bases.sh --rebuild`) — images built before
