@@ -13,4 +13,8 @@ RUN apt-get update -qq && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
+# Seal Git history after the prepare/warm and tooling steps above so only
+# the pinned base commit remains reachable (blocks fetching the upstream fix).
+COPY seal_git_history.sh /tmp/seal_git_history.sh
+RUN bash /tmp/seal_git_history.sh /home/CascadeEditor
 WORKDIR /home/CascadeEditor

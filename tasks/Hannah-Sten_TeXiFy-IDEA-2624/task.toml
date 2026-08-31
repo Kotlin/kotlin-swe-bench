@@ -11,12 +11,15 @@ issue_url = "https://github.com/Hannah-Sten/TeXiFy-IDEA/issues/2617"
 [verifier]
 implemented = false
 timeout_sec = 900.0
+network_mode = "public"
 
 [agent]
 timeout_sec = 1800.0
+network_mode = "allowlist"
+allowed_hosts = ["repo.maven.apache.org", "repo1.maven.org", "plugins.gradle.org", "services.gradle.org", "maven.google.com", "maven.pkg.jetbrains.space", "maven.reposilite.com", "oss.sonatype.org", "pub.dartlang.org", "pub.dev", "kotlinlang.org", "*.kotlinlang.org", "docs.gradle.org", "docs.gradle.com", "gradle.com", "scans.gradle.com", "developer.android.com", "*.jetbrains.com", "ankidroid.org", "docs.ankidroid.org", "detekt.dev", "www.jooq.org", "docs.oasis-open.org", "pnpm.js.org", "www.overleaf.com", "texdoc.org", "mirrors.mit.edu", "mirrors.ibiblio.org", "ctan.math.utah.edu", "youtrack.jetbrains.com", "issuetracker.google.com", "nvd.nist.gov", "tex.meta.stackexchange.com", "kotlinlang.slack.com", "docs.google.com", "drive.google.com", "youtu.be", "hannah-sten.github.io", "kotlin.github.io", "pinterest.github.io", "docs.github.com", "ant.apache.org", "oss-review-toolkit.org", "www.postgresql.org", "android.googlesource.com", "android-review.googlesource.com"]
 
 [environment]
 build_timeout_sec = 1800.0
 cpus = 4
 memory_mb = 10240
-allow_internet = true
+network_mode = "public"
