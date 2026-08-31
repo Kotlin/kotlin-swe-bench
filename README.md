@@ -69,14 +69,12 @@ tasks/ankidroid_Anki-Android-18903/
 upstream repository the task is derived from (e.g. `license = "Apache-2.0"`), so each
 task carries the provenance of its source project's license.
 
-**Network policy.** Tasks no longer set `allow_internet`. Instead the agent runs under
-`network_mode = "allowlist"`. Every task uses the same build-host list: Maven Central, the Gradle
+**Network policy.** The agent runs under `network_mode = "allowlist"`. 
+Every task uses the same build-host list: Maven Central, the Gradle
 plugin and distribution services, Google Maven, JetBrains Maven and download services, and the
-Dart package registries. Documentation hosts are not allowed, including GitHub Pages and
-`docs.github.com`, so they cannot provide a route around the GitHub block. The verifier and
-environment phases use `network_mode = "public"` so dependency resolution during
-build/verification is unrestricted. This policy is honored by the Harbor runner; confirm your
-runner version applies `allowed_hosts` before relying on it (see **Security hardening** below).
+Dart package registries. 
+The verifier and environment phases use `network_mode = "public"` so dependency resolution during
+build/verification is unrestricted.
 
 ### Scoring
 
@@ -92,10 +90,6 @@ Concretely it:
 5. collects JUnit XML via `kotlin_logs_collector.sh`, and
 6. compares the results against `expected_tests.json` with `junit_compare.py`, which writes the
    final reward (`1` = resolved, `0` = not resolved).
-
-There is **no exit-code fallback**: a build that crashes or produces no reports scores `0`, never
-`1`. Behavior is preserved for legitimate solutions — a run whose fresh reports show every expected
-test passing still scores `1` even if Gradle exited non-zero.
 
 Tests are classified by their status transition between the unpatched and patched runs:
 
@@ -122,35 +116,6 @@ scripts/build_bases.sh --rebuild  # force a rebuild
 Each base recipe lives in `bases/<repo>/Dockerfile.<base-tag>` and is built as
 `kotlin-bench/<repo>:<base-tag>`; `bases/manifest` lists all of them. Each task's
 `environment/Dockerfile` selects the variant it needs via its `FROM` line.
-
-## Security hardening
-
-The tasks are hardened so that agents cannot earn undeserved rewards. Three controls live in the
-task files, and one must be enforced by the runner:
-
-- **Fail-closed verifier** — `tests/test.sh` defaults the reward to `0` and only ever raises it
-  when `junit_compare.py` validates fresh JUnit XML (see **Scoring**). There is no exit-code
-  fallback, stale reports are deleted before the run, and a hidden `test.patch` that fails to
-  apply stops the run at `0`.
-- **Restricted network** — `task.toml` uses a `network_mode = "allowlist"` policy that blocks
-  GitHub and the open web while allowing build/dependency hosts (see **`task.toml`**).
-- **Sealed Git history** — `environment/seal_git_history.sh` runs during the image build (after
-  cache warming) and leaves only the pinned base commit reachable; later commits — including the
-  published upstream fix — and all remotes, tags, and reflogs are removed, so the fix cannot be
-  checked out or re-fetched.
-- **Disable agent web search (runner-level)** — a built-in web-search tool runs *outside* the
-  container's network controls, so it must be turned off in the agent/runner configuration. For
-  the Harbor Codex adapter, add `"web_search": "disabled"` to the agent's `kwargs`; for Codex CLI
-  use `web_search = "disabled"`. Use the equivalent setting for other agents and confirm from the
-  available tools that web search is off.
-
-The three task-file controls are present in all 106 task directories.
-
-**Before evaluating:** the Git seal runs in the task image layer, so **rebuild the base and task
-images from the hardened tasks** (`scripts/build_bases.sh --rebuild`) — images built before
-hardening still contain the full history. Then run the sanity sweep across all 106 tasks and
-confirm each Oracle run scores `1` and each unchanged checkout scores `0`, and spot-check from
-inside a container that `github.com` is unreachable while a Maven/Gradle host is reachable.
 
 ## Running the benchmark
 
