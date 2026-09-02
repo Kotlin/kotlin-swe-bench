@@ -1,4 +1,4 @@
-# Kotlin SWE-bench
+# The Kotlin Benchmark
 
 A Kotlin software-engineering benchmark for evaluating coding agents.
 
