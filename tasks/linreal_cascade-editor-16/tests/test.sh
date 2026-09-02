@@ -1,7 +1,8 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
 
-mkdir -p /logs/verifier
+rm -rf /logs/verifier && mkdir -p /logs/verifier
+echo 0 > /logs/verifier/reward.txt
 
 cd /home/CascadeEditor
 test_files=()
@@ -29,8 +30,13 @@ for f in "${test_files[@]}"; do
   git rm --cached -f -- "$f" 2>/dev/null || true
   rm -f -- "$f" || exit 1
 done
-git apply --whitespace=nowarn /tests/test.patch
+if ! git apply --whitespace=nowarn /tests/test.patch; then
+  echo "ERROR: hidden test patch did not apply; reward remains 0." >&2
+  exit 1
+fi
 
+# Remove stale JUnit reports so only this run's results can score.
+find . -type f -path '*/build/test-results/*/TEST*.xml' -delete
 xvfb-run -a ./gradlew clean :editor:desktopTest --offline --no-daemon --continue || true
 
 XML_OUT=/logs/verifier/all-testsuites.xml
@@ -39,7 +45,4 @@ if bash /tests/kotlin_logs_collector.sh --root . --output "$XML_OUT" 2>/dev/null
     --xml "$XML_OUT" \
     --expected /tests/expected_tests.json \
     --reward /logs/verifier/reward.txt
-else
-  echo "WARNING: JUnit XML collection failed; reward is 0." >&2
-  echo 0 > /logs/verifier/reward.txt
 fi

@@ -36,13 +36,14 @@ Each task lives under `tasks/<owner>_<repo>-<pr_number>/` and is fully self-cont
 
 ```
 tasks/ankidroid_Anki-Android-18903/
-├── task.toml                     # Task metadata + run config (timeouts, resources, internet)
+├── task.toml                     # Task metadata + run config (timeouts, resources, network policy)
 ├── instruction.md               # The issue/PR description handed to the agent
 ├── environment/                 # Docker build context for the task image
 │   ├── Dockerfile               #   FROM a shared local base (kotlin-bench/<repo>:<base-tag>);
-│   │                            #   runs prepare.sh, then adds agent tooling
+│   │                            #   runs prepare.sh + agent tooling, then seals Git history
 │   ├── prepare.sh               #   checks out the base commit, warms the build cache
 │   ├── check_git_changes.sh     #   asserts a clean working tree
+│   ├── seal_git_history.sh      #   leaves only the base commit reachable (removes the upstream fix)
 │   └── exclude-flaky-tests.*    #   (some tasks) Gradle init script that skips flaky tests
 ├── solution/
 │   ├── fix.patch                # The gold (reference) solution
@@ -59,24 +60,36 @@ tasks/ankidroid_Anki-Android-18903/
 
 ```toml
 [metadata.source]      # provenance: repo, PR/issue URLs, upstream SPDX license, base info
-[verifier]             # verification timeout
-[agent]                # agent solving timeout
-[environment]          # build timeout, cpus, memory_mb, allow_internet
+[verifier]             # verification timeout;      network_mode = "public"
+[agent]                # agent solving timeout;     network_mode = "allowlist" + allowed_hosts
+[environment]          # build timeout, cpus, memory_mb; network_mode = "public"
 ```
 
 `[metadata.source]` records a `license` marker holding the SPDX identifier of the
 upstream repository the task is derived from (e.g. `license = "Apache-2.0"`), so each
 task carries the provenance of its source project's license.
 
+**Network policy.** The agent runs under `network_mode = "allowlist"`. 
+Every task uses the same build-host list: Maven Central, the Gradle
+plugin and distribution services, Google Maven, JetBrains Maven and download services, and the
+Dart package registries. 
+The verifier and environment phases use `network_mode = "public"` so dependency resolution during
+build/verification is unrestricted.
+
 ### Scoring
 
-`tests/test.sh` runs inside the task container after the agent's patch is applied. It:
+`tests/test.sh` runs inside the task container after the agent's patch is applied. It is
+**fail-closed**: it writes reward `0` to `/logs/verifier/reward.txt` before doing anything, and a
+reward of `1` is only ever produced by `junit_compare.py` validating freshly generated reports.
+Concretely it:
 
-1. applies `test.patch` to inject the regression tests,
-2. runs the Gradle test suite,
-3. collects JUnit XML via `kotlin_logs_collector.sh`,
-4. compares the results against `expected_tests.json` with `junit_compare.py`, and
-5. writes the final reward to `/logs/verifier/reward.txt` (`1` = resolved, `0` = not resolved).
+1. writes the default reward `0` and clears any previous verifier logs,
+2. applies `test.patch` to inject the regression tests — **aborting with reward `0` if it does not apply**,
+3. deletes any stale `*/build/test-results/*/TEST*.xml` so only this run's reports can count,
+4. runs the Gradle test suite (a non-zero Gradle exit does **not** by itself change the reward),
+5. collects JUnit XML via `kotlin_logs_collector.sh`, and
+6. compares the results against `expected_tests.json` with `junit_compare.py`, which writes the
+   final reward (`1` = resolved, `0` = not resolved).
 
 Tests are classified by their status transition between the unpatched and patched runs:
 

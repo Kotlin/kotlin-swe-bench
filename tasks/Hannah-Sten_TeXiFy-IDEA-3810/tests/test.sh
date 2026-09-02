@@ -1,7 +1,8 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
 
-mkdir -p /logs/verifier
+rm -rf /logs/verifier && mkdir -p /logs/verifier
+echo 0 > /logs/verifier/reward.txt
 
 # Apply the test patch an run the tests (repo-specific)
 cd /home/TeXiFy-IDEA
@@ -30,10 +31,14 @@ for f in "${test_files[@]}"; do
   git rm --cached -f -- "$f" 2>/dev/null || true
   rm -f -- "$f" || exit 1
 done
-git apply --whitespace=nowarn /tests/test.patch
+if ! git apply --whitespace=nowarn /tests/test.patch; then
+  echo "ERROR: hidden test patch did not apply; reward remains 0." >&2
+  exit 1
+fi
 
+# Remove stale JUnit reports so only this run's results can score.
+find . -type f -path '*/build/test-results/*/TEST*.xml' -delete
 ./gradlew clean test --continue --init-script /home/exclude-flaky-tests.gradle.kts || true
-exit_code=$?
 
 # Collect JUnit XML from build output directories
 XML_OUT=/logs/verifier/all-testsuites.xml
@@ -43,12 +48,4 @@ if bash /tests/kotlin_logs_collector.sh --root . --output "$XML_OUT" 2>/dev/null
     --xml      "$XML_OUT" \
     --expected /tests/expected_tests.json \
     --reward   /logs/verifier/reward.txt
-else
-  # Fallback: no JUnit XML found — use exit code
-  echo "WARNING: JUnit XML collection failed; falling back to exit-code reward." >&2
-  if [ $exit_code -eq 0 ]; then
-    echo 1 > /logs/verifier/reward.txt
-  else
-    echo 0 > /logs/verifier/reward.txt
-  fi
 fi

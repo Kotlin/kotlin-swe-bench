@@ -11,12 +11,15 @@ issue_url = "https://github.com/detekt/detekt/issues/5631"
 [verifier]
 implemented = false
 timeout_sec = 900.0
+network_mode = "public"
 
 [agent]
 timeout_sec = 1800.0
+network_mode = "allowlist"
+allowed_hosts = ["repo.maven.apache.org", "repo1.maven.org", "plugins.gradle.org", "services.gradle.org", "maven.google.com", "maven.pkg.jetbrains.space", "cache-redirector.jetbrains.com", "download.jetbrains.com", "pub.dartlang.org", "pub.dev"]
 
 [environment]
 build_timeout_sec = 1800.0
 cpus = 4
 memory_mb = 10240
-allow_internet = true
+network_mode = "public"
