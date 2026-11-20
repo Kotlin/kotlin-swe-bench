@@ -218,3 +218,12 @@ __marimo__/
 .streamlit/secrets.toml
 .junie
 /jobs/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
