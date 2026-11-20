@@ -1,0 +1,186 @@
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderConstants.java b/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderConstants.java
+index 504d71f1de01..c0798c5824ca 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderConstants.java
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderConstants.java
+@@ -67,7 +67,7 @@ public class ReaderConstants {
+     static final String KEY_FIRST_LOAD = "first_load";
+     static final String KEY_ACTIVITY_TITLE = "activity_title";
+     static final String KEY_TRACKED_POSITIONS = "tracked_positions";
+-    static final String KEY_IS_REFRESHING = "is_refreshing";
++    static final String KEY_CURRENT_UPDATE_ACTIONS = "current_update_actions";
+     static final String KEY_ACTIVE_SEARCH_TAB = "active_search_tab";
+     static final String KEY_SITE_ID = "site_id";
+ 
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderPostListFragment.java b/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderPostListFragment.java
+index 445ac315c255..763d944c130c 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderPostListFragment.java
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderPostListFragment.java
+@@ -144,8 +144,10 @@
+ import org.wordpress.android.widgets.RecyclerItemDecoration;
+ import org.wordpress.android.widgets.WPSnackbar;
+ 
++import java.io.Serializable;
+ import java.util.ArrayList;
+ import java.util.EnumSet;
++import java.util.HashSet;
+ import java.util.List;
+ import java.util.Stack;
+ 
+@@ -210,9 +212,9 @@ public class ReaderPostListFragment extends ViewPagerFragment
+     private int mPostSearchAdapterPos;
+     private int mSiteSearchAdapterPos;
+     private int mSearchTabsPos = NO_POSITION;
+-    private boolean mIsUpdating;
+     private boolean mIsFilterableScreen;
+     private boolean mIsFiltered = false;
++    @NonNull private HashSet<UpdateAction> mCurrentUpdateActions = new HashSet<>();
+     /*
+      * called by post adapter to load older posts when user scrolls to the last post
+      */
+@@ -957,8 +959,8 @@ public void onSaveInstanceState(@NonNull Bundle outState) {
+         outState.putBoolean(ReaderConstants.KEY_ALREADY_REQUESTED, mHasRequestedPosts);
+         outState.putBoolean(ReaderConstants.KEY_ALREADY_UPDATED, mHasUpdatedPosts);
+         outState.putBoolean(ReaderConstants.KEY_FIRST_LOAD, mFirstLoad);
++        outState.putSerializable(ReaderConstants.KEY_CURRENT_UPDATE_ACTIONS, mCurrentUpdateActions);
+         if (mRecyclerView != null) {
+-            outState.putBoolean(ReaderConstants.KEY_IS_REFRESHING, mRecyclerView.isRefreshing());
+             outState.putInt(ReaderConstants.KEY_RESTORE_POSITION, getCurrentPosition());
+         }
+         outState.putSerializable(ReaderConstants.ARG_POST_LIST_TYPE, getPostListType());
+@@ -1180,9 +1182,12 @@ public void onShowCustomEmptyView(EmptyViewMessageType emptyViewMsgType) {
+             }
+         }
+ 
+-        if (savedInstanceState != null && savedInstanceState.getBoolean(ReaderConstants.KEY_IS_REFRESHING)) {
+-            mIsUpdating = true;
+-            mRecyclerView.setRefreshing(true);
++        if (savedInstanceState != null) {
++            Serializable actions = savedInstanceState.getSerializable(ReaderConstants.KEY_CURRENT_UPDATE_ACTIONS);
++            if (actions instanceof HashSet<?>) {
++                mCurrentUpdateActions = (HashSet<UpdateAction>) actions;
++                updateProgressIndicators();
++            }
+         }
+ 
+         return rootView;
+@@ -1699,7 +1704,7 @@ private void setEmptyTitleDescriptionAndButton(boolean requestFailed) {
+             setEmptyTitleAndDescriptionForBookmarksList();
+             return;
+         } else if (!NetworkUtils.isNetworkAvailable(getActivity())) {
+-            mIsUpdating = false;
++            clearCurrentUpdateActions();
+             title = getString(R.string.reader_empty_posts_no_connection);
+         } else if (requestFailed) {
+             if (isSearching()) {
+@@ -2304,7 +2309,7 @@ public void run() {
+     }
+ 
+     private boolean isUpdating() {
+-        return mIsUpdating;
++        return mCurrentUpdateActions.size() > 0;
+     }
+ 
+     /*
+@@ -2321,27 +2326,45 @@ private void showLoadingProgress(boolean showProgress) {
+         }
+     }
+ 
+-    private void setIsUpdating(boolean isUpdating, UpdateAction updateAction) {
+-        if (!isAdded() || mIsUpdating == isUpdating) {
+-            return;
+-        }
++    private void clearCurrentUpdateActions() {
++        if (!isAdded() || !isUpdating()) return;
+ 
+-        if (updateAction == UpdateAction.REQUEST_OLDER) {
+-            // show/hide progress bar at bottom if these are older posts
+-            showLoadingProgress(isUpdating);
+-        } else if (isUpdating) {
+-            // show swipe-to-refresh if update started
+-            mRecyclerView.setRefreshing(true);
++        mCurrentUpdateActions.clear();
++        updateProgressIndicators();
++    }
++
++    private void setIsUpdating(boolean isUpdating, @NonNull UpdateAction updateAction) {
++        if (!isAdded()) return;
++
++        boolean isUiUpdateNeeded;
++        if (isUpdating) {
++            isUiUpdateNeeded = mCurrentUpdateActions.add(updateAction);
+         } else {
+-            // hide swipe-to-refresh progress if update is complete
++            isUiUpdateNeeded = mCurrentUpdateActions.remove(updateAction);
++        }
++
++        if (isUiUpdateNeeded) updateProgressIndicators();
++    }
++
++    private void updateProgressIndicators() {
++        if (!isUpdating()) {
++            // when there's no update in progress, hide the bottom and swipe-to-refresh progress bars
++            showLoadingProgress(false);
+             mRecyclerView.setRefreshing(false);
++        } else if (mCurrentUpdateActions.size() == 1 && mCurrentUpdateActions.contains(UpdateAction.REQUEST_OLDER)) {
++            // if only older posts are being updated, show only the bottom progress bar
++            showLoadingProgress(true);
++            mRecyclerView.setRefreshing(false);
++        } else {
++            // if anything else is being updated, show only the swipe-to-refresh progress bar
++            showLoadingProgress(false);
++            mRecyclerView.setRefreshing(true);
+         }
+-        mIsUpdating = isUpdating;
+ 
+         // if swipe-to-refresh isn't active, keep it disabled during an update - this prevents
+         // doing a refresh while another update is already in progress
+-        if (mRecyclerView != null && !mRecyclerView.isRefreshing()) {
+-            mRecyclerView.setSwipeToRefreshEnabled(!isUpdating && isSwipeToRefreshSupported());
++        if (!mRecyclerView.isRefreshing()) {
++            mRecyclerView.setSwipeToRefreshEnabled(!isUpdating() && isSwipeToRefreshSupported());
+         }
+     }
+ 
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/tracker/ReaderTracker.kt b/WordPress/src/main/java/org/wordpress/android/ui/reader/tracker/ReaderTracker.kt
+index 15822295422c..b40dfc0380ee 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/tracker/ReaderTracker.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/tracker/ReaderTracker.kt
+@@ -388,6 +388,7 @@ class ReaderTracker @Inject constructor(
+             readerTag.isPostsILike -> "liked"
+             readerTag.isA8C -> "a8c"
+             readerTag.isListTopic -> "list"
++            readerTag.isP2 -> "p2"
+             else -> null
+         }?.let { trackingId ->
+             analyticsTrackerWrapper.track(
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/utils/ReaderTopBarMenuHelper.kt b/WordPress/src/main/java/org/wordpress/android/ui/reader/utils/ReaderTopBarMenuHelper.kt
+index 05f6f28d8c1b..26e2f876a83c 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/utils/ReaderTopBarMenuHelper.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/utils/ReaderTopBarMenuHelper.kt
+@@ -31,6 +31,12 @@ class ReaderTopBarMenuHelper @Inject constructor() {
+             readerTagsList.indexOrNull { it.isA8C }?.let { a8cIndex ->
+                 add(createAutomatticItem(getMenuItemIdFromReaderTagIndex(a8cIndex)))
+             }
++            readerTagsList.indexOrNull { it.isP2 }?.let { followedP2sIndex ->
++                add(createFollowedP2sItem(
++                    id = getMenuItemIdFromReaderTagIndex(followedP2sIndex),
++                    text = readerTagsList[followedP2sIndex].tagTitle,
++                ))
++            }
+             readerTagsList
+                 .foldIndexed(SparseArrayCompat<ReaderTag>()) { index, sparseArray, readerTag ->
+                     if (readerTag.tagType == ReaderTagType.CUSTOM_LIST) {
+@@ -85,6 +91,13 @@ class ReaderTopBarMenuHelper @Inject constructor() {
+         )
+     }
+ 
++    private fun createFollowedP2sItem(id: String, text: String): MenuElementData.Item.Single {
++        return MenuElementData.Item.Single(
++            id = id,
++            text = UiString.UiStringText(text),
++        )
++    }
++
+     private fun createCustomListsItem(customLists: SparseArrayCompat<ReaderTag>): MenuElementData.Item.SubMenu {
+         val customListsMenuItems = mutableListOf<MenuElementData.Item.Single>()
+         customLists.forEach { index, readerTag ->

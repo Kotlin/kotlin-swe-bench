@@ -1,0 +1,75 @@
+--------- beginning of main
+08-29 18:14:02.073  8757  8757 D WM-SystemJobService: onStartJob for WorkGenerationalId(workSpecId=1f49699e-9ce3-4bf4-8a3a-abd7b6fa53cb, generation=0)
+08-29 18:14:02.102  8757  8854 D WM-Processor: Processor: processing WorkGenerationalId(workSpecId=1f49699e-9ce3-4bf4-8a3a-abd7b6fa53cb, generation=0)
+08-29 18:14:02.109  8757  8757 D WM-WorkerWrapper: Starting work for com.fsck.k9.job.MailSyncWorker
+08-29 18:14:02.146  8757  8861 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=1f49699e-9ce3-4bf4-8a3a-abd7b6fa53cb, tags={ com.fsck.k9.job.MailSyncWorker,MailSync } ]
+08-29 18:14:02.153  8757  8757 D WM-Processor: Processor 1f49699e-9ce3-4bf4-8a3a-abd7b6fa53cb executed; reschedule = false
+08-29 18:14:02.153  8757  8757 D WM-SystemJobService: 1f49699e-9ce3-4bf4-8a3a-abd7b6fa53cb executed on JobScheduler
+08-29 18:14:02.157  8757  8861 D WM-GreedyScheduler: Cancelling work ID 1f49699e-9ce3-4bf4-8a3a-abd7b6fa53cb
+08-29 18:14:02.161  8757  8861 D WM-SystemJobScheduler: Scheduling work ID 1f49699e-9ce3-4bf4-8a3a-abd7b6fa53cbJob ID 1811
+08-29 18:14:16.104  8757  8757 I System.out: Flattened path for INBOX → [INBOX]
+08-29 18:14:16.104  8757  8757 I System.out: Flattened path for Outbox → [Outbox]
+08-29 18:14:16.104  8757  8757 I System.out: Flattened path for Drafts → [Drafts]
+08-29 18:14:16.104  8757  8757 I System.out: Flattened path for Junk → [Junk]
+08-29 18:14:16.104  8757  8757 I System.out: Flattened path for Sent → [Sent]
+08-29 18:14:16.104  8757  8757 I System.out: Flattened path for Trash → [Trash]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for alpine → [alpine]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Amazon → [Amazon]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Arch → [Arch]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Arch.aur → [Arch.aur]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Arch.dev-public → [Arch.dev-public]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Arch.general → [Arch.general]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Arch.security → [Arch.security]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives → [Archives]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2007 → [Archives.2007]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2008 → [Archives.2008]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2009 → [Archives.2009]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2010 → [Archives.2010]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2010.Sent → [Archives.2010.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2011 → [Archives.2011]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2011.Sent → [Archives.2011.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2012 → [Archives.2012]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2012.Sent → [Archives.2012.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2013 → [Archives.2013]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2013.Sent → [Archives.2013.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2014 → [Archives.2014]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2014.Sent → [Archives.2014.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2015 → [Archives.2015]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2015.Sent → [Archives.2015.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2016 → [Archives.2016]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2016.Sent → [Archives.2016.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2017 → [Archives.2017]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2017.Sent → [Archives.2017.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2018 → [Archives.2018]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2018.Sent → [Archives.2018.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2019 → [Archives.2019]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2019.Sent → [Archives.2019.Sent]
+08-29 18:14:16.105  8757  8757 I System.out: Flattened path for Archives.2020 → [Archives.2020]
+08-29 18:14:16.106  8757  8757 I System.out: Flattened path for Archives.2020.Sent → [Archives.2020.Sent]
+08-29 18:14:16.106  8757  8757 I System.out: Flattened path for Archives.2021 → [Archives.2021]
+08-29 18:14:16.106  8757  8757 I System.out: Flattened path for Archives.2021.Sent → [Archives.2021.Sent]
+08-29 18:14:16.106  8757  8757 I System.out: Flattened path for Archives.2022 → [Archives.2022]
+08-29 18:14:16.106  8757  8757 I System.out: Flattened path for Archives.2022.Sent → [Archives.2022.Sent]
+08-29 18:14:16.106  8757  8757 I System.out: Flattened path for Archives.2023 → [Archives.2023]
+08-29 18:14:16.106  8757  8757 I System.out: Flattened path for Archives.2023.Sent → [Archives.2023.Sent]
+08-29 18:14:16.106  8757  8757 I System.out: Flattened path for Archives.2024 → [Archives.2024]
+08-29 18:14:16.106  8757  8757 I System.out: Flattened path for Archives.2024.Sent → [Archives.2024.Sent]
+[...several redacted paths]
+08-29 18:15:02.843  8757  8757 W WindowOnBackDispatcher: OnBackInvokedCallback is not enabled for the application.
+08-29 18:15:02.843  8757  8757 W WindowOnBackDispatcher: Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+08-29 18:15:02.866  8757  8757 E derbird.android: Invalid resource ID 0x00000000.
+08-29 18:15:02.867  8757  8757 E derbird.android: Invalid resource ID 0x00000000.
+08-29 18:15:02.904  8757  8757 D InsetsController: hide(ime(), fromIme=false)
+08-29 18:15:02.904  8757  8757 I ImeTracker: net.thunderbird.android:ea867ec0: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+08-29 18:15:03.873  8757  8757 W TextView: onProvideContentCaptureStructure(): calling assumeLayout()
+08-29 18:15:05.035  8757  8757 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda13@7847f1
+08-29 18:15:05.084  8757  9111 D HWUI    : endAllActiveAnimators on 0xb4000075f26efe50 (MenuPopupWindow$MenuDropDownListView) with handle 0xb4000075127b2f30
+08-29 18:15:05.202  8757  8757 D VRI[GeneralSettingsActivity]: visibilityChanged oldVisibility=true newVisibility=false
+08-29 18:15:13.207  8757  8757 W WindowOnBackDispatcher: OnBackInvokedCallback is not enabled for the application.
+08-29 18:15:13.207  8757  8757 W WindowOnBackDispatcher: Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+08-29 18:15:13.233  8757  8757 W HWUI    : Image decoding logging dropped!
+08-29 18:15:13.233  8757  8757 W HWUI    : Image decoding logging dropped!
+08-29 18:15:13.244  8757  8757 E derbird.android: Invalid resource ID 0x00000000.
+08-29 18:15:13.244  8757  8757 E derbird.android: Invalid resource ID 0x00000000.
+08-29 18:15:13.275  8757  8757 D InsetsController: hide(ime(), fromIme=false)
+08-29 18:15:13.275  8757  8757 I ImeTracker: net.thunderbird.android:f04816ad: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN

@@ -1,0 +1,8 @@
+FROM mswebench/supabase-community_m_supabase-kt:base
+
+COPY check_git_changes.sh /home/
+COPY prepare.sh /home/
+COPY seal_git_history.sh /home/
+
+RUN bash /home/prepare.sh
+RUN chmod +x /home/*.sh

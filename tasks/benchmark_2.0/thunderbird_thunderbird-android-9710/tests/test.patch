@@ -1,0 +1,356 @@
+diff --git a/feature/account/storage/legacy/src/test/kotlin/net/thunderbird/feature/account/storage/legacy/mapper/DefaultLegacyAccountWrapperDataMapperTest.kt b/feature/account/storage/legacy/src/test/kotlin/net/thunderbird/feature/account/storage/legacy/mapper/DefaultLegacyAccountWrapperDataMapperTest.kt
+index f617a13c016..c597532ef49 100644
+--- a/feature/account/storage/legacy/src/test/kotlin/net/thunderbird/feature/account/storage/legacy/mapper/DefaultLegacyAccountWrapperDataMapperTest.kt
++++ b/feature/account/storage/legacy/src/test/kotlin/net/thunderbird/feature/account/storage/legacy/mapper/DefaultLegacyAccountWrapperDataMapperTest.kt
+@@ -143,6 +143,7 @@ class DefaultLegacyAccountWrapperDataMapperTest {
+         assertThat(result.signatureUse).isEqualTo(defaultIdentities[0].signatureUse)
+         assertThat(result.signature).isEqualTo(defaultIdentities[0].signature)
+         assertThat(result.shouldMigrateToOAuth).isEqualTo(true)
++        assertThat(result.folderPathDelimiter).isEqualTo(".")
+     }
+ 
+     private companion object {
+@@ -287,6 +288,7 @@ class DefaultLegacyAccountWrapperDataMapperTest {
+                 signatureUse = defaultIdentities[0].signatureUse
+                 signature = defaultIdentities[0].signature
+                 shouldMigrateToOAuth = true
++                folderPathDelimiter = "."
+             }
+         }
+ 
+@@ -402,6 +404,7 @@ class DefaultLegacyAccountWrapperDataMapperTest {
+                 signatureUse = defaultIdentities[0].signatureUse,
+                 signature = defaultIdentities[0].signature,
+                 shouldMigrateToOAuth = true,
++                folderPathDelimiter = ".",
+             )
+         }
+     }
+diff --git a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayFoldersForAccountTest.kt b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayFoldersForAccountTest.kt
+index 5f13f8348fe..91eb36d6c7f 100644
+--- a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayFoldersForAccountTest.kt
++++ b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayFoldersForAccountTest.kt
+@@ -104,6 +104,7 @@ internal class GetDisplayFoldersForAccountTest {
+                 isInTopGroup = false,
+                 unreadMessageCount = 0,
+                 starredMessageCount = 0,
++                pathDelimiter = "/",
+             ),
+             LegacyDisplayFolder(
+                 folder = FakeData.FOLDER.copy(
+@@ -113,6 +114,7 @@ internal class GetDisplayFoldersForAccountTest {
+                 isInTopGroup = false,
+                 unreadMessageCount = 1,
+                 starredMessageCount = 0,
++                pathDelimiter = "/",
+             ),
+         )
+ 
+@@ -124,6 +126,7 @@ internal class GetDisplayFoldersForAccountTest {
+             isInTopGroup = false,
+             unreadMessageCount = 0,
+             starredMessageCount = 0,
++            pathDelimiter = "/",
+         )
+ 
+         val DISPLAY_UNIFIED_FOLDER = UnifiedDisplayFolder(
+@@ -149,6 +152,7 @@ internal class GetDisplayFoldersForAccountTest {
+                 isInTopGroup = false,
+                 unreadMessageCount = 0,
+                 starredMessageCount = 0,
++                pathDelimiter = "/",
+             ),
+             MailDisplayFolder(
+                 accountId = ACCOUNT_ID_RAW,
+@@ -159,6 +163,7 @@ internal class GetDisplayFoldersForAccountTest {
+                 isInTopGroup = false,
+                 unreadMessageCount = 1,
+                 starredMessageCount = 0,
++                pathDelimiter = "/",
+             ),
+         )
+ 
+@@ -171,6 +176,7 @@ internal class GetDisplayFoldersForAccountTest {
+             isInTopGroup = false,
+             unreadMessageCount = 0,
+             starredMessageCount = 0,
++            pathDelimiter = "/",
+         )
+     }
+ }
+diff --git a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolderTest.kt b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolderTest.kt
+index 1229ea96891..91352f4f55d 100644
+--- a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolderTest.kt
++++ b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolderTest.kt
+@@ -5,6 +5,7 @@ import assertk.assertions.isEqualTo
+ import kotlin.test.Test
+ import kotlinx.collections.immutable.ImmutableList
+ import kotlinx.collections.immutable.persistentListOf
++import net.thunderbird.core.logging.testing.TestLogger
+ import net.thunderbird.feature.mail.folder.api.Folder
+ import net.thunderbird.feature.mail.folder.api.FolderType
+ import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayFolder
+@@ -27,7 +28,7 @@ class GetDisplayTreeFolderTest {
+         val folders = listOf(
+             regularFolder,
+         )
+-        val testSubject = GetDisplayTreeFolder()
++        val testSubject = GetDisplayTreeFolder(logger = TestLogger())
+ 
+         // act
+         val result = testSubject(folders, 1)
+@@ -59,7 +60,7 @@ class GetDisplayTreeFolderTest {
+         val folders = listOf(
+             unifiedFolder,
+         )
+-        val testSubject = GetDisplayTreeFolder()
++        val testSubject = GetDisplayTreeFolder(logger = TestLogger())
+ 
+         // act
+         val result = testSubject(folders, 1)
+@@ -98,7 +99,7 @@ class GetDisplayTreeFolderTest {
+             unifiedFolder,
+             regularFolder,
+         )
+-        val testSubject = GetDisplayTreeFolder()
++        val testSubject = GetDisplayTreeFolder(logger = TestLogger())
+ 
+         // act
+         val result = testSubject(folders, 1)
+@@ -154,7 +155,7 @@ class GetDisplayTreeFolderTest {
+             starredMessageCount = 3,
+         )
+         val folders = listOf(flatFolder, noNameFolder, weirdFolder, nestedWeird)
+-        val testSubject = GetDisplayTreeFolder()
++        val testSubject = GetDisplayTreeFolder(logger = TestLogger())
+ 
+         // act
+         val result = testSubject(folders, maxDepth = 2)
+@@ -179,6 +180,7 @@ class GetDisplayTreeFolderTest {
+                         isInTopGroup = true,
+                         unreadMessageCount = 2,
+                         starredMessageCount = 1,
++                        pathDelimiter = "/",
+                     ),
+                     displayName = "Inbox",
+                     totalUnreadCount = 2,
+@@ -192,6 +194,7 @@ class GetDisplayTreeFolderTest {
+                         isInTopGroup = true,
+                         unreadMessageCount = 4,
+                         starredMessageCount = 2,
++                        pathDelimiter = "/",
+                     ),
+                     displayName = "(Unnamed)",
+                     totalUnreadCount = 5,
+@@ -209,6 +212,7 @@ class GetDisplayTreeFolderTest {
+                                 isInTopGroup = true,
+                                 unreadMessageCount = 0,
+                                 starredMessageCount = 0,
++                                pathDelimiter = "/",
+                             ),
+                             displayName = "(Unnamed)",
+                             totalUnreadCount = 1,
+@@ -226,6 +230,7 @@ class GetDisplayTreeFolderTest {
+                                         isInTopGroup = true,
+                                         unreadMessageCount = 1,
+                                         starredMessageCount = 2,
++                                        pathDelimiter = "/",
+                                     ),
+                                     displayName = "(Unnamed)/(Unnamed)",
+                                     totalUnreadCount = 1,
+@@ -243,6 +248,7 @@ class GetDisplayTreeFolderTest {
+                         isInTopGroup = true,
+                         unreadMessageCount = 0,
+                         starredMessageCount = 0,
++                        pathDelimiter = "/",
+                     ),
+                     displayName = "valid1",
+                     totalUnreadCount = 6,
+@@ -260,6 +266,7 @@ class GetDisplayTreeFolderTest {
+                                 isInTopGroup = true,
+                                 unreadMessageCount = 0,
+                                 starredMessageCount = 0,
++                                pathDelimiter = "/",
+                             ),
+                             displayName = "(Unnamed)",
+                             totalUnreadCount = 6,
+@@ -277,6 +284,7 @@ class GetDisplayTreeFolderTest {
+                                         isInTopGroup = true,
+                                         unreadMessageCount = 6,
+                                         starredMessageCount = 3,
++                                        pathDelimiter = "/",
+                                     ),
+                                     displayName = "(Unnamed)/valid2",
+                                     totalUnreadCount = 6,
+@@ -309,7 +317,7 @@ class GetDisplayTreeFolderTest {
+             starredMessageCount = 1,
+         )
+         val folders = listOf(folder1, folder2)
+-        val testSubject = GetDisplayTreeFolder()
++        val testSubject = GetDisplayTreeFolder(logger = TestLogger())
+ 
+         // act
+         val result = testSubject(folders, maxDepth = 3)
+@@ -368,7 +376,7 @@ class GetDisplayTreeFolderTest {
+             starredMessageCount = 1,
+         )
+         val folders = listOf(deepFolder, deeperFolder)
+-        val testSubject = GetDisplayTreeFolder()
++        val testSubject = GetDisplayTreeFolder(logger = TestLogger())
+ 
+         // act
+         val result = testSubject(folders, maxDepth = 2)
+@@ -443,6 +451,7 @@ class GetDisplayTreeFolderTest {
+                 isInTopGroup = true,
+                 unreadMessageCount = unreadMessageCount,
+                 starredMessageCount = starredMessageCount,
++                pathDelimiter = "/",
+             )
+         }
+ 
+diff --git a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModelTest.kt b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModelTest.kt
+index a0a1af139e7..58d0b17399a 100644
+--- a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModelTest.kt
++++ b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModelTest.kt
+@@ -554,6 +554,7 @@ internal class DrawerViewModelTest {
+             isInTopGroup = false,
+             unreadMessageCount = unreadCount,
+             starredMessageCount = starredCount,
++            pathDelimiter = "/",
+         )
+     }
+ 
+diff --git a/feature/navigation/drawer/siderail/src/test/kotlin/net/thunderbird/feature/navigation/drawer/siderail/domain/usecase/GetDisplayFoldersForAccountTest.kt b/feature/navigation/drawer/siderail/src/test/kotlin/net/thunderbird/feature/navigation/drawer/siderail/domain/usecase/GetDisplayFoldersForAccountTest.kt
+index 95c87e744fe..1f4b1a30fcf 100644
+--- a/feature/navigation/drawer/siderail/src/test/kotlin/net/thunderbird/feature/navigation/drawer/siderail/domain/usecase/GetDisplayFoldersForAccountTest.kt
++++ b/feature/navigation/drawer/siderail/src/test/kotlin/net/thunderbird/feature/navigation/drawer/siderail/domain/usecase/GetDisplayFoldersForAccountTest.kt
+@@ -83,6 +83,7 @@ internal class GetDisplayFoldersForAccountTest {
+                 isInTopGroup = false,
+                 unreadMessageCount = 0,
+                 starredMessageCount = 0,
++                pathDelimiter = "/",
+             ),
+             LegacyDisplayFolder(
+                 folder = FakeData.FOLDER.copy(
+@@ -92,6 +93,7 @@ internal class GetDisplayFoldersForAccountTest {
+                 isInTopGroup = false,
+                 unreadMessageCount = 1,
+                 starredMessageCount = 0,
++                pathDelimiter = "/",
+             ),
+         )
+ 
+@@ -103,6 +105,7 @@ internal class GetDisplayFoldersForAccountTest {
+             isInTopGroup = false,
+             unreadMessageCount = 0,
+             starredMessageCount = 0,
++            pathDelimiter = "/",
+         )
+ 
+         val DISPLAY_UNIFIED_FOLDER = DisplayUnifiedFolder(
+diff --git a/legacy/core/src/test/java/com/fsck/k9/preferences/upgrader/AccountSettingsUpgraderTo106Test.kt b/legacy/core/src/test/java/com/fsck/k9/preferences/upgrader/AccountSettingsUpgraderTo106Test.kt
+new file mode 100644
+index 00000000000..250c5440c40
+--- /dev/null
++++ b/legacy/core/src/test/java/com/fsck/k9/preferences/upgrader/AccountSettingsUpgraderTo106Test.kt
+@@ -0,0 +1,100 @@
++package com.fsck.k9.preferences.upgrader
++
++import assertk.assertThat
++import assertk.assertions.isEqualTo
++import kotlin.test.Test
++import net.thunderbird.feature.account.storage.legacy.LegacyAccountStorageHandler
++import net.thunderbird.feature.account.storage.legacy.LegacyAccountStorageHandler.Companion.INCOMING_SERVER_SETTINGS_KEY
++import net.thunderbird.feature.account.storage.legacy.serializer.ServerSettingsDtoSerializer
++import net.thunderbird.feature.mail.folder.api.FOLDER_DEFAULT_PATH_DELIMITER
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
++
++class AccountSettingsUpgraderTo106Test {
++    @Test
++    fun `should set default folderPathDelimiter when incoming server settings are null`() {
++        // Arrange
++        val settings = createSettingsMap(incomingServerSettings = null).toMutableMap()
++        val testSubject = createTestSubject()
++        val expected = createSettingsMap(
++            incomingServerSettings = null,
++            folderPathDelimiter = FOLDER_DEFAULT_PATH_DELIMITER,
++        )
++        // Act
++        testSubject.upgrade(settings)
++
++        // Assert
++        assertThat(settings).isEqualTo(expected)
++    }
++
++    @Test
++    fun `should set default folderPathDelimiter when incoming server settings path prefix is null`() {
++        // Arrange
++        val settings = createSettingsMap(incomingServerSettingsPathPrefix = null).toMutableMap()
++        val testSubject = createTestSubject()
++        val expected = createSettingsMap(
++            incomingServerSettingsPathPrefix = null,
++            folderPathDelimiter = FOLDER_DEFAULT_PATH_DELIMITER,
++        )
++
++        // Act
++        testSubject.upgrade(settings)
++
++        // Assert
++        assertThat(settings).isEqualTo(expected)
++    }
++
++    @Test
++    fun `should set default folderPathDelimiter when incoming server settings path prefix is empty`() {
++        // Arrange
++        val settings = createSettingsMap(incomingServerSettingsPathPrefix = "\"\"").toMutableMap()
++        val testSubject = createTestSubject()
++        val expected = createSettingsMap(
++            incomingServerSettingsPathPrefix = "\"\"",
++            folderPathDelimiter = FOLDER_DEFAULT_PATH_DELIMITER,
++        )
++
++        // Act
++        testSubject.upgrade(settings)
++
++        // Assert
++        assertThat(settings).isEqualTo(expected)
++    }
++
++    @Test
++    fun `should set folderPathDelimiter when incoming server settings path prefix is set`() {
++        // Arrange
++        val settings = createSettingsMap(incomingServerSettingsPathPrefix = "\".\"").toMutableMap()
++        val testSubject = createTestSubject()
++        val expected = createSettingsMap(
++            incomingServerSettingsPathPrefix = "\".\"",
++            folderPathDelimiter = ".",
++        )
++
++        // Act
++        testSubject.upgrade(settings)
++
++        // Assert
++        assertThat(settings).isEqualTo(expected)
++    }
++
++    private fun createTestSubject(): AccountSettingsUpgraderTo106 = AccountSettingsUpgraderTo106(
++        serverSettingsDtoSerializer = ServerSettingsDtoSerializer(),
++    )
++
++    private fun createSettingsMap(
++        incomingServerSettingsPathPrefix: String? = null,
++        incomingServerSettings: String? =
++            """{
++            |  "type":"imap","host":"host","port":993,"connectionSecurity":"SSL_TLS_REQUIRED",
++            |  "authenticationType":"PLAIN","username":"user","password":"pwd","clientCertificateAlias":null,
++            |  "autoDetectNamespace":"true","pathPrefix":$incomingServerSettingsPathPrefix
++            |}
++            """.trimMargin(),
++        folderPathDelimiter: FolderPathDelimiter? = null,
++    ): Map<String, Any?> = buildMap {
++        incomingServerSettings?.let {
++            put(INCOMING_SERVER_SETTINGS_KEY, incomingServerSettings)
++        }
++        folderPathDelimiter?.let { put(LegacyAccountStorageHandler.FOLDER_PATH_DELIMITER_KEY, it) }
++    }
++}

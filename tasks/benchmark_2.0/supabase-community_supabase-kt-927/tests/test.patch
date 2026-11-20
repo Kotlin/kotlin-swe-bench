@@ -1,0 +1,73 @@
+diff --git a/Supabase/src/jvmTest/kotlin/PlatformTargetTest.kt b/Supabase/src/jvmTest/kotlin/PlatformTargetTest.kt
+index 6b9197e43..edfb677fe 100644
+--- a/Supabase/src/jvmTest/kotlin/PlatformTargetTest.kt
++++ b/Supabase/src/jvmTest/kotlin/PlatformTargetTest.kt
+@@ -1,5 +1,6 @@
+ import io.github.jan.supabase.CurrentPlatformTarget
+ import io.github.jan.supabase.PlatformTarget
++import io.github.jan.supabase.getOSInformation
+ import kotlin.test.Test
+ import kotlin.test.assertEquals
+ 
+@@ -10,4 +11,13 @@ actual class PlatformTargetTest {
+         assertEquals(PlatformTarget.JVM, CurrentPlatformTarget, "The current platform target should be DESKTOP")
+     }
+ 
++    @Test
++    fun testGetOSInformation() {
++        System.setProperty("os.name", "Linux")
++        System.setProperty("os.version", "5.4.0")
++        val osInfo = getOSInformation()
++        assertEquals("Linux", osInfo?.name, "OS name should be Linux")
++        assertEquals("5.4.0", osInfo?.version, "OS version should be 5.4.0")
++    }
++
+ }
+\ No newline at end of file
+diff --git a/test-common/src/commonTest/kotlin/SupabaseClientTest.kt b/test-common/src/commonTest/kotlin/SupabaseClientTest.kt
+index 50a896852..edc916d8b 100644
+--- a/test-common/src/commonTest/kotlin/SupabaseClientTest.kt
++++ b/test-common/src/commonTest/kotlin/SupabaseClientTest.kt
+@@ -1,4 +1,5 @@
+ import io.github.jan.supabase.BuildConfig
++import io.github.jan.supabase.OSInformation
+ import io.github.jan.supabase.SupabaseClient
+ import io.github.jan.supabase.logging.LogLevel
+ import io.github.jan.supabase.testing.createMockedSupabaseClient
+@@ -30,6 +31,36 @@ class SupabaseClientTest {
+         }
+     }
+ 
++    @Test
++    fun testOSVersionHeader() {
++        runTest {
++            val client = createMockedSupabaseClient(
++                supabaseUrl = "https://example.supabase.co",
++                supabaseKey = "somekey",
++                requestHandler = {
++                    assertEquals(
++                        "TestOS",
++                        it.headers["X-Supabase-Client-Platform"],
++                        "X-Supabase-Client-Platform header should be set to 'TestOS'"
++                    )
++                    assertEquals(
++                        "1.0.0",
++                        it.headers["X-Supabase-Client-Platform-Version"],
++                        "X-Supabase-Client-Platform-Version header should be set to '1.0.0'"
++                    )
++                    respond("")
++                },
++                configuration = {
++                    osInformation = OSInformation(
++                        name = "TestOS",
++                        version = "1.0.0",
++                    )
++                }
++            )
++            client.httpClient.get("")
++        }
++    }
++
+     @Test
+     fun testAccessTokenProvider() {
+         runTest {

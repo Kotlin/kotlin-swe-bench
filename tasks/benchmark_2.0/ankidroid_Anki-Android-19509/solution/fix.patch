@@ -1,0 +1,482 @@
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/AnkiActivity.kt b/AnkiDroid/src/main/java/com/ichi2/anki/AnkiActivity.kt
+index 3f207902b616..567296289658 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/AnkiActivity.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/AnkiActivity.kt
+@@ -75,6 +75,7 @@ import com.ichi2.anki.dialogs.ExportReadyDialog.Companion.KEY_EXPORT_PATH
+ import com.ichi2.anki.dialogs.ExportReadyDialog.Companion.REQUEST_EXPORT_SAVE
+ import com.ichi2.anki.dialogs.ExportReadyDialog.Companion.REQUEST_EXPORT_SHARE
+ import com.ichi2.anki.dialogs.SimpleMessageDialog
++import com.ichi2.anki.exception.SystemStorageException
+ import com.ichi2.anki.libanki.Collection
+ import com.ichi2.anki.preferences.sharedPrefs
+ import com.ichi2.anki.receiver.SdCardReceiver
+@@ -740,6 +741,8 @@ open class AnkiActivity(
+      *
+      * @return `true`: activity may continue to start, `false`: [onCreate] should stop executing
+      * as storage permissions are mot granted
++     *
++     * @throws SystemStorageException if `getExternalFilesDir` returns null
+      */
+     fun ensureStoragePermissions(): Boolean {
+         if (IntentHandler.grantedStoragePermissions(this, showToast = true)) {
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/AnkiDroidApp.kt b/AnkiDroid/src/main/java/com/ichi2/anki/AnkiDroidApp.kt
+index db6cd782ee26..dc990126572b 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/AnkiDroidApp.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/AnkiDroidApp.kt
+@@ -23,6 +23,7 @@ import android.content.Context
+ import android.content.Intent
+ import android.content.SharedPreferences
+ import android.content.res.Resources
++import android.net.Uri
+ import android.os.Build
+ import android.os.Bundle
+ import android.os.Environment
+@@ -43,6 +44,7 @@ import com.ichi2.anki.common.utils.annotation.KotlinCleanup
+ import com.ichi2.anki.contextmenu.AnkiCardContextMenu
+ import com.ichi2.anki.contextmenu.CardBrowserContextMenu
+ import com.ichi2.anki.exception.StorageAccessException
++import com.ichi2.anki.exception.SystemStorageException
+ import com.ichi2.anki.logging.FragmentLifecycleLogger
+ import com.ichi2.anki.logging.LogType
+ import com.ichi2.anki.logging.ProductionCrashReportingTree
+@@ -79,8 +81,8 @@ import java.util.Locale
+ open class AnkiDroidApp :
+     Application(),
+     ChangeManager.Subscriber {
+-    /** An exception if the WebView subsystem fails to load  */
+-    private var webViewError: Throwable? = null
++    /** An exception if AnkiDroidApp fails to load  */
++    private var fatalInitializationError: FatalInitializationError? = null
+ 
+     @LegacyNotifications("The widget triggers notifications by posting null to this, but we plan to stop relying on the widget")
+     private val notifications = MutableLiveData<Void?>()
+@@ -196,11 +198,20 @@ open class AnkiDroidApp :
+         CardBrowser.clearLastDeckId()
+         LanguageUtil.setDefaultBackendLanguages()
+ 
++        // #13207: `getCurrentAnkiDroidDirectory` failing is an unconditional be a fatal error
++        // TODO: For now, a null getExternalFilesDir, but a valid AnkiDroid Directory in prefs
++        //  is not considered to be a fatal error
++        val ankiDroidDir =
++            try {
++                CollectionHelper.getCurrentAnkiDroidDirectory(this)
++            } catch (e: SystemStorageException) {
++                fatalInitializationError = FatalInitializationError.StorageError(e)
++                null
++            }
+         // Create the AnkiDroid directory if missing. Send exception report if inaccessible.
+-        if (Permissions.hasLegacyStorageAccessPermission(this)) {
++        if (ankiDroidDir != null && Permissions.hasLegacyStorageAccessPermission(this)) {
+             try {
+-                val dir = CollectionHelper.getCurrentAnkiDroidDirectory(this)
+-                CollectionHelper.initializeAnkiDroidDirectory(dir)
++                CollectionHelper.initializeAnkiDroidDirectory(ankiDroidDir)
+             } catch (e: StorageAccessException) {
+                 Timber.e(e, "Could not initialize AnkiDroid directory")
+                 val defaultDir = CollectionHelper.getDefaultAnkiDroidDirectory(this)
+@@ -302,7 +313,7 @@ open class AnkiDroidApp :
+             // 5794: Errors occur if the WebView fails to load
+             // android.webkit.WebViewFactory.MissingWebViewPackageException.MissingWebViewPackageException
+             // Error may be excessive, but I expect a UnsatisfiedLinkError to be possible here.
+-            webViewError = e
++            fatalInitializationError = FatalInitializationError.WebViewError(e)
+             sendExceptionReport(e, "setAcceptFileSchemeCookies")
+             Timber.e(e, "setAcceptFileSchemeCookies")
+             false
+@@ -474,16 +485,36 @@ open class AnkiDroidApp :
+                     else -> appResources.getString(R.string.link_manual)
+                 }
+ 
+-        fun webViewFailedToLoad(): Boolean = instance.webViewError != null
++        /** (optional) set if an unrecoverable error occurs during Application startup */
++        val fatalError: FatalInitializationError?
++            get() = instance.fatalInitializationError
++    }
++}
+ 
+-        val webViewErrorMessage: String?
+-            get() {
+-                val error = instance.webViewError
+-                if (error == null) {
+-                    Timber.w("getWebViewExceptionMessage called without webViewFailedToLoad check")
+-                    return null
+-                }
+-                return ExceptionUtil.getExceptionMessage(error)
++/**
++ * Types of unrecoverable errors which we want to inform the user of
++ */
++sealed class FatalInitializationError {
++    data class WebViewError(
++        val error: Throwable,
++    ) : FatalInitializationError()
++
++    data class StorageError(
++        val error: SystemStorageException,
++    ) : FatalInitializationError()
++
++    /** Advanced/developer-facing string representing the error */
++    val errorDetail: String
++        get() =
++            when (this) {
++                is WebViewError -> ExceptionUtil.getExceptionMessage(error)
++                is StorageError -> error.message
++            }
++
++    val infoLink: Uri?
++        get() =
++            when (this) {
++                is WebViewError -> null
++                is StorageError -> error.infoUri?.toUri()
+             }
+-    }
+ }
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/CollectionHelper.kt b/AnkiDroid/src/main/java/com/ichi2/anki/CollectionHelper.kt
+index 9f6fa922be95..b7fe4f82cabd 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/CollectionHelper.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/CollectionHelper.kt
+@@ -28,6 +28,7 @@ import com.ichi2.anki.CollectionHelper.getCurrentAnkiDroidDirectory
+ import com.ichi2.anki.CollectionHelper.getDefaultAnkiDroidDirectory
+ import com.ichi2.anki.backend.createDatabaseUsingAndroidFramework
+ import com.ichi2.anki.exception.StorageAccessException
++import com.ichi2.anki.exception.SystemStorageException
+ import com.ichi2.anki.exception.UnknownDatabaseVersionException
+ import com.ichi2.anki.libanki.Collection
+ import com.ichi2.anki.libanki.CollectionFiles
+@@ -175,6 +176,8 @@ object CollectionHelper {
+      * very different things as explained above.
+      *
+      * @return Absolute Path to the default location starting location for the AnkiDroid directory
++     *
++     * @throws SystemStorageException if `getExternalFilesDir` returns null
+      */
+     // TODO Tracked in https://github.com/ankidroid/Anki-Android/issues/5304
+     @CheckResult
+@@ -215,6 +218,8 @@ object CollectionHelper {
+      *
+      * @param context Used to get the External App-Specific directory for AnkiDroid
+      * @return Returns the absolute path to the App-Specific External AnkiDroid directory
++     *
++     * @throws SystemStorageException if `getExternalFilesDir` returns null
+      */
+     private fun getAppSpecificExternalAnkiDroidDirectory(context: Context): String? {
+         val externalFilesDir = context.getExternalFilesDir(null)
+@@ -224,9 +229,9 @@ object CollectionHelper {
+         // we will now check for null and if so try to log more information about why.
+         if (externalFilesDir == null) {
+             Timber.e("Attempting to determine collection path, but no valid external storage?")
+-            throw IllegalStateException(
+-                "getExternalFilesDir unexpectedly returned null. Media state: " +
+-                    Environment.getExternalStorageState(),
++            throw SystemStorageException.build(
++                errorDetail = "getExternalFilesDir unexpectedly returned null",
++                infoUri = "https://github.com/ankidroid/Anki-Android/issues/13207",
+             )
+         }
+         return externalFilesDir.absolutePath
+@@ -262,6 +267,8 @@ object CollectionHelper {
+ 
+     /**
+      * @return the absolute path to the AnkiDroid directory.
++     *
++     * @throws SystemStorageException if `getExternalFilesDir` returns null
+      */
+     fun getCurrentAnkiDroidDirectory(context: Context): File =
+         getCurrentAnkiDroidDirectoryOptionalContext(context.sharedPrefs()) { context }
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/DeckPicker.kt b/AnkiDroid/src/main/java/com/ichi2/anki/DeckPicker.kt
+index 53d0658b9d47..fd8bf1e337ff 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/DeckPicker.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/DeckPicker.kt
+@@ -90,7 +90,6 @@ import com.ichi2.anki.InitialActivity.StartupFailure.DirectoryNotAccessible
+ import com.ichi2.anki.InitialActivity.StartupFailure.DiskFull
+ import com.ichi2.anki.InitialActivity.StartupFailure.FutureAnkidroidVersion
+ import com.ichi2.anki.InitialActivity.StartupFailure.SDCardNotMounted
+-import com.ichi2.anki.InitialActivity.StartupFailure.WebviewFailed
+ import com.ichi2.anki.IntentHandler.Companion.intentToReviewDeckFromShortcuts
+ import com.ichi2.anki.account.AccountActivity
+ import com.ichi2.anki.analytics.UsageAnalytics
+@@ -195,6 +194,7 @@ import com.ichi2.utils.customView
+ import com.ichi2.utils.dp
+ import com.ichi2.utils.message
+ import com.ichi2.utils.negativeButton
++import com.ichi2.utils.neutralButton
+ import com.ichi2.utils.positiveButton
+ import com.ichi2.utils.show
+ import com.ichi2.utils.title
+@@ -520,7 +520,8 @@ open class DeckPicker :
+         binding = HomescreenBinding.inflate(layoutInflater)
+ 
+         // handle the first load: display the app introduction
+-        if (!hasShownAppIntro()) {
++        // This screen is currently better equipped to handle errors than IntroductionActivity
++        if (!hasShownAppIntro() && AnkiDroidApp.fatalError == null) {
+             Timber.i("Displaying app intro")
+             val appIntro = Intent(this, IntroductionActivity::class.java)
+             appIntro.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+@@ -999,19 +1000,18 @@ open class DeckPicker :
+                 Timber.i("Displaying database locked error")
+                 showDatabaseErrorDialog(DatabaseErrorDialogType.DIALOG_DB_LOCKED)
+             }
+-            is WebviewFailed ->
++            is StartupFailure.InitializationError ->
+                 AlertDialog.Builder(this).show {
+                     title(R.string.ankidroid_init_failed_webview_title)
+-                    message(
+-                        text =
+-                            getString(
+-                                R.string.ankidroid_init_failed_webview,
+-                                AnkiDroidApp.webViewErrorMessage,
+-                            ),
+-                    )
++                    message(text = failure.toHumanReadableString(this@DeckPicker))
+                     positiveButton(R.string.close) {
+                         closeCollectionAndFinish()
+                     }
++                    failure.infoLink?.let { url ->
++                        neutralButton(R.string.help) {
++                            openUrl(url)
++                        }
++                    }
+                     cancelable(false)
+                 }
+             is DiskFull -> displayNoStorageError()
+@@ -1134,6 +1134,10 @@ open class DeckPicker :
+     }
+ 
+     override fun onCreateOptionsMenu(menu: Menu): Boolean {
++        if (viewModel.flowOfStartupResponse.value is StartupResponse.FatalError) {
++            return false
++        }
++
+         Timber.d("onCreateOptionsMenu()")
+         floatingActionMenu.closeFloatingActionMenu(applyRiseAndShrinkAnimation = false)
+         // TODO: Refactor menu handling logic to the activity
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/InitialActivity.kt b/AnkiDroid/src/main/java/com/ichi2/anki/InitialActivity.kt
+index 79f03bca8a5c..557ff4702941 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/InitialActivity.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/InitialActivity.kt
+@@ -48,9 +48,8 @@ object InitialActivity {
+     /** Returns null on success  */
+     @CheckResult
+     fun getStartupFailureType(initializeAnkiDroidDirectory: () -> Boolean): StartupFailure? {
+-        // A WebView failure means that we skip `AnkiDroidApp`, and therefore haven't loaded the collection
+-        if (AnkiDroidApp.webViewFailedToLoad()) {
+-            return StartupFailure.WebviewFailed
++        AnkiDroidApp.fatalError?.let {
++            return StartupFailure.InitializationError(it)
+         }
+ 
+         val failure =
+@@ -150,7 +149,29 @@ object InitialActivity {
+ 
+         data object DatabaseLocked : StartupFailure()
+ 
+-        data object WebviewFailed : StartupFailure()
++        /**
++         * [AnkiDroidApp] encountered a fatal error
++         */
++        data class InitializationError(
++            val error: FatalInitializationError,
++        ) : StartupFailure() {
++            val infoLink
++                get() = error.infoLink
++
++            fun toHumanReadableString(context: Context): String =
++                when (error) {
++                    is FatalInitializationError.WebViewError ->
++                        context.getString(
++                            R.string.ankidroid_init_failed_webview,
++                            error.errorDetail,
++                        )
++                    is FatalInitializationError.StorageError ->
++                        context.getString(
++                            R.string.ankidroid_init_failed_storage,
++                            error.errorDetail,
++                        )
++                }
++        }
+ 
+         data object DiskFull : StartupFailure()
+     }
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/IntentHandler.kt b/AnkiDroid/src/main/java/com/ichi2/anki/IntentHandler.kt
+index a29f64322f70..7420f5288065 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/IntentHandler.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/IntentHandler.kt
+@@ -32,6 +32,7 @@ import com.ichi2.anki.common.utils.trimToLength
+ import com.ichi2.anki.dialogs.DialogHandler.Companion.storeMessage
+ import com.ichi2.anki.dialogs.DialogHandlerMessage
+ import com.ichi2.anki.dialogs.requireDeckPickerOrShowError
++import com.ichi2.anki.exception.SystemStorageException
+ import com.ichi2.anki.libanki.DeckId
+ import com.ichi2.anki.noteeditor.NoteEditorLauncher
+ import com.ichi2.anki.servicelayer.ScopedStorageService
+@@ -350,6 +351,8 @@ class IntentHandler : AbstractIntentHandler() {
+         /** Checks whether storage permissions are granted on the device. If the device is not using legacy storage,
+          *  it verifies if the app has been granted the necessary storage access permission.
+          *  @return `true`: if granted, otherwise `false` and shows a missing permission toast
++         *
++         * @throws SystemStorageException if `getExternalFilesDir` returns null
+          */
+         fun grantedStoragePermissions(
+             context: Context,
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/NavigationDrawerActivity.kt b/AnkiDroid/src/main/java/com/ichi2/anki/NavigationDrawerActivity.kt
+index 0c24fe9615df..05fdd93509ec 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/NavigationDrawerActivity.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/NavigationDrawerActivity.kt
+@@ -45,6 +45,7 @@ import androidx.fragment.app.Fragment
+ import androidx.viewbinding.ViewBinding
+ import com.google.android.material.color.MaterialColors
+ import com.google.android.material.navigation.NavigationView
++import com.ichi2.anki.IntentHandler.Companion.grantedStoragePermissions
+ import com.ichi2.anki.NoteEditorFragment.Companion.NoteEditorCaller
+ import com.ichi2.anki.dialogs.help.HelpDialog
+ import com.ichi2.anki.libanki.CardId
+@@ -480,7 +481,7 @@ abstract class NavigationDrawerActivity(
+         // * having variables in shortcuts used to be doable with https://plugins.gradle.org/plugin/de.timfreiheit.resourceplaceholders, however
+         // * after manually testing it, and looking at open issue https://github.com/timfreiheit/ResourcePlaceholdersPlugin/issues/13 , it seems this was broken with recent version of gradle
+         fun enablePostShortcut(context: Context) {
+-            if (!IntentHandler.grantedStoragePermissions(context, showToast = false)) {
++            if (runCatching { grantedStoragePermissions(context, showToast = false) }.getOrNull() != true) {
+                 Timber.w("No storage access, not enabling shortcuts")
+                 return
+             }
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/exception/StorageAccessException.kt b/AnkiDroid/src/main/java/com/ichi2/anki/exception/StorageAccessException.kt
+index 91c6c70bd121..259daba87368 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/exception/StorageAccessException.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/exception/StorageAccessException.kt
+@@ -16,6 +16,11 @@
+ 
+ package com.ichi2.anki.exception
+ 
++/**
++ * If a known storage path is unusable
++ *
++ * @see [SystemStorageException] if no path is available
++ */
+ class StorageAccessException(
+     msg: String? = null,
+     e: Throwable? = null,
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/exception/SystemStorageException.kt b/AnkiDroid/src/main/java/com/ichi2/anki/exception/SystemStorageException.kt
+new file mode 100644
+index 000000000000..3f86914ed472
+--- /dev/null
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/exception/SystemStorageException.kt
+@@ -0,0 +1,59 @@
++/*
++ *  Copyright (c) 2025 David Allison <davidallisongithub@gmail.com>
++ *
++ *  This program is free software; you can redistribute it and/or modify it under
++ *  the terms of the GNU General Public License as published by the Free Software
++ *  Foundation; either version 3 of the License, or (at your option) any later
++ *  version.
++ *
++ *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
++ *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
++ *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License along with
++ *  this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++package com.ichi2.anki.exception
++
++import android.os.Environment
++import timber.log.Timber
++
++/**
++ * A failure when Android is unable to provide a storage path
++ *
++ * For issue #13207: special handling when `getExternalFilesDir` is `null`
++ * Commonly triggered by an `Android/data` directory corruption bug on Pixel phones:
++ * https://issuetracker.google.com/issues/460912704
++ *
++ * @see [StorageAccessException] for issues with a known storage path
++ */
++class SystemStorageException private constructor(
++    errorDetail: String,
++    val externalStorageState: String,
++    val infoUri: String?,
++) : IllegalStateException("$errorDetail. Media state: $externalStorageState") {
++    override val message: String
++        get() = super.message!!
++
++    companion object {
++        fun build(
++            errorDetail: String,
++            infoUri: String? = null,
++        ): SystemStorageException {
++            val storageState =
++                try {
++                    Environment.getExternalStorageState()
++                } catch (e: Exception) {
++                    Timber.w(e, "getExternalStorageState")
++                    "ERROR"
++                }
++
++            return SystemStorageException(
++                errorDetail = errorDetail,
++                externalStorageState = storageState,
++                infoUri = infoUri,
++            )
++        }
++    }
++}
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/servicelayer/ScopedStorageService.kt b/AnkiDroid/src/main/java/com/ichi2/anki/servicelayer/ScopedStorageService.kt
+index 0608c113fea7..4ea20b180ca6 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/servicelayer/ScopedStorageService.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/servicelayer/ScopedStorageService.kt
+@@ -36,6 +36,8 @@ object ScopedStorageService {
+      *   [com.ichi2.anki.ui.windows.managespace.isInsideDirectoriesRemovedWithTheApp].
+      *
+      * @return `true` if AnkiDroid is storing user data in a Legacy Storage Directory.
++     *
++     * @throws com.ichi2.anki.exception.SystemStorageException if `getExternalFilesDir` returns null
+      */
+     fun isLegacyStorage(context: Context): Boolean = isLegacyStorage(CollectionHelper.getCurrentAnkiDroidDirectory(context), context)
+ 
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/services/BootService.kt b/AnkiDroid/src/main/java/com/ichi2/anki/services/BootService.kt
+index 53eb7b77f406..67d828fef93b 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/services/BootService.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/services/BootService.kt
+@@ -61,7 +61,7 @@ class BootService : BroadcastReceiver() {
+             Timber.d("BootService - Already run")
+             return
+         }
+-        if (!grantedStoragePermissions(context, showToast = false)) {
++        if (runCatching { grantedStoragePermissions(context, showToast = false) }.getOrNull() != true) {
+             Timber.w("Boot Service did not execute - no permissions")
+             return
+         }
+diff --git a/AnkiDroid/src/main/java/com/ichi2/widget/AnalyticsWidgetProvider.kt b/AnkiDroid/src/main/java/com/ichi2/widget/AnalyticsWidgetProvider.kt
+index 7286c5148250..9088aa3b6fbf 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/widget/AnalyticsWidgetProvider.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/widget/AnalyticsWidgetProvider.kt
+@@ -21,7 +21,7 @@ import android.appwidget.AppWidgetProvider
+ import android.content.Context
+ import android.content.Intent
+ import androidx.annotation.CallSuper
+-import com.ichi2.anki.IntentHandler
++import com.ichi2.anki.IntentHandler.Companion.grantedStoragePermissions
+ import com.ichi2.anki.analytics.UsageAnalytics
+ import timber.log.Timber
+ 
+@@ -86,7 +86,7 @@ abstract class AnalyticsWidgetProvider : AppWidgetProvider() {
+         appWidgetIds: IntArray,
+     ) {
+         super.onUpdate(context, appWidgetManager, appWidgetIds)
+-        if (!IntentHandler.grantedStoragePermissions(context, showToast = false)) {
++        if (runCatching { grantedStoragePermissions(context, showToast = false) }.getOrNull() != true) {
+             Timber.w("Opening widget ${this.javaClass.name} without storage access")
+             return
+         }
+diff --git a/AnkiDroid/src/main/res/values/02-strings.xml b/AnkiDroid/src/main/res/values/02-strings.xml
+index 70059b4b1cee..c9547d23757a 100644
+--- a/AnkiDroid/src/main/res/values/02-strings.xml
++++ b/AnkiDroid/src/main/res/values/02-strings.xml
+@@ -238,6 +238,7 @@
+     <string name="search_decks" maxLength="28">Search decks</string>
+     <string name="ankidroid_init_failed_webview_title">Fatal Error</string>
+     <string name="ankidroid_init_failed_webview">AnkiDroid relies on the System WebView which is unavailable. This can happen if the system is installing updates. Please try again in a few minutes.\n\n%s</string>
++    <string name="ankidroid_init_failed_storage">AnkiDroid cannot access storage due to an Android error.\n\n%s</string>
+ 
+     <!-- A Menu item to change the Font Size (currently in the Note Editor) -->
+     <string name="menu_font_size" maxLength="28">Font size</string>

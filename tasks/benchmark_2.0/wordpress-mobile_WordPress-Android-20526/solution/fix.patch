@@ -1,0 +1,104 @@
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/mysite/MySiteFragment.kt b/WordPress/src/main/java/org/wordpress/android/ui/mysite/MySiteFragment.kt
+index 6f8c47d8c624..da8880893f82 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/mysite/MySiteFragment.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/mysite/MySiteFragment.kt
+@@ -654,10 +654,10 @@ class MySiteFragment : Fragment(R.layout.my_site_fragment),
+         is SiteNavigationAction.EditScheduledPost ->
+             ActivityLauncher.viewCurrentBlogPostsOfType(requireActivity(), action.site, PostListType.SCHEDULED)
+ 
+-        is SiteNavigationAction.OpenStatsInsights -> ActivityLauncher.viewBlogStatsForTimeframe(
++        is SiteNavigationAction.OpenStatsByDay -> ActivityLauncher.viewBlogStatsForTimeframe(
+             requireActivity(),
+             action.site,
+-            StatsTimeframe.INSIGHTS,
++            StatsTimeframe.DAY,
+             StatsLaunchedFrom.TODAY_STATS_CARD
+         )
+ 
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/mysite/SiteNavigationAction.kt b/WordPress/src/main/java/org/wordpress/android/ui/mysite/SiteNavigationAction.kt
+index 698131c54497..18fcc1edcd09 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/mysite/SiteNavigationAction.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/mysite/SiteNavigationAction.kt
+@@ -64,7 +64,7 @@ sealed class SiteNavigationAction {
+     data class OpenScheduledPosts(val site: SiteModel) : SiteNavigationAction()
+     data class EditDraftPost(val site: SiteModel, val postId: Int) : SiteNavigationAction()
+     data class EditScheduledPost(val site: SiteModel, val postId: Int) : SiteNavigationAction()
+-    data class OpenStatsInsights(val site: SiteModel) : SiteNavigationAction()
++    data class OpenStatsByDay(val site: SiteModel) : SiteNavigationAction()
+     data class OpenExternalUrl(val url: String) : SiteNavigationAction()
+     data class OpenUrlInWebView(val url: String) : SiteNavigationAction()
+     data class OpenDeepLink(val url: String) : SiteNavigationAction()
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/mysite/cards/dashboard/todaysstats/TodaysStatsViewModelSlice.kt b/WordPress/src/main/java/org/wordpress/android/ui/mysite/cards/dashboard/todaysstats/TodaysStatsViewModelSlice.kt
+index 41732c261431..068f35d7160b 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/mysite/cards/dashboard/todaysstats/TodaysStatsViewModelSlice.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/mysite/cards/dashboard/todaysstats/TodaysStatsViewModelSlice.kt
+@@ -90,7 +90,7 @@ class TodaysStatsViewModelSlice @Inject constructor(
+         if (jetpackFeatureRemovalPhaseHelper.shouldShowStaticPage()) {
+             _onNavigation.value = Event(SiteNavigationAction.ShowJetpackRemovalStaticPostersView)
+         } else {
+-            _onNavigation.value = Event(SiteNavigationAction.OpenStatsInsights(selectedSite))
++            _onNavigation.value = Event(SiteNavigationAction.OpenStatsByDay(selectedSite))
+         }
+     }
+ 
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/stats/refresh/StatsViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/stats/refresh/StatsViewModel.kt
+index d0e9a5f4a8b5..dc2053d61f74 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/stats/refresh/StatsViewModel.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/stats/refresh/StatsViewModel.kt
+@@ -196,7 +196,14 @@ class StatsViewModel
+                 tapSource = launchedFrom?.value ?: ""
+             )
+ 
+-            initialSection?.let { statsSectionManager.setSelectedSection(it) }
++            initialSection?.let {
++                statsSectionManager.setSelectedSection(it)
++
++                val trafficGranularity = it.toStatsGranularity()
++                if (statsTrafficTabFeatureConfig.isEnabled() && trafficGranularity != null) {
++                    selectedTrafficGranularityManager.setSelectedTrafficGranularity(trafficGranularity)
++                }
++            }
+             granularity?.let {
+                 if (it != selectedTrafficGranularityManager.getSelectedTrafficGranularity()) {
+                     selectedTrafficGranularityManager.setSelectedTrafficGranularity(it)
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/stats/refresh/utils/SelectedSectionManager.kt b/WordPress/src/main/java/org/wordpress/android/ui/stats/refresh/utils/SelectedSectionManager.kt
+index 5f5df372abb5..ef835102ca26 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/stats/refresh/utils/SelectedSectionManager.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/stats/refresh/utils/SelectedSectionManager.kt
+@@ -10,8 +10,6 @@ import org.wordpress.android.fluxc.network.utils.StatsGranularity.MONTHS
+ import org.wordpress.android.fluxc.network.utils.StatsGranularity.WEEKS
+ import org.wordpress.android.fluxc.network.utils.StatsGranularity.YEARS
+ import org.wordpress.android.ui.stats.refresh.lists.StatsListViewModel.StatsSection
+-import org.wordpress.android.ui.stats.refresh.lists.StatsListViewModel.StatsSection.INSIGHTS
+-import org.wordpress.android.ui.stats.refresh.lists.StatsListViewModel.StatsSection.TRAFFIC
+ import org.wordpress.android.util.config.StatsTrafficTabFeatureConfig
+ import javax.inject.Inject
+ 
+@@ -33,9 +31,9 @@ class SelectedSectionManager
+         }
+ 
+     fun getSelectedSection(): StatsSection {
+-        val defaultValue = if (statsTrafficTabFeatureConfig.isEnabled()) TRAFFIC else INSIGHTS
++        val defaultValue = if (statsTrafficTabFeatureConfig.isEnabled()) StatsSection.TRAFFIC else StatsSection.INSIGHTS
+         val value = sharedPrefs.getString(SELECTED_SECTION_KEY, defaultValue.name)
+-        return value?.let { StatsSection.valueOf(value) } ?: INSIGHTS
++        return value?.let { StatsSection.valueOf(value) } ?: StatsSection.INSIGHTS
+     }
+ 
+     fun setSelectedSection(selectedSection: StatsSection) {
+@@ -63,15 +61,6 @@ fun StatsSection.toStatsGranularity(): StatsGranularity? {
+     }
+ }
+ 
+-fun StatsGranularity.toStatsSection(): StatsSection {
+-    return when (this) {
+-        DAYS -> StatsSection.DAYS
+-        WEEKS -> StatsSection.WEEKS
+-        MONTHS -> StatsSection.MONTHS
+-        YEARS -> StatsSection.YEARS
+-    }
+-}
+-
+ fun StatsGranularity.toNameResource() = when {
+     this == DAYS -> R.string.stats_timeframe_by_day
+     this == WEEKS -> R.string.stats_timeframe_by_week

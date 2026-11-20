@@ -1,0 +1,380 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 749546e75e..c5a28cf64a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,6 +4,8 @@
+ 
+ ### Added
+ 
++- New `kompendium-resources` plugin to support Ktor Resources API
++
+ ### Changed
+ 
+ ### Remove
+diff --git a/docs/SUMMARY.md b/docs/SUMMARY.md
+index e10eadc88f..be1a61fdcf 100644
+--- a/docs/SUMMARY.md
++++ b/docs/SUMMARY.md
+@@ -5,4 +5,5 @@
+   * [Notarized Application](plugins/notarized_application.md)
+   * [Notarized Route](plugins/notarized_route.md)
+   * [Notarized Locations](plugins/notarized_locations.md)
++  * [Notarized Resources](plugins/notarized_resources.md)
+ * [The Playground](playground.md)
+diff --git a/docs/playground.md b/docs/playground.md
+index 69d85e7866..5c75f295c4 100644
+--- a/docs/playground.md
++++ b/docs/playground.md
+@@ -13,6 +13,7 @@ At the moment, the following playground applications are
+ | Hidden Docs  | Place your generated documentation behind authorization    |
+ | Jackson      | Serialization using Jackson instead of the default KotlinX |
+ | Locations    | Using the Ktor Locations API to define routes              |
++| Resources    | Using the Ktor Resources API to define routes              |
+ 
+ You can find all of the playground
+ examples [here](https://github.com/bkbnio/kompendium/tree/main/playground/src/main/kotlin/io/bkbn/kompendium/playground)
+diff --git a/docs/plugins/notarized_resources.md b/docs/plugins/notarized_resources.md
+new file mode 100644
+index 0000000000..a8fb2a04d4
+--- /dev/null
++++ b/docs/plugins/notarized_resources.md
+@@ -0,0 +1,60 @@
++The Ktor Resources API allows users to define their routes in a type-safe manner.
++
++You can read more about it [here](https://ktor.io/docs/type-safe-routing.html).
++
++Kompendium supports Ktor-Resources through an ancillary module `kompendium-resources`
++
++## Adding the Artifact
++
++Prior to documenting your resources, you will need to add the artifact to your gradle build file.
++
++```kotlin
++dependencies {
++  implementation("io.bkbn:kompendium-resources:$version")
++}
++```
++
++## Installing Plugin
++
++Once you have installed the dependency, you can install the plugin. The `NotarizedResources` plugin is an _application_ level plugin, and **must** be install after both the `NotarizedApplication` plugin and the Ktor `Resources` plugin.
++
++```kotlin
++private fun Application.mainModule() {
++  install(Resources)
++  install(NotarizedApplication()) {
++    spec = baseSpec
++  }
++  install(NotarizedResources()) {
++    resources = mapOf(
++      Listing::class to NotarizedResources.ResourceMetadata(
++        parameters = listOf(
++          Parameter(
++            name = "name",
++            `in` = Parameter.Location.path,
++            schema = TypeDefinition.STRING
++          ),
++          Parameter(
++            name = "page",
++            `in` = Parameter.Location.path,
++            schema = TypeDefinition.INT
++          )
++        ),
++        get = GetInfo.builder {
++          summary("Get user by id")
++          description("A very neat endpoint!")
++          response {
++            responseCode(HttpStatusCode.OK)
++            responseType<ExampleResponse>()
++            description("Will return whether or not the user is real 😱")
++          }
++        }
++      ),
++    )
++  }
++}
++```
++
++Here, the `resources` property is a map of `KClass<*>` to `ResourceMetadata` instance describing that resource. This metadata is functionally identical to how a standard `NotarizedRoute` is defined.
++
++> ⚠️ If you try to map a class that is not annotated with the ktor `@Resource` annotation, you will get a runtime
++> exception!
+diff --git a/locations/src/main/kotlin/io/bkbn/kompendium/locations/NotarizedLocations.kt b/locations/src/main/kotlin/io/bkbn/kompendium/locations/NotarizedLocations.kt
+index 14b6811f0d..2c044b028e 100644
+--- a/locations/src/main/kotlin/io/bkbn/kompendium/locations/NotarizedLocations.kt
++++ b/locations/src/main/kotlin/io/bkbn/kompendium/locations/NotarizedLocations.kt
+@@ -20,6 +20,11 @@ import kotlin.reflect.full.findAnnotation
+ import kotlin.reflect.full.hasAnnotation
+ import kotlin.reflect.full.memberProperties
+ 
++@Deprecated(
++  message = "This functionality is deprecated and will be removed in the future. " +
++    "Use 'ktor-server-resources' with 'kompendium-resources' plugin instead.",
++  level = DeprecationLevel.WARNING
++)
+ object NotarizedLocations {
+ 
+   data class LocationMetadata(
+@@ -43,7 +48,6 @@ object NotarizedLocations {
+     name = "NotarizedLocations",
+     createConfiguration = ::Config
+   ) {
+-    println("hi")
+     val spec = application.attributes[KompendiumAttributes.openApiSpec]
+     val serializableReader = application.attributes[KompendiumAttributes.schemaConfigurator]
+     pluginConfig.locations.forEach { (k, v) ->
+diff --git a/playground/build.gradle.kts b/playground/build.gradle.kts
+index 7348ff5805..db85b62843 100644
+--- a/playground/build.gradle.kts
++++ b/playground/build.gradle.kts
+@@ -14,6 +14,7 @@ dependencies {
+   // IMPLEMENTATION
+   implementation(projects.kompendiumCore)
+   implementation(projects.kompendiumLocations)
++  implementation(projects.kompendiumResources)
+ 
+   // Ktor
+   val ktorVersion: String by project
+@@ -29,6 +30,7 @@ dependencies {
+   implementation("io.ktor:ktor-serialization-jackson:$ktorVersion")
+   implementation("io.ktor:ktor-serialization-gson:$ktorVersion")
+   implementation("io.ktor:ktor-server-locations:$ktorVersion")
++  implementation("io.ktor:ktor-server-resources:$ktorVersion")
+ 
+   // Logging
+   implementation("org.apache.logging.log4j:log4j-api-kotlin:1.2.0")
+diff --git a/playground/src/main/kotlin/io/bkbn/kompendium/playground/ResourcesPlayground.kt b/playground/src/main/kotlin/io/bkbn/kompendium/playground/ResourcesPlayground.kt
+new file mode 100644
+index 0000000000..0108002b23
+--- /dev/null
++++ b/playground/src/main/kotlin/io/bkbn/kompendium/playground/ResourcesPlayground.kt
+@@ -0,0 +1,85 @@
++package io.bkbn.kompendium.playground
++
++import io.bkbn.kompendium.core.metadata.GetInfo
++import io.bkbn.kompendium.core.plugin.NotarizedApplication
++import io.bkbn.kompendium.core.routes.redoc
++import io.bkbn.kompendium.json.schema.definition.TypeDefinition
++import io.bkbn.kompendium.oas.payload.Parameter
++import io.bkbn.kompendium.oas.serialization.KompendiumSerializersModule
++import io.bkbn.kompendium.playground.util.ExampleResponse
++import io.bkbn.kompendium.playground.util.Util.baseSpec
++import io.bkbn.kompendium.resources.NotarizedResources
++import io.ktor.http.HttpStatusCode
++import io.ktor.resources.Resource
++import io.ktor.serialization.kotlinx.json.json
++import io.ktor.server.application.Application
++import io.ktor.server.application.call
++import io.ktor.server.application.install
++import io.ktor.server.cio.CIO
++import io.ktor.server.engine.embeddedServer
++import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
++import io.ktor.server.resources.Resources
++import io.ktor.server.resources.get
++import io.ktor.server.response.respondText
++import io.ktor.server.routing.routing
++import kotlinx.serialization.Serializable
++import kotlinx.serialization.json.Json
++
++fun main() {
++  embeddedServer(
++    CIO,
++    port = 8081,
++    module = Application::mainModule
++  ).start(wait = true)
++}
++
++private fun Application.mainModule() {
++  install(Resources)
++  install(ContentNegotiation) {
++    json(Json {
++      serializersModule = KompendiumSerializersModule.module
++      encodeDefaults = true
++      explicitNulls = false
++    })
++  }
++  install(NotarizedApplication()) {
++    spec = baseSpec
++  }
++  install(NotarizedResources()) {
++    resources = mapOf(
++      ListingResource::class to NotarizedResources.ResourceMetadata(
++        parameters = listOf(
++          Parameter(
++            name = "name",
++            `in` = Parameter.Location.path,
++            schema = TypeDefinition.STRING
++          ),
++          Parameter(
++            name = "page",
++            `in` = Parameter.Location.path,
++            schema = TypeDefinition.INT
++          )
++        ),
++        get = GetInfo.builder {
++          summary("Get user by id")
++          description("A very neat endpoint!")
++          response {
++            responseCode(HttpStatusCode.OK)
++            responseType<ExampleResponse>()
++            description("Will return whether or not the user is real 😱")
++          }
++        }
++      ),
++    )
++  }
++  routing {
++    redoc(pageTitle = "Simple API Docs")
++    get<ListingResource> { listing ->
++      call.respondText("Listing ${listing.name}, page ${listing.page}")
++    }
++  }
++}
++
++@Serializable
++@Resource("/list/{name}/page/{page}")
++data class ListingResource(val name: String, val page: Int)
+diff --git a/resources/build.gradle.kts b/resources/build.gradle.kts
+new file mode 100644
+index 0000000000..7eaf88ba3a
+--- /dev/null
++++ b/resources/build.gradle.kts
+@@ -0,0 +1,42 @@
++plugins {
++  kotlin("jvm")
++  kotlin("plugin.serialization")
++  id("io.bkbn.sourdough.library.jvm")
++  id("io.gitlab.arturbosch.detekt")
++  id("com.adarshr.test-logger")
++  id("maven-publish")
++  id("java-library")
++  id("signing")
++  id("org.jetbrains.kotlinx.kover")
++}
++
++sourdoughLibrary {
++  libraryName.set("Kompendium Resources")
++  libraryDescription.set("Supplemental library for Kompendium offering support for Ktor's Resources API")
++}
++
++dependencies {
++  // Versions
++  val detektVersion: String by project
++
++  // IMPLEMENTATION
++
++  implementation(projects.kompendiumCore)
++  implementation("io.ktor:ktor-server-core:2.1.2")
++  implementation("io.ktor:ktor-server-resources:2.1.2")
++
++  // TESTING
++
++  testImplementation(testFixtures(projects.kompendiumCore))
++
++  // Formatting
++  detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:$detektVersion")
++}
++
++testing {
++  suites {
++    named("test", JvmTestSuite::class) {
++      useJUnitJupiter()
++    }
++  }
++}
+diff --git a/resources/src/main/kotlin/io/bkbn/kompendium/resources/NotarizedResources.kt b/resources/src/main/kotlin/io/bkbn/kompendium/resources/NotarizedResources.kt
+new file mode 100644
+index 0000000000..8b60bf0ca8
+--- /dev/null
++++ b/resources/src/main/kotlin/io/bkbn/kompendium/resources/NotarizedResources.kt
+@@ -0,0 +1,78 @@
++package io.bkbn.kompendium.resources
++
++import io.bkbn.kompendium.core.attribute.KompendiumAttributes
++import io.bkbn.kompendium.core.metadata.DeleteInfo
++import io.bkbn.kompendium.core.metadata.GetInfo
++import io.bkbn.kompendium.core.metadata.HeadInfo
++import io.bkbn.kompendium.core.metadata.OptionsInfo
++import io.bkbn.kompendium.core.metadata.PatchInfo
++import io.bkbn.kompendium.core.metadata.PostInfo
++import io.bkbn.kompendium.core.metadata.PutInfo
++import io.bkbn.kompendium.core.util.Helpers.addToSpec
++import io.bkbn.kompendium.core.util.SpecConfig
++import io.bkbn.kompendium.oas.path.Path
++import io.bkbn.kompendium.oas.payload.Parameter
++import io.ktor.resources.Resource
++import io.ktor.server.application.createApplicationPlugin
++import kotlin.reflect.KClass
++import kotlin.reflect.full.findAnnotation
++import kotlin.reflect.full.hasAnnotation
++import kotlin.reflect.full.memberProperties
++
++object NotarizedResources {
++
++  data class ResourceMetadata(
++    override var tags: Set<String> = emptySet(),
++    override var parameters: List<Parameter> = emptyList(),
++    override var get: GetInfo? = null,
++    override var post: PostInfo? = null,
++    override var put: PutInfo? = null,
++    override var delete: DeleteInfo? = null,
++    override var patch: PatchInfo? = null,
++    override var head: HeadInfo? = null,
++    override var options: OptionsInfo? = null,
++    override var security: Map<String, List<String>>? = null,
++  ) : SpecConfig
++
++  class Config {
++    lateinit var resources: Map<KClass<*>, ResourceMetadata>
++  }
++
++  operator fun invoke() = createApplicationPlugin(
++    name = "NotarizedResources",
++    createConfiguration = NotarizedResources::Config
++  ) {
++    val spec = application.attributes[KompendiumAttributes.openApiSpec]
++    val serializableReader = application.attributes[KompendiumAttributes.schemaConfigurator]
++    pluginConfig.resources.forEach { (k, v) ->
++      val path = Path()
++      path.parameters = v.parameters
++      v.get?.addToSpec(path, spec, v, serializableReader)
++      v.delete?.addToSpec(path, spec, v, serializableReader)
++      v.head?.addToSpec(path, spec, v, serializableReader)
++      v.options?.addToSpec(path, spec, v, serializableReader)
++      v.post?.addToSpec(path, spec, v, serializableReader)
++      v.put?.addToSpec(path, spec, v, serializableReader)
++      v.patch?.addToSpec(path, spec, v, serializableReader)
++
++      val resource = k.getResourcesFromClass()
++      spec.paths[resource] = path
++    }
++  }
++
++  private fun KClass<*>.getResourcesFromClass(): String {
++    // todo if parent
++
++    val resource = findAnnotation<Resource>()
++      ?: error("Cannot notarize a resource without annotating with @Resource")
++
++    val path = resource.path
++    val parent = memberProperties.map { it.returnType.classifier as KClass<*> }.find { it.hasAnnotation<Resource>() }
++
++    return if (parent == null) {
++      path
++    } else {
++      parent.getResourcesFromClass() + path
++    }
++  }
++}
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index 8affb6a139..a8f66941fb 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -5,6 +5,7 @@ include("oas")
+ include("playground")
+ include("locations")
+ include("json-schema")
++include("resources")
+ 
+ run {
+   rootProject.children.forEach { it.name = "${rootProject.name}-${it.name}" }

@@ -1,0 +1,256 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3e986866..0a7ef9c6 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,6 +1,8 @@
+ ## Descriptive changelog
+ (All dates are DD.MM.YYYY)
+ ##### 0.1.6-SNAPSHOT 
++- Fixed #86 - Rounding fails when integer part is 9
++- Fixed #88 - BigInteger.bitAt() returns invalid value
+ 
+ ##### 0.1.5 - 07.01.2020 - Adding linux arm targets, BigDecimal bug fixes
+ - Version bump to kotlin 1.3.61
+diff --git a/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/BigIntegerExtensions.kt b/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/BigIntegerExtensions.kt
+index bab8aa57..749cf9d8 100644
+--- a/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/BigIntegerExtensions.kt
++++ b/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/BigIntegerExtensions.kt
+@@ -48,6 +48,26 @@ fun String.toBigInteger(base: Int = 10): BigInteger {
+     return BigInteger.parseString(this, base)
+ }
+ 
++@ExperimentalUnsignedTypes
++fun ULong.toBigInteger(): BigInteger {
++    return BigInteger.fromULong(this)
++}
++
++@ExperimentalUnsignedTypes
++fun UInt.toBigInteger(): BigInteger {
++    return BigInteger.fromUInt(this)
++}
++
++@ExperimentalUnsignedTypes
++fun UShort.toBigInteger(): BigInteger {
++    return BigInteger.fromUShort(this)
++}
++
++@ExperimentalUnsignedTypes
++fun UByte.toBigInteger(): BigInteger {
++    return BigInteger.fromUByte(this)
++}
++
+ //
+ //  -------- Basic type arithmetic operation extensions -------
+ //
+@@ -74,6 +94,26 @@ operator fun Byte.plus(other: BigInteger): BigInteger {
+     return this.toBigInteger() + other
+ }
+ 
++@ExperimentalUnsignedTypes
++operator fun ULong.plus(other: BigInteger): BigInteger {
++    return this.toBigInteger() + other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UInt.plus(other: BigInteger): BigInteger {
++    return this.toBigInteger() + other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UShort.plus(other: BigInteger): BigInteger {
++    return this.toBigInteger() + other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UByte.plus(other: BigInteger): BigInteger {
++    return this.toBigInteger() + other
++}
++
+ // --------- Subtraction -----------------
+ 
+ @ExperimentalUnsignedTypes
+@@ -96,6 +136,26 @@ operator fun Byte.minus(other: BigInteger): BigInteger {
+     return this.toBigInteger() - other
+ }
+ 
++@ExperimentalUnsignedTypes
++operator fun ULong.minus(other: BigInteger): BigInteger {
++    return this.toBigInteger() - other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UInt.minus(other: BigInteger): BigInteger {
++    return this.toBigInteger() - other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UShort.minus(other: BigInteger): BigInteger {
++    return this.toBigInteger() - other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UByte.minus(other: BigInteger): BigInteger {
++    return this.toBigInteger() - other
++}
++
+ // --------- Multiplication -----------------
+ 
+ @ExperimentalUnsignedTypes
+@@ -118,6 +178,26 @@ operator fun Byte.times(other: BigInteger): BigInteger {
+     return this.toBigInteger() * other
+ }
+ 
++@ExperimentalUnsignedTypes
++operator fun ULong.times(other: BigInteger): BigInteger {
++    return this.toBigInteger() * other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UInt.times(other: BigInteger): BigInteger {
++    return this.toBigInteger() * other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UShort.times(other: BigInteger): BigInteger {
++    return this.toBigInteger() * other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UByte.times(other: BigInteger): BigInteger {
++    return this.toBigInteger() * other
++}
++
+ // --------- Division -----------------
+ 
+ @ExperimentalUnsignedTypes
+@@ -140,6 +220,26 @@ operator fun Byte.div(other: BigInteger): BigInteger {
+     return this.toBigInteger() / other
+ }
+ 
++@ExperimentalUnsignedTypes
++operator fun ULong.div(other: BigInteger): BigInteger {
++    return this.toBigInteger() / other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UInt.div(other: BigInteger): BigInteger {
++    return this.toBigInteger() / other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UShort.div(other: BigInteger): BigInteger {
++    return this.toBigInteger() / other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UByte.div(other: BigInteger): BigInteger {
++    return this.toBigInteger() / other
++}
++
+ // --------- Remainder -----------------
+ 
+ @ExperimentalUnsignedTypes
+@@ -161,3 +261,23 @@ operator fun Short.rem(other: BigInteger): BigInteger {
+ operator fun Byte.rem(other: BigInteger): BigInteger {
+     return this.toBigInteger() % other
+ }
++
++@ExperimentalUnsignedTypes
++operator fun ULong.rem(other: BigInteger): BigInteger {
++    return this.toBigInteger() % other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UInt.rem(other: BigInteger): BigInteger {
++    return this.toBigInteger() % other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UShort.rem(other: BigInteger): BigInteger {
++    return this.toBigInteger() % other
++}
++
++@ExperimentalUnsignedTypes
++operator fun UByte.rem(other: BigInteger): BigInteger {
++    return this.toBigInteger() % other
++}
+diff --git a/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/base63/BigInteger63LinkedListArithmetic.kt b/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/base63/BigInteger63LinkedListArithmetic.kt
+index 3afdecec..9c6945ea 100644
+--- a/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/base63/BigInteger63LinkedListArithmetic.kt
++++ b/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/base63/BigInteger63LinkedListArithmetic.kt
+@@ -23,6 +23,7 @@ import com.ionspin.kotlin.bignum.integer.BigIntegerArithmetic
+ import com.ionspin.kotlin.bignum.integer.Quadruple
+ import com.ionspin.kotlin.bignum.integer.Sign
+ import com.ionspin.kotlin.bignum.integer.base32.BigInteger32Arithmetic
++import com.ionspin.kotlin.bignum.integer.base63.array.BigInteger63Arithmetic
+ import com.ionspin.kotlin.bignum.integer.util.toDigit
+ import kotlin.math.absoluteValue
+ import kotlin.math.ceil
+@@ -1238,7 +1239,13 @@ internal object BigInteger63LinkedListArithmetic : BigIntegerArithmetic<List<ULo
+         return convertFrom32BitRepresentation(this)
+     }
+ 
+-    override fun fromULong(uLong: ULong): List<ULong> = listOf(uLong)
++    override fun fromULong(uLong: ULong): List<ULong> {
++        return if ((uLong and BigInteger63Arithmetic.overflowMask) != 0UL) {
++            listOf(uLong and BigInteger63Arithmetic.baseMask, 1U)
++        } else {
++            listOf(uLong)
++        }
++    }
+ 
+     override fun fromUInt(uInt: UInt): List<ULong> = listOf(uInt.toULong())
+ 
+@@ -1247,10 +1254,10 @@ internal object BigInteger63LinkedListArithmetic : BigIntegerArithmetic<List<ULo
+     override fun fromUByte(uByte: UByte): List<ULong> = listOf(uByte.toULong())
+ 
+     override fun fromLong(long: Long): List<ULong> {
+-        if ((long.absoluteValue.toULong() and overflowMask shr 63) == 1UL) {
+-            return listOf(baseMask) + 1U
++        if (long == Long.MIN_VALUE) {
++            return listOf((Long.MAX_VALUE).toULong() + 1UL)
+         }
+-        return listOf((long.absoluteValue.toULong() and baseMask))
++        return listOf((long.absoluteValue.toULong() and BigInteger63Arithmetic.baseMask))
+     }
+ 
+     override fun fromInt(int: Int): List<ULong> = listOf(int.absoluteValue.toULong())
+diff --git a/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/base63/array/BigInteger63Arithmetic.kt b/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/base63/array/BigInteger63Arithmetic.kt
+index 48bd1684..372f3826 100644
+--- a/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/base63/array/BigInteger63Arithmetic.kt
++++ b/bignum/src/commonMain/kotlin/com/ionspin/kotlin/bignum/integer/base63/array/BigInteger63Arithmetic.kt
+@@ -1788,7 +1788,7 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic<ULongArray, ULong>
+         }
+         val bitPosition = position % 63
+         val word = operand[wordPosition.toInt()]
+-        return (word and (1UL shl bitPosition.toInt()) == 1UL)
++        return (word and (1UL shl bitPosition.toInt()) != 0UL)
+     }
+ 
+     override fun setBitAt(operand: ULongArray, position: Long, bit: Boolean): ULongArray {
+@@ -1918,9 +1918,11 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic<ULongArray, ULong>
+     }
+ 
+     override fun fromULong(uLong: ULong): ULongArray {
+-        return removeLeadingZeros(
+-            fromLong(uLong.toLong())
+-        )
++        return if ((uLong and overflowMask) != 0UL) {
++            ulongArrayOf(uLong and baseMask, 1U)
++        } else {
++            ulongArrayOf(uLong)
++        }
+     }
+ 
+     override fun fromUInt(uInt: UInt): ULongArray = ulongArrayOf(uInt.toULong())
+@@ -1930,8 +1932,8 @@ internal object BigInteger63Arithmetic : BigIntegerArithmetic<ULongArray, ULong>
+     override fun fromUByte(uByte: UByte): ULongArray = ulongArrayOf(uByte.toULong())
+ 
+     override fun fromLong(long: Long): ULongArray {
+-        if ((long.absoluteValue.toULong() and overflowMask shr 63) == 1UL) {
+-            return ulongArrayOf(baseMask) + 1U
++        if (long == Long.MIN_VALUE) {
++            return ulongArrayOf((Long.MAX_VALUE).toULong() + 1UL)
+         }
+         return ulongArrayOf((long.absoluteValue.toULong() and baseMask))
+     }

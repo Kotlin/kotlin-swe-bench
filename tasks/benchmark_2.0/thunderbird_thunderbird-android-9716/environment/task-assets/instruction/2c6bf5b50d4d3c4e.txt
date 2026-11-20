@@ -1,0 +1,406 @@
+--------- beginning of crash
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: FATAL EXCEPTION: main
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: Process: net.thunderbird.android.beta, PID: 12086
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: java.lang.IllegalStateException: Account not found: placeholder
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at app.k9mail.legacy.ui.folder.DefaultDisplayFolderRepository.getDisplayFoldersFlow(DefaultDisplayFolderRepository.kt:89)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at net.thunderbird.feature.navigation.drawer.dropdown.domain.usecase.GetDisplayFoldersForAccount.invoke(GetDisplayFoldersForAccount.kt:24)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerViewModel$loadFolders$$inlined$flatMapLatest$1.invokeSuspend(Merge.kt:190)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerViewModel$loadFolders$$inlined$flatMapLatest$1.invoke(Merge.kt:0)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerViewModel$loadFolders$$inlined$flatMapLatest$1.invoke(Merge.kt:0)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.flow.internal.ChannelFlowTransformLatest$flowCollect$3$1$2.invokeSuspend(Merge.kt:30)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.flow.internal.ChannelFlowTransformLatest$flowCollect$3$1$2.invoke(Merge.kt:0)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.flow.internal.ChannelFlowTransformLatest$flowCollect$3$1$2.invoke(Merge.kt:0)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.intrinsics.UndispatchedKt.startCoroutineUndispatched(Undispatched.kt:20)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.CoroutineStart.invoke(CoroutineStart.kt:360)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.AbstractCoroutine.start(AbstractCoroutine.kt:134)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.BuildersKt__Builders_commonKt.launch(Builders.common.kt:53)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.BuildersKt.launch(Unknown Source:1)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.BuildersKt__Builders_commonKt.launch$default(Builders.common.kt:44)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.BuildersKt.launch$default(Unknown Source:1)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.flow.internal.ChannelFlowTransformLatest$flowCollect$3$1.emit(Merge.kt:29)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.flow.internal.ChannelFlowTransformLatest$flowCollect$3$1$emit$1.invokeSuspend(Merge.kt:0)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.DispatchedTaskKt.resume(DispatchedTask.kt:237)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.DispatchedTaskKt.resumeUnconfined(DispatchedTask.kt:175)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.DispatchedTaskKt.dispatch(DispatchedTask.kt:147)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.CancellableContinuationImpl.dispatchResume(CancellableContinuationImpl.kt:470)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.CancellableContinuationImpl.resumeImpl$kotlinx_coroutines_core(CancellableContinuationImpl.kt:504)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.CancellableContinuationImpl.resumeImpl$kotlinx_coroutines_core$default(CancellableContinuationImpl.kt:493)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.CancellableContinuationImpl.resumeWith(CancellableContinuationImpl.kt:359)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.ResumeOnCompletion.invoke(JobSupport.kt:1541)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.JobSupport.notifyCompletion(JobSupport.kt:365)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.JobSupport.completeStateFinalization(JobSupport.kt:316)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.JobSupport.finalizeFinishingState(JobSupport.kt:233)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.JobSupport.tryMakeCompletingSlowPath(JobSupport.kt:946)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.JobSupport.tryMakeCompleting(JobSupport.kt:894)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.JobSupport.makeCompletingOnce$kotlinx_coroutines_core(JobSupport.kt:859)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.AbstractCoroutine.resumeWith(AbstractCoroutine.kt:99)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:46)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:98)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at android.os.Handler.handleCallback(Handler.java:973)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:100)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:282)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:387)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:9500)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:600)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:1005)
+08-25 13:40:04.994 12086 12086 E AndroidRuntime: 	Suppressed: kotlinx.coroutines.internal.DiagnosticCoroutineContextException: [StandaloneCoroutine{Cancelling}@6aac43b, Dispatchers.Main.immediate]
+--------- beginning of system
+08-25 13:40:12.506 12613 12613 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:-1
+08-25 13:40:12.549 12613 12613 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:40:12.561 12613 12613 E OplusCustomizeRestrictionManager: sInstance is null, start a new sInstance
+08-25 13:40:12.573 12613 12613 D ActivityThread: ComponentInfo{net.thunderbird.android.beta/com.fsck.k9.activity.MessageList} checkFinished=false 2
+08-25 13:40:12.573 12613 12613 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:40:12.574 12613 12613 D OplusInputMethodUtil: init sDebug to false, init sDebugIme to false, init sAlwaysOn to false
+08-25 13:40:12.574 12613 12613 D OplusInputMethodUtil: updateDebugToClass InputMethodManager.DEBUG = false
+08-25 13:40:12.574 12613 12613 D OplusInputMethodUtil: updateDebugToClass ImeFocusController.DEBUG = false
+08-25 13:40:12.574 12613 12613 D OplusInputMethodUtil: updateDebugToClass InsetsController.DEBUG = false
+08-25 13:40:12.574 12613 12613 D OplusInputMethodUtil: updateDebugToClass BaseInputConnection.DEBUG = false
+08-25 13:40:12.586 12613 12613 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:40:12.615 12613 12613 D VRI[MessageList]: relayoutWindow result, sizeChanged:true, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(0, 0), mWidth:-1, mHeight:-1, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:40:12.615 12613 12613 W VRI[MessageList]: updateBlastSurfaceIfNeeded, surfaceSize:Point(1080, 2412), lastSurfaceSize:Point(0, 0), format:-1, blastBufferQueue:null
+08-25 13:40:12.655 12613 12613 W VRI[MessageList]: handleResized, msg:, frameChanged:false, configChanged:false, displayChanged:false, attachedFrameChanged:false, compatScaleChanged:false, pendingDragResizing=false
+08-25 13:40:13.941 12613 12613 D OplusInputMethodManagerInternal: get inputMethodManager extension: com.android.internal.view.IInputMethodManager$Stub$Proxy@7732cf8
+08-25 13:40:16.206 12613 12613 D ActivityThread: ComponentInfo{net.thunderbird.android.beta/com.fsck.k9.activity.MessageList} checkFinished=false 4
+08-25 13:40:16.206 12613 12613 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:41:05.250 12613 12613 D VRI[MessageList]: relayoutWindow result, sizeChanged:false, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(1080, 2412), mWidth:1080, mHeight:2412, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:false, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:41:05.272 12613 12613 D VRI[MessageList]: relayoutWindow result, sizeChanged:false, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(1080, 2412), mWidth:1080, mHeight:2412, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:false, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+--------- beginning of main
+08-25 13:42:27.692 13010 13010 E rd.android.beta: Unknown bits set in runtime_flags: 0x40000000
+08-25 13:42:27.692 13010 13010 I rd.android.beta: Using CollectorTypeCMC GC.
+08-25 13:42:27.694 13010 13010 E rd.android.beta: Not starting debugger since process cannot load the jdwp agent.
+08-25 13:42:27.696 13010 13010 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+08-25 13:42:27.698 13010 13010 D OplusActivityThreadExtImpl: java.lang.NoSuchMethodException: dalvik.system.VMRuntime.SupressionGC [int, int]
+08-25 13:42:27.698 13010 13010 W libc    : Access denied finding property "persist.vendor.sys.activitylog"
+08-25 13:42:27.698 13010 13010 I OneTrace: Mark active for pid=13010? true
+08-25 13:42:27.698 13010 13010 D cutils-dev: otrace_set_tracing_enabled? true tag:0
+08-25 13:42:27.699 13010 13010 D cutils-dev: properties changed in otrace_seq_number_changed!
+08-25 13:42:27.708 13010 13019 D OplusAppHeapManager: java.lang.NoSuchMethodException: dalvik.system.VMRuntime.updateProcessValue [int, int, int]
+08-25 13:42:27.710 13010 13010 D OplusActivityManager: get AMS extension: android.os.BinderProxy@52713e8
+08-25 13:42:27.712 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:27.712 13010 13019 D ColorModeChangeItem: preExecute mColorMode=0
+08-25 13:42:27.712 13010 13010 D CompactWindowAppManager: initCompactApplicationInfo CompactMode: , NormalMode: 
+08-25 13:42:27.714 13010 13010 D OplusScrollToTopManager: setIsInWhiteList false
+08-25 13:42:27.715 13010 13010 D OplusViewDebugManager: OplusViewDebugManager Constructor android.view.debug.OplusViewDebugManager@bacd0a6 [mHasViewDebugProperty true] [mHasMsgDebugProperty false] [DEBUG false] [EXTRAINFOENABLE false] [LIGHT_OS false]
+08-25 13:42:27.718 13010 13010 W libc    : Access denied finding property "ro.odm.prev.product.name"
+08-25 13:42:27.719 13010 13010 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.extensions.jar
+08-25 13:42:27.719 13010 13010 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.sidecar.jar
+08-25 13:42:27.733 13010 13010 D nativeloader: Configuring clns-7 for other apk /data/app/~~jHEDdtQKvwZDDwEU2fMTiw==/net.thunderbird.android.beta-DcqwJAJp2hg_asSQH7dspA==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~jHEDdtQKvwZDDwEU2fMTiw==/net.thunderbird.android.beta-DcqwJAJp2hg_asSQH7dspA==/lib/arm64:/data/app/~~jHEDdtQKvwZDDwEU2fMTiw==/net.thunderbird.android.beta-DcqwJAJp2hg_asSQH7dspA==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/net.thunderbird.android.beta
+08-25 13:42:27.733 13010 13010 D CompatChangeReporter: Compat change id reported: 202956589; UID 10035; state: ENABLED
+08-25 13:42:27.737 13010 13010 V GraphicsEnvironment: Currently set values for:
+08-25 13:42:27.737 13010 13010 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+08-25 13:42:27.737 13010 13010 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+08-25 13:42:27.737 13010 13010 V GraphicsEnvironment: Global.Settings values are invalid: number of packages: 0, number of values: 0
+08-25 13:42:27.737 13010 13010 V GraphicsEnvironment: App is not on the allowlist for updatable production driver.
+08-25 13:42:27.738 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:-1
+08-25 13:42:27.757 13010 13010 D nativeloader: Load libSchedAssistJni.so using system ns (caller=/system/framework/oplus-framework.jar): ok
+08-25 13:42:27.757 13010 13010 D ExtensionsLoader: createInstance(64bit) : createExtendedFactory
+08-25 13:42:27.757 13010 13010 D ExtensionsLoader: Opened libSchedAssistExtImpl.so
+08-25 13:42:27.757 13010 13010 E SchedAssist: sysOpen failed with error=Permission denied
+08-25 13:42:27.757 13010 13010 E SchedAssist: open sharedFd failed with error=Permission denied
+08-25 13:42:27.757 13010 13010 E SchedAssist: open sharedFd failed with error=Permission denied
+08-25 13:42:27.757 13010 13010 E SchedAssist: open sharedFd failed with error=Permission denied
+08-25 13:42:27.757 13010 13010 E SchedAssist: open sharedFd failed with error=No such file or directory
+08-25 13:42:27.759 13010 13010 D OplusGraphicsEvent: OplusGraphicsEventListener create now!
+08-25 13:42:27.760 13010 13010 D OplusGraphicsEvent: addEventListener success!
+08-25 13:42:27.760 13010 13010 D ScrollOptim [ConfigManager]: initOptConfig: pkg= net.thunderbird.android.beta, mOptEnable= true, mAnimAheadEnable= true, mInsertDefaultNum= 1, mFrameInsertEnableList= {}, mSCEnableList= []
+08-25 13:42:27.761 13010 13010 D CompatChangeReporter: Compat change id reported: 279646685; UID 10035; state: ENABLED
+08-25 13:42:27.771 13010 13010 D WM-PackageManagerHelper: Skipping component enablement for androidx.work.impl.background.systemjob.SystemJobService
+08-25 13:42:27.771 13010 13010 D WM-Schedulers: Created SystemJobScheduler and enabled SystemJobService
+08-25 13:42:27.771 13010 13028 D WM-ForceStopRunnable: The default process name was not specified.
+08-25 13:42:27.771 13010 13028 D WM-ForceStopRunnable: Performing cleanup operations.
+08-25 13:42:27.771 13010 13010 I MailSyncWorkerManager: Scheduling mail sync worker c845b3c8-759b-4243-8e56-0568f12674e8
+08-25 13:42:27.772 13010 13010 I MailSyncWorkerManager:   sync interval: 15 minutes"
+08-25 13:42:27.772 13010 13010 I MailSyncWorkerManager: last sync time: 1756125126807
+08-25 13:42:27.772 13010 13010 I MailSyncWorkerManager:   initial delay: 279035 ms
+08-25 13:42:27.772 13010 13010 I MailSyncWorkerManager: Scheduling mail sync worker 88575f12-fe3d-41d1-9bce-1027070394ba
+08-25 13:42:27.772 13010 13010 I MailSyncWorkerManager:   sync interval: 60 minutes"
+08-25 13:42:27.772 13010 13010 I MailSyncWorkerManager: last sync time: 1756123922827
+08-25 13:42:27.772 13010 13010 I MailSyncWorkerManager:   initial delay: 1775055 ms
+08-25 13:42:27.777 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:27.778 13010 13010 I HWUI    : SupportApps size 0
+08-25 13:42:27.780 13010 13033 D ExtensionsLoader: createInstance(64bit) : createExtendedFactory
+08-25 13:42:27.780 13010 13033 D ExtensionsLoader: Opened libSchedAssistExtImpl.so
+08-25 13:42:27.781 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:27.781 13010 13028 D WM-ForceStopRunnable: Application was force-stopped, rescheduling.
+08-25 13:42:27.781 13010 13010 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found
+08-25 13:42:27.785 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: Unknow feature:IOplusTextViewRTLUtilForUG
+08-25 13:42:27.786 13010 13010 D nativeloader: Load liboplushwui_jni.so using system ns (caller=/system/framework/oplus-framework.jar): ok
+08-25 13:42:27.788 13010 13010 D CompatChangeReporter: Compat change id reported: 309578419; UID 10035; state: ENABLED
+08-25 13:42:27.791 13010 13010 D ScrollOptimizationHelper: can't find the config file for optimizaiton
+08-25 13:42:27.791 13010 13010 D ScrollOptimizationHelper: will not debug for debug is false
+08-25 13:42:27.791 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:27.791 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:27.791 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:27.791 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:27.791 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:27.791 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:27.792 13010 13010 E OplusCustomizeRestrictionManager: sInstance is null, start a new sInstance
+08-25 13:42:27.793 13010 13010 D CompatChangeReporter: Compat change id reported: 63938206; UID 10035; state: ENABLED
+08-25 13:42:27.794 13010 13028 D CompatChangeReporter: Compat change id reported: 311402873; UID 10035; state: ENABLED
+08-25 13:42:27.794 13010 13028 D CompatChangeReporter: Compat change id reported: 323349338; UID 10035; state: ENABLED
+08-25 13:42:27.794 13010 13028 D WM-SystemJobScheduler: Scheduling work ID c54dfd56-a1a3-41e7-80da-725de215f1faJob ID 6668
+08-25 13:42:27.795 13010 13028 D WM-SystemJobScheduler: Scheduling work ID f1f73825-cabe-4f2d-8203-38cdc03a2325Job ID 6669
+08-25 13:42:27.797 13010 13038 D WM-Processor: Processor cancelling c54dfd56-a1a3-41e7-80da-725de215f1fa
+08-25 13:42:27.797 13010 13038 D WM-Processor: WorkerWrapper could not be found for c54dfd56-a1a3-41e7-80da-725de215f1fa
+08-25 13:42:27.798 13010 13038 D WM-GreedyScheduler: Cancelling work ID c54dfd56-a1a3-41e7-80da-725de215f1fa
+08-25 13:42:27.798 13010 13038 D WM-Processor: Processor cancelling f1f73825-cabe-4f2d-8203-38cdc03a2325
+08-25 13:42:27.798 13010 13038 D WM-Processor: WorkerWrapper could not be found for f1f73825-cabe-4f2d-8203-38cdc03a2325
+08-25 13:42:27.799 13010 13030 I MessagingController: Running command 'clearNotifications', seq = 0 (foreground priority)
+08-25 13:42:27.799 13010 13038 D WM-GreedyScheduler: Cancelling work ID f1f73825-cabe-4f2d-8203-38cdc03a2325
+08-25 13:42:27.800 13010 13030 I MessagingController:  Command 'clearNotifications' completed
+08-25 13:42:27.801 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:27.801 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:27.801 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:27.801 13010 13010 I DynamicFramerate [FRTCConfigManager]: initFrameRateConfig: 
+08-25 13:42:27.801 13010 13010 I DynamicFramerate [FRTCConfigManager]: 	levels: [120, 60]
+08-25 13:42:27.801 13010 13010 I DynamicFramerate [FRTCConfigManager]: 	thresholds: [200]
+08-25 13:42:27.801 13010 13010 I DynamicFramerate [FRTCConfigManager]: FRTCConfigManager: FRTC_CAPABILITY = 120, package name = net.thunderbird.android.beta, WINDOW_ANIMATION_SPEED_RATE = 10, SCROLL_ANIMATION_SPEED_RATE = 20, PACKAGE_ENABLE = false
+08-25 13:42:27.801 13010 13010 I DynamicFramerate [DynamicFrameRateController]: init info: mPackageName = net.thunderbird.android.beta, mIsEnabled = false
+08-25 13:42:27.801 13010 13040 D WM-SystemJobScheduler: Scheduling work ID 9d899fa4-ee58-4e82-98ac-9024d9cf256bJob ID 6670
+08-25 13:42:27.803 13010 13040 D WM-SystemJobScheduler: Scheduling work ID d8c5ad10-f87c-47bc-96c9-581e9c5f9935Job ID 6671
+08-25 13:42:27.805 13010 13040 D WM-PackageManagerHelper: Skipping component enablement for androidx.work.impl.background.systemalarm.RescheduleReceiver
+08-25 13:42:27.806 13010 13010 D ScrollOptim [SceneManager]: updateCurrentActivity: mCurrentActivityName=com.fsck.k9.activity.MessageList, isOptEnable=true, isAnimAheadEnable=true, isFrameInsertEnable=true, InsertNum=1, isEnabledForScrollChanged=false
+08-25 13:42:27.806 13010 13010 D ActivityThread: ComponentInfo{net.thunderbird.android.beta/com.fsck.k9.activity.MessageList} checkFinished=false 2
+08-25 13:42:27.806 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:27.806 13010 13030 I MessagingController: Running command 'clearNotifications', seq = 1 (foreground priority)
+08-25 13:42:27.807 13010 13030 I MessagingController:  Command 'clearNotifications' completed
+08-25 13:42:27.807 13010 13010 D CompatChangeReporter: Compat change id reported: 352594277; UID 10035; state: ENABLED
+08-25 13:42:27.807 13010 13010 D OplusInputMethodUtil: init sDebug to false, init sDebugIme to false, init sAlwaysOn to false
+08-25 13:42:27.807 13010 13010 D OplusInputMethodUtil: updateDebugToClass InputMethodManager.DEBUG = false
+08-25 13:42:27.807 13010 13010 D OplusInputMethodUtil: updateDebugToClass ImeFocusController.DEBUG = false
+08-25 13:42:27.807 13010 13010 D OplusInputMethodUtil: updateDebugToClass InsetsController.DEBUG = false
+08-25 13:42:27.807 13010 13010 D OplusInputMethodUtil: updateDebugToClass BaseInputConnection.DEBUG = false
+08-25 13:42:27.810 13010 13010 D WindowManager: Add to mViews: com.android.internal.policy.DecorView{d6187e3 I.E...... R.....ID 0,0-0,0 alpha=1.0 viewInfo = }[MessageList],pkg= net.thunderbird.android.beta
+08-25 13:42:27.810 13010 13033 D ExtensionsLoader: createInstance(64bit) : createExtendedFactory
+08-25 13:42:27.812 13010 13033 D ExtensionsLoader: Opened libhwuiextimpl.so
+08-25 13:42:27.812 13010 13033 D skia    : setRusSupported enable 0
+08-25 13:42:27.812 13010 13010 D ExtensionsLoader: createInstance(64bit) : createExtendedFactory
+08-25 13:42:27.812 13010 13010 D ExtensionsLoader: Opened libSchedAssistExtImpl.so
+08-25 13:42:27.818 13010 13010 D ViewRootImplExtImpl: onDisplayChanged -1 for VRI android.view.ViewRootImpl@59abf3f
+08-25 13:42:27.818 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:27.818 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:27.819 13010 13010 E OplusBracketLog: [OplusViewMirrorManager] updateHostViewRootIfNeeded, not support android.view.ViewRootImpl@59abf3f
+08-25 13:42:27.825 13010 13010 D Vibrator: SystemVibrator Created
+08-25 13:42:27.842 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=false, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.activity.MessageList
+08-25 13:42:27.853 13010 13010 D VRI[MessageList]: relayoutWindow result, sizeChanged:true, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(0, 0), mWidth:-1, mHeight:-1, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:42:27.853 13010 13010 W VRI[MessageList]: updateBlastSurfaceIfNeeded, surfaceSize:Point(1080, 2412), lastSurfaceSize:Point(0, 0), format:-1, blastBufferQueue:null
+08-25 13:42:27.856 13010 13010 D BufferQueueConsumer: [](id:32d200000000,api:0,p:-1,c:13010) connect: controlledByApp=false
+08-25 13:42:27.856 13010 13010 W libc    : Access denied finding property "vendor.display.enable_optimal_refresh_rate"
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: QUALCOMM build                   : 700cfb7ebe, I2d73421614
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: Build Date                       : 02/14/25
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: OpenGL ES Shader Compiler Version: EV031.36.08.30
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: Local Branch                     : 
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: Remote Branch                    : refs/tags/AU_LINUX_ANDROID_LA.VENDOR.1.0.R1.11.00.00.816.269
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: Remote Branch                    : NONE
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: Reconstruct Branch               : NOTHING
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: Build Config                     : S P 12.1.1 AArch64
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: Driver Path                      : /vendor/lib64/egl/libGLESv2_adreno.so
+08-25 13:42:27.857 13010 13033 I AdrenoGLES-0: Driver Version                   : 0615.96
+08-25 13:42:27.860 13010 13033 I AdrenoGLES-0: PFP: 0x01730158, ME: 0x00000000
+08-25 13:42:27.870 13010 13033 D BufferQueueProducer: [VRI[MessageList]#0(BLAST Consumer)0](id:32d200000000,api:1,p:13010,c:13010) connect: api=1 producerControlledByApp=true
+08-25 13:42:27.870 13010 13010 I SurfaceControl:  setExtendedRangeBrightness sc=Surface(name=net.thunderbird.android.beta/com.fsck.k9.activity.MessageList)/@0x88fdb7,currentBufferRatio=1.0,desiredRatio=1.0
+08-25 13:42:27.879 13010 13033 D BLASTBufferQueue: [VRI[MessageList]#0](f:0,a:1) acquireNextBufferLocked size=1080x2412 mFrameNumber=1 applyTransaction=true mTimestamp=1462199824335(auto) mPendingTransactions.size=0 graphicBufferId=55877524520960 transform=0
+08-25 13:42:27.879 13010 13033 D VRI[MessageList]: Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true syncBuffer=false
+08-25 13:42:27.880 13010 13010 D VRI[MessageList]: draw finished. seqId=0
+08-25 13:42:27.880 13010 13010 D ViewRootImplExtImpl: setMaxDequeuedBufferCount: 2
+08-25 13:42:27.886 13010 13010 D CompatChangeReporter: Compat change id reported: 303326708; UID 10035; state: ENABLED
+08-25 13:42:27.888 13010 13010 I ImeTracker: net.thunderbird.android.beta:a3321d9: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false
+08-25 13:42:27.888 13010 13010 I ImeTracker: net.thunderbird.android.beta:a3321d9: onFailed at PHASE_CLIENT_VIEW_SERVED
+08-25 13:42:27.889 13010 13010 D AutofillManager: view not autofillable - not passing ime action check
+08-25 13:42:27.894 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:27.894 13010 13010 W VRI[MessageList]: handleResized, msg:, frameChanged:false, configChanged:false, displayChanged:false, attachedFrameChanged:false, compatScaleChanged:false, pendingDragResizing=false
+08-25 13:42:27.952 13010 13033 D VRI[MessageList]: Received frameCommittedCallback lastAttemptedDrawFrameNum=3 didProduceBuffer=true syncBuffer=false
+08-25 13:42:27.952 13010 13010 D VRI[MessageList]: draw finished. seqId=0
+08-25 13:42:27.953 13010 13010 D VRI[MessageList]: onFocusEvent true
+08-25 13:42:28.719 13010 13010 D OplusInputMethodManagerInternal: get inputMethodManager extension: com.android.internal.view.IInputMethodManager$Stub$Proxy@a00c24b
+08-25 13:42:28.719 13010 13010 D ViewRootImplExtImpl: the up motion event handled by client, just return
+08-25 13:42:28.724 13010 13010 D OplusViewDebugManager: OplusViewDebugManager Constructor android.view.debug.OplusViewDebugManager@e87c428 [mHasViewDebugProperty true] [mHasMsgDebugProperty false] [DEBUG false] [EXTRAINFOENABLE false] [LIGHT_OS false]
+08-25 13:42:28.724 13010 13010 D OplusViewDebugManager: OplusViewDebugManager Constructor android.view.debug.OplusViewDebugManager@c82e541 [mHasViewDebugProperty true] [mHasMsgDebugProperty false] [DEBUG false] [EXTRAINFOENABLE false] [LIGHT_OS false]
+08-25 13:42:28.956 13010 13042 D OplusScrollToTopManager: net.thunderbird.android.beta/com.fsck.k9.activity.MessageList,This com.android.internal.policy.DecorView{d6187e3 V.E...... R......D 0,0-1080,2412 aid=0 alpha=1.0 viewInfo = }[MessageList] change focus to true
+08-25 13:42:29.160 13010 13010 I ImeTracker: net.thunderbird.android.beta:59bc5755: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false
+08-25 13:42:31.710 13010 13010 D ViewRootImplExtImpl: the up motion event handled by client, just return
+08-25 13:42:31.733 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:31.736 13010 13010 D ScrollOptim [SceneManager]: updateCurrentActivity: mCurrentActivityName=null, isOptEnable=true, isAnimAheadEnable=true, isFrameInsertEnable=true, InsertNum=1, isEnabledForScrollChanged=false
+08-25 13:42:31.740 13010 13055 D ColorModeChangeItem: preExecute mColorMode=0
+08-25 13:42:31.744 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:31.744 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:31.754 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:31.754 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:31.754 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:31.755 13010 13010 D ScrollOptim [SceneManager]: updateCurrentActivity: mCurrentActivityName=com.fsck.k9.ui.settings.SettingsActivity, isOptEnable=true, isAnimAheadEnable=true, isFrameInsertEnable=true, InsertNum=1, isEnabledForScrollChanged=false
+08-25 13:42:31.755 13010 13010 D ActivityThread: ComponentInfo{net.thunderbird.android.beta/com.fsck.k9.ui.settings.SettingsActivity} checkFinished=false 2
+08-25 13:42:31.755 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:31.757 13010 13010 D WindowManager: Add to mViews: com.android.internal.policy.DecorView{a54e695 I.E...... R.....ID 0,0-0,0 alpha=1.0 viewInfo = }[SettingsActivity],pkg= net.thunderbird.android.beta
+08-25 13:42:31.757 13010 13033 D skia    : setRusSupported enable 0
+08-25 13:42:31.759 13010 13010 D ViewRootImplExtImpl: onDisplayChanged -1 for VRI android.view.ViewRootImpl@a1cb1f1
+08-25 13:42:31.760 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:31.760 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:31.760 13010 13010 E OplusBracketLog: [OplusViewMirrorManager] updateHostViewRootIfNeeded, not support android.view.ViewRootImpl@a1cb1f1
+08-25 13:42:31.761 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=false, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.ui.settings.SettingsActivity
+08-25 13:42:31.764 13010 13010 D VRI[SettingsActivity]: relayoutWindow result, sizeChanged:true, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(0, 0), mWidth:-1, mHeight:-1, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:42:31.765 13010 13010 W VRI[SettingsActivity]: updateBlastSurfaceIfNeeded, surfaceSize:Point(1080, 2412), lastSurfaceSize:Point(0, 0), format:-1, blastBufferQueue:null
+08-25 13:42:31.765 13010 13010 D BufferQueueConsumer: [](id:32d200000001,api:0,p:-1,c:13010) connect: controlledByApp=false
+08-25 13:42:31.765 13010 13010 W libc    : Access denied finding property "vendor.display.enable_optimal_refresh_rate"
+08-25 13:42:31.766 13010 13033 D BufferQueueProducer: [VRI[SettingsActivity]#1(BLAST Consumer)1](id:32d200000001,api:1,p:13010,c:13010) connect: api=1 producerControlledByApp=true
+08-25 13:42:31.766 13010 13010 I SurfaceControl:  setExtendedRangeBrightness sc=Surface(name=net.thunderbird.android.beta/com.fsck.k9.ui.settings.SettingsActivity)/@0x8397c2d,currentBufferRatio=1.0,desiredRatio=1.0
+08-25 13:42:31.769 13010 13033 D BLASTBufferQueue: [VRI[SettingsActivity]#1](f:0,a:1) acquireNextBufferLocked size=1080x2412 mFrameNumber=1 applyTransaction=true mTimestamp=1466090238761(auto) mPendingTransactions.size=0 graphicBufferId=55877524520965 transform=0
+08-25 13:42:31.770 13010 13033 D VRI[SettingsActivity]: Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true syncBuffer=false
+08-25 13:42:31.770 13010 13010 D VRI[SettingsActivity]: draw finished. seqId=0
+08-25 13:42:31.770 13010 13010 D ViewRootImplExtImpl: setMaxDequeuedBufferCount: 2
+08-25 13:42:31.771 13010 13010 D VRI[MessageList]: onFocusEvent false
+08-25 13:42:31.787 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:31.787 13010 13010 W VRI[SettingsActivity]: handleResized, msg:, frameChanged:false, configChanged:false, displayChanged:false, attachedFrameChanged:false, compatScaleChanged:false, pendingDragResizing=false
+08-25 13:42:31.787 13010 13010 D VRI[SettingsActivity]: onFocusEvent true
+08-25 13:42:31.788 13010 13055 D VRI[MessageList]: dispatchAppVisibility visible:false
+08-25 13:42:31.792 13010 13010 D VRI[MessageList]: visibilityChanged oldVisibility=true newVisibility=false
+08-25 13:42:31.792 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:31.792 13010 13010 D VRI[MessageList]: setWindowStopped stopped:true
+08-25 13:42:31.799 13010 13010 D HWUI    : RenderProxy::destroy: this=0xb400007e4078d500, mContext=0xb400007e407c4080
+08-25 13:42:31.799 13010 13033 D HWUI    : SkiaOpenGLPipeline::setSurface: this=0xb400007e4062d580, surface=NULL
+08-25 13:42:31.799 13010 13033 D BufferQueueProducer: [VRI[MessageList]#0(BLAST Consumer)0](id:32d200000000,api:1,p:13010,c:13010) disconnect: api 1
+08-25 13:42:31.799 13010 13033 D HWUI    : endAllActiveAnimators on 0xb400007dad676a00 (UnprojectedRipple) with handle 0xb400007db374c640
+08-25 13:42:31.800 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=false, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.activity.MessageList
+08-25 13:42:31.802 13010 13010 D VRI[MessageList]: relayoutWindow result, sizeChanged:false, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(1080, 2412), mWidth:1080, mHeight:2412, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:false, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:42:31.804 13010 13033 D VRI[SettingsActivity]: Received frameCommittedCallback lastAttemptedDrawFrameNum=3 didProduceBuffer=true syncBuffer=false
+08-25 13:42:31.804 13010 13033 D VRI[SettingsActivity]: draw finished. seqId=0
+08-25 13:42:31.818 13010 13021 D BLASTBufferQueue: [VRI[MessageList]#0](f:0,a:2) destructor()
+08-25 13:42:31.818 13010 13021 D BufferQueueConsumer: [VRI[MessageList]#0(BLAST Consumer)0](id:32d200000000,api:0,p:-1,c:13010) disconnect
+08-25 13:42:32.796 13010 13042 D OplusScrollToTopManager: net.thunderbird.android.beta/com.fsck.k9.activity.MessageList,This com.android.internal.policy.DecorView{d6187e3 I.E...... R......D 0,0-1080,2412 aid=0 alpha=1.0 viewInfo = }[MessageList] change focus to false
+08-25 13:42:32.796 13010 13042 D OplusScrollToTopManager: net.thunderbird.android.beta/com.fsck.k9.ui.settings.SettingsActivity,This com.android.internal.policy.DecorView{a54e695 V.E...... R....... 0,0-1080,2412 aid=1 alpha=1.0 viewInfo = }[SettingsActivity] change focus to true
+08-25 13:42:33.219 13010 13075 D ProfileInstaller: Skipping profile installation for net.thunderbird.android.beta
+08-25 13:42:33.317 13010 13010 D ViewRootImplExtImpl: the up motion event handled by client, just return
+08-25 13:42:33.346 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:33.346 13010 13010 D ScrollOptim [SceneManager]: updateCurrentActivity: mCurrentActivityName=null, isOptEnable=true, isAnimAheadEnable=true, isFrameInsertEnable=true, InsertNum=1, isEnabledForScrollChanged=false
+08-25 13:42:33.352 13010 13019 D ColorModeChangeItem: preExecute mColorMode=0
+08-25 13:42:33.355 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:33.356 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:33.368 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:33.368 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:33.368 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:33.369 13010 13010 D ScrollOptim [SceneManager]: updateCurrentActivity: mCurrentActivityName=com.fsck.k9.ui.settings.general.GeneralSettingsActivity, isOptEnable=true, isAnimAheadEnable=true, isFrameInsertEnable=true, InsertNum=1, isEnabledForScrollChanged=false
+08-25 13:42:33.369 13010 13010 D ActivityThread: ComponentInfo{net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity} checkFinished=false 2
+08-25 13:42:33.369 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:33.370 13010 13010 D WindowManager: Add to mViews: com.android.internal.policy.DecorView{8f360ab I.E...... R.....ID 0,0-0,0 alpha=1.0 viewInfo = }[GeneralSettingsActivity],pkg= net.thunderbird.android.beta
+08-25 13:42:33.370 13010 13033 D skia    : setRusSupported enable 0
+08-25 13:42:33.372 13010 13010 D ViewRootImplExtImpl: onDisplayChanged -1 for VRI android.view.ViewRootImpl@99414c6
+08-25 13:42:33.373 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:33.373 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:33.373 13010 13010 E OplusBracketLog: [OplusViewMirrorManager] updateHostViewRootIfNeeded, not support android.view.ViewRootImpl@99414c6
+08-25 13:42:33.374 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=false, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity
+08-25 13:42:33.377 13010 13010 D VRI[GeneralSettingsActivity]: relayoutWindow result, sizeChanged:true, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(0, 0), mWidth:-1, mHeight:-1, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:42:33.378 13010 13010 W VRI[GeneralSettingsActivity]: updateBlastSurfaceIfNeeded, surfaceSize:Point(1080, 2412), lastSurfaceSize:Point(0, 0), format:-1, blastBufferQueue:null
+08-25 13:42:33.378 13010 13010 D BufferQueueConsumer: [](id:32d200000002,api:0,p:-1,c:13010) connect: controlledByApp=false
+08-25 13:42:33.378 13010 13010 W libc    : Access denied finding property "vendor.display.enable_optimal_refresh_rate"
+08-25 13:42:33.379 13010 13033 D BufferQueueProducer: [VRI[GeneralSettingsActivity]#2(BLAST Consumer)2](id:32d200000002,api:1,p:13010,c:13010) connect: api=1 producerControlledByApp=true
+08-25 13:42:33.387 13010 13010 I SurfaceControl:  setExtendedRangeBrightness sc=Surface(name=net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity)/@0x6ee8603,currentBufferRatio=1.0,desiredRatio=1.0
+08-25 13:42:33.390 13010 13033 D BLASTBufferQueue: [VRI[GeneralSettingsActivity]#2](f:0,a:1) acquireNextBufferLocked size=1080x2412 mFrameNumber=1 applyTransaction=true mTimestamp=1467710810687(auto) mPendingTransactions.size=0 graphicBufferId=55877524520971 transform=0
+08-25 13:42:33.390 13010 13033 D VRI[GeneralSettingsActivity]: Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true syncBuffer=false
+08-25 13:42:33.390 13010 13010 D VRI[GeneralSettingsActivity]: draw finished. seqId=0
+08-25 13:42:33.391 13010 13010 D ViewRootImplExtImpl: setMaxDequeuedBufferCount: 2
+08-25 13:42:33.391 13010 13010 D VRI[SettingsActivity]: onFocusEvent false
+08-25 13:42:33.398 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:33.398 13010 13010 W VRI[GeneralSettingsActivity]: handleResized, msg:, frameChanged:false, configChanged:false, displayChanged:false, attachedFrameChanged:false, compatScaleChanged:false, pendingDragResizing=false
+08-25 13:42:33.417 13010 13033 D VRI[GeneralSettingsActivity]: Received frameCommittedCallback lastAttemptedDrawFrameNum=3 didProduceBuffer=true syncBuffer=false
+08-25 13:42:33.417 13010 13033 D VRI[GeneralSettingsActivity]: draw finished. seqId=0
+08-25 13:42:33.417 13010 13019 D VRI[SettingsActivity]: dispatchAppVisibility visible:false
+08-25 13:42:33.417 13010 13010 D VRI[SettingsActivity]: visibilityChanged oldVisibility=true newVisibility=false
+08-25 13:42:33.418 13010 13010 D VRI[GeneralSettingsActivity]: onFocusEvent true
+08-25 13:42:33.429 13010 13010 D HWUI    : RenderProxy::destroy: this=0xb400007db2168b00, mContext=0xb400007dad746280
+08-25 13:42:33.429 13010 13033 D HWUI    : SkiaOpenGLPipeline::setSurface: this=0xb400007dad639fc0, surface=NULL
+08-25 13:42:33.430 13010 13033 D BufferQueueProducer: [VRI[SettingsActivity]#1(BLAST Consumer)1](id:32d200000001,api:1,p:13010,c:13010) disconnect: api 1
+08-25 13:42:33.430 13010 13033 D HWUI    : endAllActiveAnimators on 0xb400007dad745400 (FrameLayout) with handle 0xb400007e54692240
+08-25 13:42:33.430 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=false, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.ui.settings.SettingsActivity
+08-25 13:42:33.433 13010 13010 D VRI[SettingsActivity]: relayoutWindow result, sizeChanged:false, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(1080, 2412), mWidth:1080, mHeight:2412, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:false, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:42:33.433 13010 13010 D BLASTBufferQueue: [VRI[SettingsActivity]#1](f:0,a:2) destructor()
+08-25 13:42:33.433 13010 13010 D BufferQueueConsumer: [VRI[SettingsActivity]#1(BLAST Consumer)1](id:32d200000001,api:0,p:-1,c:13010) disconnect
+08-25 13:42:33.435 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:33.436 13010 13010 D VRI[SettingsActivity]: setWindowStopped stopped:true
+08-25 13:42:33.446 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=false, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.ui.settings.SettingsActivity
+08-25 13:42:33.451 13010 13010 D VRI[SettingsActivity]: relayoutWindow result, sizeChanged:false, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(1080, 2412), mWidth:1080, mHeight:2412, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:false, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:42:34.097 13010 13010 D ViewRootImplExtImpl: the up motion event handled by client, just return
+08-25 13:42:34.104 13010 13010 W WindowOnBackDispatcher: OnBackInvokedCallback is not enabled for the application.
+08-25 13:42:34.104 13010 13010 W WindowOnBackDispatcher: Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+08-25 13:42:34.130 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:34.130 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:34.130 13010 13010 I oplus.android.OplusFrameworkFactoryImpl: get feature:IOplusDynamicVsyncFeature
+08-25 13:42:34.137 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=true, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity
+08-25 13:42:34.138 13010 13010 D VRI[GeneralSettingsActivity]: relayoutWindow result, sizeChanged:false, surfaceControlChanged:false, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(1080, 2412), mWidth:1080, mHeight:2412, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][1080,2412]}, relayoutAsync:true, mSyncSeqId:0
+08-25 13:42:34.138 13010 13010 W VRI[GeneralSettingsActivity]: updateBlastSurfaceIfNeeded, surfaceSize:Point(1080, 2412), lastSurfaceSize:Point(1080, 2412), format:-1, blastBufferQueue:android.graphics.BLASTBufferQueue@fd420f6
+08-25 13:42:34.156 13010 13010 I SurfaceControl:  setExtendedRangeBrightness sc=Surface(name=net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity)/@0x6ee8603,currentBufferRatio=1.0,desiredRatio=1.0
+08-25 13:42:34.402 13010 13042 D OplusScrollToTopManager: net.thunderbird.android.beta/com.fsck.k9.ui.settings.SettingsActivity,This com.android.internal.policy.DecorView{a54e695 I.E...... R.....ID 0,0-1080,2412 aid=1 alpha=1.0 viewInfo = }[SettingsActivity] change focus to false
+08-25 13:42:34.438 13010 13042 D OplusScrollToTopManager: net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity,This com.android.internal.policy.DecorView{8f360ab V.E...... R....... 0,0-1080,2412 aid=2 alpha=1.0 viewInfo = }[GeneralSettingsActivity] change focus to true
+08-25 13:42:35.126 13010 13010 D ViewRootImplExtImpl: the up motion event handled by client, just return
+08-25 13:42:36.938 13010 13010 D ViewRootImplExtImpl: the up motion event handled by client, just return
+08-25 13:42:36.985 13010 13010 D WindowManager: Add to mViews: android.widget.PopupWindow$PopupDecorView{5000806 V.E..V... R.....I. 0,0-0,0 alpha=1.0 viewInfo = },pkg= net.thunderbird.android.beta
+08-25 13:42:36.985 13010 13033 D skia    : setRusSupported enable 0
+08-25 13:42:36.994 13010 13010 D ViewRootImplExtImpl: onDisplayChanged -1 for VRI android.view.ViewRootImpl@dc3c1d
+08-25 13:42:36.997 13010 13010 E OplusBracketLog: [OplusViewMirrorManager] updateHostViewRootIfNeeded, not support android.view.ViewRootImpl@dc3c1d
+08-25 13:42:37.001 13010 13010 D BufferQueueConsumer: [](id:32d200000003,api:0,p:-1,c:13010) connect: controlledByApp=false
+08-25 13:42:37.001 13010 13010 W libc    : Access denied finding property "vendor.display.enable_optimal_refresh_rate"
+08-25 13:42:37.002 13010 13033 D BufferQueueProducer: [VRI[PopupWindow:86be448]#3(BLAST Consumer)3](id:32d200000003,api:1,p:13010,c:13010) connect: api=1 producerControlledByApp=true
+08-25 13:42:37.006 13010 13010 I SurfaceControl:  setExtendedRangeBrightness sc=Surface(name=PopupWindow:86be448)/@0xef597b7,currentBufferRatio=1.0,desiredRatio=1.0
+08-25 13:42:37.008 13010 13033 D BLASTBufferQueue: [VRI[PopupWindow:86be448]#3](f:0,a:1) acquireNextBufferLocked size=547x326 mFrameNumber=1 applyTransaction=true mTimestamp=1471328958603(auto) mPendingTransactions.size=0 graphicBufferId=55877524520975 transform=0
+08-25 13:42:37.008 13010 13033 D VRI[PopupWindow:86be448]: Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true syncBuffer=false
+08-25 13:42:37.009 13010 13010 D VRI[PopupWindow:86be448]: draw finished. seqId=0
+08-25 13:42:37.009 13010 13010 D ViewRootImplExtImpl: setMaxDequeuedBufferCount: 2
+08-25 13:42:37.010 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:37.023 13010 13033 D VRI[PopupWindow:86be448]: Received frameCommittedCallback lastAttemptedDrawFrameNum=2 didProduceBuffer=true syncBuffer=false
+08-25 13:42:37.023 13010 13033 D VRI[PopupWindow:86be448]: draw finished. seqId=0
+08-25 13:42:37.027 13010 13010 D VRI[GeneralSettingsActivity]: onFocusEvent false
+08-25 13:42:37.045 13010 13010 D VRI[PopupWindow:86be448]: onFocusEvent true
+08-25 13:42:37.704 13010 13010 D ViewRootImplExtImpl: the up motion event handled by client, just return
+08-25 13:42:37.761 13010 13010 I SurfaceControl:  setExtendedRangeBrightness sc=Surface(name=PopupWindow:86be448)/@0xef597b7,currentBufferRatio=1.0,desiredRatio=1.0
+08-25 13:42:37.762 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:37.765 13010 13010 D ScrollOptim [SceneManager]: updateCurrentActivity: mCurrentActivityName=null, isOptEnable=true, isAnimAheadEnable=true, isFrameInsertEnable=true, InsertNum=1, isEnabledForScrollChanged=false
+08-25 13:42:37.792 13010 13010 D VRI[PopupWindow:86be448]: onFocusEvent false
+08-25 13:42:37.817 13010 13084 D VRI[PopupWindow:86be448]: dispatchAppVisibility visible:false
+08-25 13:42:37.817 13010 13018 D VRI[GeneralSettingsActivity]: dispatchAppVisibility visible:false
+08-25 13:42:37.817 13010 13010 D VRI[PopupWindow:86be448]: visibilityChanged oldVisibility=true newVisibility=false
+08-25 13:42:37.817 13010 13010 D VRI[GeneralSettingsActivity]: visibilityChanged oldVisibility=true newVisibility=false
+08-25 13:42:37.821 13010 13010 D HWUI    : RenderProxy::destroy: this=0xb400007dad73c800, mContext=0xb400007da8a41440
+08-25 13:42:37.821 13010 13033 D HWUI    : SkiaOpenGLPipeline::setSurface: this=0xb400007da8db6280, surface=NULL
+08-25 13:42:37.821 13010 13033 D BufferQueueProducer: [VRI[PopupWindow:86be448]#3(BLAST Consumer)3](id:32d200000003,api:1,p:13010,c:13010) disconnect: api 1
+08-25 13:42:37.821 13010 13033 D HWUI    : endAllActiveAnimators on 0xb400007da8a2a400 (MenuPopupWindow$MenuDropDownListView) with handle 0xb400007dac7dfd40
+08-25 13:42:37.826 13010 13010 D BLASTBufferQueue: [VRI[PopupWindow:86be448]#3](f:0,a:2) destructor()
+08-25 13:42:37.826 13010 13010 D BufferQueueConsumer: [VRI[PopupWindow:86be448]#3(BLAST Consumer)3](id:32d200000003,api:0,p:-1,c:13010) disconnect
+08-25 13:42:37.827 13010 13010 D HWUI    : RenderProxy::destroy: this=0xb400007db21c4500, mContext=0xb400007dac794f80
+08-25 13:42:37.827 13010 13033 D HWUI    : SkiaOpenGLPipeline::setSurface: this=0xb400007dad7b0880, surface=NULL
+08-25 13:42:37.828 13010 13033 D BufferQueueProducer: [VRI[GeneralSettingsActivity]#2(BLAST Consumer)2](id:32d200000002,api:1,p:13010,c:13010) disconnect: api 1
+08-25 13:42:37.830 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=false, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity
+08-25 13:42:37.832 13010 13010 D VRI[GeneralSettingsActivity]: relayoutWindow result, sizeChanged:false, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(1080, 2412), mWidth:1080, mHeight:2412, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:false, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:42:37.833 13010 13010 D BLASTBufferQueue: [VRI[GeneralSettingsActivity]#2](f:0,a:2) destructor()
+08-25 13:42:37.833 13010 13010 D BufferQueueConsumer: [VRI[GeneralSettingsActivity]#2(BLAST Consumer)2](id:32d200000002,api:0,p:-1,c:13010) disconnect
+08-25 13:42:37.920 13010 13010 D OplusScrollToTopManager: PopupWindow:86be448,window dying
+08-25 13:42:37.920 13010 13010 D OplusScrollToTopManager: PopupWindow:86be448,unregisterSystemUIBroadcastReceiver 
+08-25 13:42:37.920 13010 13010 D OplusScrollToTopManager: PopupWindow:86be448, unregisterSystemUIBroadcastReceiver failed java.lang.IllegalArgumentException: Receiver not registered: android.view.OplusScrollToTopManager$2@7b37bf9
+08-25 13:42:37.920 13010 13010 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda11@eb43063
+08-25 13:42:37.920 13010 13010 D HWUI    : RenderProxy::destroy: this=0xb400007dad73c800, mContext=0xb400007da8a41440
+08-25 13:42:37.920 13010 13033 D HWUI    : SkiaOpenGLPipeline::setSurface: this=0xb400007da8db6280, surface=NULL
+08-25 13:42:38.027 13010 13042 D OplusScrollToTopManager: net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity,This com.android.internal.policy.DecorView{8f360ab V.E...... R.....ID 0,0-1080,2412 aid=2 alpha=1.0 viewInfo = }[GeneralSettingsActivity] change focus to false
+08-25 13:42:38.657 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:38.657 13010 13010 D VRI[GeneralSettingsActivity]: setWindowStopped stopped:true
+08-25 13:42:38.668 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=false, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity
+08-25 13:42:38.671 13010 13010 D VRI[GeneralSettingsActivity]: relayoutWindow result, sizeChanged:false, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(1080, 2412), mWidth:1080, mHeight:2412, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:false, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:42:46.761 13010 13084 D VRI[GeneralSettingsActivity]: dispatchAppVisibility visible:true
+08-25 13:42:46.768 13010 13084 D ColorModeChangeItem: preExecute mColorMode=0
+08-25 13:42:46.769 13010 13010 D callGcSupression: java.lang.NullPointerException: Attempt to invoke virtual method 'java.lang.Object java.lang.reflect.Method.invoke(java.lang.Object, java.lang.Object[])' on a null object reference
+08-25 13:42:46.769 13010 13010 D VRI[GeneralSettingsActivity]: setWindowStopped stopped:false
+08-25 13:42:46.770 13010 13010 W WindowOnBackDispatcher: OnBackInvokedCallback is not enabled for the application.
+08-25 13:42:46.770 13010 13010 W WindowOnBackDispatcher: Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+08-25 13:42:46.771 13010 13010 D ScrollOptim [SceneManager]: updateCurrentActivity: mCurrentActivityName=com.fsck.k9.ui.settings.general.GeneralSettingsActivity, isOptEnable=true, isAnimAheadEnable=true, isFrameInsertEnable=true, InsertNum=1, isEnabledForScrollChanged=false
+08-25 13:42:46.771 13010 13010 D ActivityThread: ComponentInfo{net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity} checkFinished=false 2
+08-25 13:42:46.771 13010 13010 D ResourcesManagerExtImpl: applyConfigurationToAppResourcesLocked app.getDisplayId() return callback.displayId:0
+08-25 13:42:46.783 13010 13010 D ViewRootImplExtImpl: wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=411, relayoutAsync=false, flags=0, newFlags=26935296, residentWS=false, title=net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity
+08-25 13:42:46.788 13010 13010 D VRI[GeneralSettingsActivity]: relayoutWindow result, sizeChanged:false, surfaceControlChanged:true, transformHintChanged:false, mSurfaceSize:Point(1080, 2412), mLastSurfaceSize:Point(1080, 2412), mWidth:1080, mHeight:2412, requestedWidth:1080, requestedHeight:2412, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1080,2412] display=[0,0][1080,2412] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+08-25 13:42:46.788 13010 13010 W VRI[GeneralSettingsActivity]: updateBlastSurfaceIfNeeded, surfaceSize:Point(1080, 2412), lastSurfaceSize:Point(1080, 2412), format:-1, blastBufferQueue:null
+08-25 13:42:46.788 13010 13010 D BufferQueueConsumer: [](id:32d200000004,api:0,p:-1,c:13010) connect: controlledByApp=false
+08-25 13:42:46.789 13010 13010 W libc    : Access denied finding property "vendor.display.enable_optimal_refresh_rate"
+08-25 13:42:46.789 13010 13033 D BufferQueueProducer: [VRI[GeneralSettingsActivity]#4(BLAST Consumer)4](id:32d200000004,api:1,p:13010,c:13010) connect: api=1 producerControlledByApp=true
+08-25 13:42:46.790 13010 13010 I SurfaceControl:  setExtendedRangeBrightness sc=Surface(name=net.thunderbird.android.beta/com.fsck.k9.ui.settings.general.GeneralSettingsActivity)/@0x6ee8603,currentBufferRatio=1.0,desiredRatio=1.0
+08-25 13:42:46.793 13010 13033 D BLASTBufferQueue: [VRI[GeneralSettingsActivity]#4](f:0,a:1) acquireNextBufferLocked size=1080x2412 mFrameNumber=1 applyTransaction=true mTimestamp=1481114039068(auto) mPendingTransactions.size=0 graphicBufferId=55877524520977 transform=0
+08-25 13:42:46.794 13010 13033 D VRI[GeneralSettingsActivity]: Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true syncBuffer=false
+08-25 13:42:46.795 13010 13010 D VRI[GeneralSettingsActivity]: draw finished. seqId=0
+08-25 13:42:46.795 13010 13010 D ViewRootImplExtImpl: setMaxDequeuedBufferCount: 2
+08-25 13:42:46.831 13010 13010 D VRI[GeneralSettingsActivity]: onFocusEvent true

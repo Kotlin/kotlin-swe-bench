@@ -1,0 +1,26 @@
+FROM eclipse-temurin:21-jdk
+
+WORKDIR /home/
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends \
+  curl \
+  git \
+  bash \
+  ca-certificates \
+  unzip && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
+
+RUN $JAVA_HOME/bin/keytool -importkeystore -noprompt -trustcacerts \
+  -srckeystore /etc/ssl/certs/java/cacerts \
+  -destkeystore $JAVA_HOME/lib/security/cacerts \
+  -srcstorepass changeit -deststorepass changeit || true
+
+RUN git clone https://github.com/Hannah-Sten/TeXiFy-IDEA.git /home/TeXiFy-IDEA
+
+RUN git config --global --add safe.directory /home

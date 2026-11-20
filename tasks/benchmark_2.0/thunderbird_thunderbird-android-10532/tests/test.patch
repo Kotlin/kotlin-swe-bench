@@ -1,0 +1,76 @@
+diff --git a/legacy/core/src/test/java/com/fsck/k9/controller/LocalDeleteOperationDeciderTest.kt b/feature/mail/message/list/internal/src/test/kotlin/net/thunderbird/feature/mail/message/list/internal/LocalDeleteOperationDeciderTest.kt
+similarity index 91%
+rename from legacy/core/src/test/java/com/fsck/k9/controller/LocalDeleteOperationDeciderTest.kt
+rename to feature/mail/message/list/internal/src/test/kotlin/net/thunderbird/feature/mail/message/list/internal/LocalDeleteOperationDeciderTest.kt
+index 4767fbee97d..dd87c0b3e88 100644
+--- a/legacy/core/src/test/java/com/fsck/k9/controller/LocalDeleteOperationDeciderTest.kt
++++ b/feature/mail/message/list/internal/src/test/kotlin/net/thunderbird/feature/mail/message/list/internal/LocalDeleteOperationDeciderTest.kt
+@@ -1,4 +1,4 @@
+-package com.fsck.k9.controller
++package net.thunderbird.feature.mail.message.list.internal
+ 
+ import assertk.assertThat
+ import assertk.assertions.isFalse
+@@ -8,7 +8,7 @@ import kotlin.test.Test
+ import net.thunderbird.core.android.account.LegacyAccountDto
+ 
+ class LocalDeleteOperationDeciderTest {
+-    private val localDeleteOperationDecider = LocalDeleteOperationDecider()
++    private val localDeleteOperationDecider = DefaultLocalDeleteOperationDecider()
+     private val account = LegacyAccountDto(UUID.randomUUID().toString()).apply {
+         spamFolderId = SPAM_FOLDER_ID
+         trashFolderId = TRASH_FOLDER_ID
+diff --git a/legacy/core/src/test/java/com/fsck/k9/controller/MessagingControllerTest.java b/legacy/core/src/test/java/com/fsck/k9/controller/MessagingControllerTest.java
+index 724001d2615..4d8d124014a 100644
+--- a/legacy/core/src/test/java/com/fsck/k9/controller/MessagingControllerTest.java
++++ b/legacy/core/src/test/java/com/fsck/k9/controller/MessagingControllerTest.java
+@@ -39,10 +39,12 @@
+ import net.thunderbird.core.common.mail.Protocols;
+ import net.thunderbird.core.logging.Logger;
+ import net.thunderbird.core.outcome.Outcome;
++import net.thunderbird.feature.mail.message.list.LocalDeleteOperationDecider;
+ import net.thunderbird.feature.mail.folder.api.OutboxFolderManager;
+ import net.thunderbird.feature.notification.api.NotificationManager;
+ import net.thunderbird.feature.notification.testing.fake.FakeInAppOnlyNotification;
+ import net.thunderbird.feature.notification.testing.fake.FakeNotificationManager;
++import net.thunderbird.legacy.core.StubLocalDeleteOperationDecider;
+ import net.thunderbird.legacy.core.mailstore.folder.FakeOutboxFolderManager;
+ import org.junit.After;
+ import org.junit.Before;
+@@ -131,6 +133,7 @@ public void setUp() throws MessagingException {
+         appContext = RuntimeEnvironment.getApplication();
+ 
+         preferences = Preferences.getPreferences();
++        final LocalDeleteOperationDecider noOpLocalDeleteOperationDecider = new StubLocalDeleteOperationDecider();
+         featureFlagProvider = key -> Disabled.INSTANCE;
+ 
+         final NotificationManager notificationManager = new FakeNotificationManager(
+@@ -151,7 +154,7 @@ public void setUp() throws MessagingException {
+             messageStoreManager,
+             saveMessageDataCreator,
+             specialLocalFoldersCreator,
+-            new LocalDeleteOperationDecider(),
++            noOpLocalDeleteOperationDecider,
+             Collections.<ControllerExtension>emptyList(),
+             featureFlagProvider,
+             syncLogger,
+diff --git a/legacy/core/src/test/java/net/thunderbird/legacy/core/StubLocalDeleteOperationDecider.kt b/legacy/core/src/test/java/net/thunderbird/legacy/core/StubLocalDeleteOperationDecider.kt
+new file mode 100644
+index 00000000000..09e3e5813eb
+--- /dev/null
++++ b/legacy/core/src/test/java/net/thunderbird/legacy/core/StubLocalDeleteOperationDecider.kt
+@@ -0,0 +1,14 @@
++package net.thunderbird.legacy.core
++
++import net.thunderbird.core.android.account.LegacyAccountDto
++import net.thunderbird.feature.mail.message.list.LocalDeleteOperationDecider
++
++/**
++ * A [LocalDeleteOperationDecider] that always returns false.
++ */
++class StubLocalDeleteOperationDecider : LocalDeleteOperationDecider {
++    override fun isDeleteImmediately(
++        account: LegacyAccountDto,
++        folderId: Long,
++    ): Boolean = false
++}

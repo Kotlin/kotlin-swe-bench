@@ -1,0 +1,216 @@
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/viewmodels/tagsfeed/ReaderTagsFeedUiStateMapper.kt b/WordPress/src/main/java/org/wordpress/android/ui/reader/viewmodels/tagsfeed/ReaderTagsFeedUiStateMapper.kt
+index cfac4b72a7b1..015a1433aec1 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/viewmodels/tagsfeed/ReaderTagsFeedUiStateMapper.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/viewmodels/tagsfeed/ReaderTagsFeedUiStateMapper.kt
+@@ -94,13 +94,10 @@ class ReaderTagsFeedUiStateMapper @Inject constructor(
+     ): ReaderTagsFeedViewModel.UiState.Loaded =
+         ReaderTagsFeedViewModel.UiState.Loaded(
+             data = tags.map { tag ->
+-                ReaderTagsFeedViewModel.TagFeedItem(
+-                    tagChip = ReaderTagsFeedViewModel.TagChip(
+-                        tag = tag,
+-                        onTagChipClick = onTagChipClick,
+-                        onMoreFromTagClick = onMoreFromTagClick,
+-                    ),
+-                    postList = ReaderTagsFeedViewModel.PostList.Initial,
++                mapInitialTagFeedItem(
++                    tag = tag,
++                    onTagChipClick = onTagChipClick,
++                    onMoreFromTagClick = onMoreFromTagClick,
+                     onItemEnteredView = onItemEnteredView,
+                 )
+             },
+@@ -108,6 +105,22 @@ class ReaderTagsFeedUiStateMapper @Inject constructor(
+             onRefresh = onRefresh,
+         )
+ 
++    fun mapInitialTagFeedItem(
++        tag: ReaderTag,
++        onTagChipClick: (ReaderTag) -> Unit,
++        onMoreFromTagClick: (ReaderTag) -> Unit,
++        onItemEnteredView: (ReaderTagsFeedViewModel.TagFeedItem) -> Unit,
++    ): ReaderTagsFeedViewModel.TagFeedItem =
++        ReaderTagsFeedViewModel.TagFeedItem(
++            tagChip = ReaderTagsFeedViewModel.TagChip(
++                tag = tag,
++                onTagChipClick = onTagChipClick,
++                onMoreFromTagClick = onMoreFromTagClick,
++            ),
++            postList = ReaderTagsFeedViewModel.PostList.Initial,
++            onItemEnteredView = onItemEnteredView,
++        )
++
+     fun mapLoadingTagFeedItem(
+         tag: ReaderTag,
+         onTagChipClick: (ReaderTag) -> Unit,
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/viewmodels/tagsfeed/ReaderTagsFeedViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/reader/viewmodels/tagsfeed/ReaderTagsFeedViewModel.kt
+index 2a0344f7ef56..8ccfa74dd5fa 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/viewmodels/tagsfeed/ReaderTagsFeedViewModel.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/viewmodels/tagsfeed/ReaderTagsFeedViewModel.kt
+@@ -88,34 +88,41 @@ class ReaderTagsFeedViewModel @Inject constructor(
+         }
+     }
+ 
+-    /**
+-     * Fetch multiple tag posts in parallel. Each tag load causes a new state to be emitted, so multiple emissions of
+-     * [uiStateFlow] are expected when calling this method for each tag, since each can go through the following
+-     * [UiState]s: [UiState.Initial], [UiState.Loaded], [UiState.Loading], [UiState.Empty].
+-     */
+-    fun onTagsChanged(tags: List<ReaderTag>) {
+-        // don't fetch tags again if the tags match, unless the user requested a refresh
+-        (_uiStateFlow.value as? UiState.Loaded)?.let { loadedState ->
+-            if (!loadedState.isRefreshing && tags == loadedState.data.map { it.tagChip.tag }) {
+-                return
++    fun onTagsChanged(tags: List<ReaderTag>) = _uiStateFlow.update { currentState ->
++        when {
++            tags.isEmpty() -> {
++                UiState.Empty(::onOpenTagsListClick)
+             }
+-        }
+ 
+-        if (tags.isEmpty()) {
+-            _uiStateFlow.value = UiState.Empty(::onOpenTagsListClick)
+-            return
+-        }
++            currentState is UiState.Loaded -> {
++                val currentTags = currentState.data.map { it.tagChip.tag }
++                if (currentState.isRefreshing) {
++                    readerTagsFeedUiStateMapper.mapInitialPostsUiState(
++                        tags,
++                        false,
++                        ::onTagChipClick,
++                        ::onMoreFromTagClick,
++                        ::onItemEnteredView,
++                        ::onRefresh
++                    )
++                } else if (currentTags != tags) {
++                    updateLoadedStateWithTags(currentState, tags)
++                } else {
++                    currentState
++                }
++            }
+ 
+-        // Add tags to the list with the posts loading UI
+-        _uiStateFlow.update {
+-            readerTagsFeedUiStateMapper.mapInitialPostsUiState(
+-                tags,
+-                false,
+-                ::onTagChipClick,
+-                ::onMoreFromTagClick,
+-                ::onItemEnteredView,
+-                ::onRefresh
+-            )
++            else -> {
++                // Add tags to the list with the posts initial/loading UI
++                readerTagsFeedUiStateMapper.mapInitialPostsUiState(
++                    tags,
++                    false,
++                    ::onTagChipClick,
++                    ::onMoreFromTagClick,
++                    ::onItemEnteredView,
++                    ::onRefresh
++                )
++            }
+         }
+     }
+ 
+@@ -139,6 +146,19 @@ class ReaderTagsFeedViewModel @Inject constructor(
+         }
+     }
+ 
++    private fun updateLoadedStateWithTags(state: UiState.Loaded, tags: List<ReaderTag>): UiState.Loaded {
++        val currentTagsMap = state.data.associateBy { it.tagChip.tag.tagSlug }
++        val updatedData = tags.map { tag ->
++            currentTagsMap[tag.tagSlug] ?: readerTagsFeedUiStateMapper.mapInitialTagFeedItem(
++                tag = tag,
++                onTagChipClick = ::onTagChipClick,
++                onMoreFromTagClick = ::onMoreFromTagClick,
++                onItemEnteredView = ::onItemEnteredView,
++            )
++        }
++        return state.copy(data = updatedData)
++    }
++
+     private fun onNoConnectionRetryClick() {
+         _uiStateFlow.value = UiState.Loading
+         if (networkUtilsWrapper.isNetworkAvailable()) {
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/views/compose/tagsfeed/ReaderTagsFeed.kt b/WordPress/src/main/java/org/wordpress/android/ui/reader/views/compose/tagsfeed/ReaderTagsFeed.kt
+index 789bf55173d7..1394c2d971ce 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/views/compose/tagsfeed/ReaderTagsFeed.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/views/compose/tagsfeed/ReaderTagsFeed.kt
+@@ -1,6 +1,7 @@
+ package org.wordpress.android.ui.reader.views.compose.tagsfeed
+ 
+ import android.content.res.Configuration
++import androidx.compose.foundation.ExperimentalFoundationApi
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.interaction.MutableInteractionSource
+@@ -87,7 +88,7 @@ fun ReaderTagsFeed(uiState: UiState) {
+     }
+ }
+ 
+-@OptIn(ExperimentalMaterialApi::class)
++@OptIn(ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
+ @Composable
+ private fun Loaded(uiState: UiState.Loaded) {
+     val pullRefreshState = rememberPullRefreshState(
+@@ -108,6 +109,7 @@ private fun Loaded(uiState: UiState.Loaded) {
+         ) {
+             items(
+                 items = uiState.data,
++                key = { it.tagChip.tag.tagSlug }
+             ) { item ->
+                 val tagChip = item.tagChip
+                 val postList = item.postList
+@@ -121,24 +123,33 @@ private fun Loaded(uiState: UiState.Loaded) {
+                 } else {
+                     AppColor.Black.copy(alpha = 0.08F)
+                 }
+-                Spacer(modifier = Modifier.height(Margin.Large.value))
+-                // Tag chip UI
+-                ReaderFilterChip(
+-                    modifier = Modifier.padding(
+-                        start = Margin.Large.value,
+-                    ),
+-                    text = UiString.UiStringText(tagChip.tag.tagTitle),
+-                    onClick = { tagChip.onTagChipClick(tagChip.tag) },
+-                    height = 36.dp,
+-                )
+-                Spacer(modifier = Modifier.height(Margin.Large.value))
+-                // Posts list UI
+-                when (postList) {
+-                    is PostList.Initial, is PostList.Loading -> PostListLoading()
+-                    is PostList.Loaded -> PostListLoaded(postList, tagChip, backgroundColor)
+-                    is PostList.Error -> PostListError(postList, tagChip, backgroundColor)
++
++                Column(
++                    modifier = Modifier
++                        .animateItemPlacement()
++                        .fillMaxWidth()
++                        .padding(
++                            top = Margin.Large.value,
++                            bottom = Margin.ExtraExtraMediumLarge.value,
++                        )
++                ) {
++                    // Tag chip UI
++                    ReaderFilterChip(
++                        modifier = Modifier.padding(
++                            start = Margin.Large.value,
++                        ),
++                        text = UiString.UiStringText(tagChip.tag.tagTitle),
++                        onClick = { tagChip.onTagChipClick(tagChip.tag) },
++                        height = 36.dp,
++                    )
++                    Spacer(modifier = Modifier.height(Margin.Large.value))
++                    // Posts list UI
++                    when (postList) {
++                        is PostList.Initial, is PostList.Loading -> PostListLoading()
++                        is PostList.Loaded -> PostListLoaded(postList, tagChip, backgroundColor)
++                        is PostList.Error -> PostListError(postList, tagChip, backgroundColor)
++                    }
+                 }
+-                Spacer(modifier = Modifier.height(Margin.ExtraExtraMediumLarge.value))
+             }
+         }
+ 

@@ -1,0 +1,11 @@
+FROM kotlinai/wordpress-mobile_wordpress-android:base
+
+COPY debug/check_git_changes.sh /home/
+COPY debug/prepare.sh /home/
+COPY debug/seal_git_history.sh /home/
+
+RUN bash /home/prepare.sh
+RUN chmod +x /home/*.sh
+
+COPY task-assets/instruction/ /task-assets/instruction/
+WORKDIR /home/WordPress-Android

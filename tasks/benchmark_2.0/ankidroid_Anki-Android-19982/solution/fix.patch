@@ -1,0 +1,29 @@
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/notetype/ManageNoteTypesViewModel.kt b/AnkiDroid/src/main/java/com/ichi2/anki/notetype/ManageNoteTypesViewModel.kt
+index b20bb9f0fae6..8a354968cc11 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/notetype/ManageNoteTypesViewModel.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/notetype/ManageNoteTypesViewModel.kt
+@@ -75,7 +75,7 @@ class ManageNoteTypesViewModel : ViewModel() {
+         _state.update { oldState ->
+             val matchedNoteTypes =
+                 oldState.noteTypes.map {
+-                    it.copy(shouldBeDisplayed = it.name.contains(query))
++                    it.copy(shouldBeDisplayed = it.name.contains(query, ignoreCase = true))
+                 }
+             oldState.copy(isLoading = false, noteTypes = matchedNoteTypes, searchQuery = query)
+         }
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/notetype/ManageNotetypes.kt b/AnkiDroid/src/main/java/com/ichi2/anki/notetype/ManageNotetypes.kt
+index b0a890a56eba..86b1b576b38f 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/notetype/ManageNotetypes.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/notetype/ManageNotetypes.kt
+@@ -177,7 +177,10 @@ class ManageNotetypes : AnkiActivity(R.layout.activity_manage_note_types) {
+             val searchMenuItem =
+                 findViewById<Toolbar>(R.id.toolbar).menu?.findItem(R.id.search_item)
+             val searchView = searchMenuItem?.actionView as? AccessibleSearchView
+-            searchView?.setQuery(state.searchQuery, false)
++            // Avoid resetting cursor position if query hasn't changed
++            if (searchView?.query.toString() != state.searchQuery) {
++                searchView?.setQuery(state.searchQuery, false)
++            }
+         }
+         binding.selectionToolbar.isVisible = state.isInMultiSelectMode
+         val selectedCount = state.noteTypes.count { it.isSelected }

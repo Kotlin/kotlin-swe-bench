@@ -1,0 +1,46 @@
+diff --git a/exposed-tests/build.gradle.kts b/exposed-tests/build.gradle.kts
+index 3841af3a7c..e823be481f 100644
+--- a/exposed-tests/build.gradle.kts
++++ b/exposed-tests/build.gradle.kts
+@@ -33,6 +33,7 @@ dependencies {
+     testCompileOnly("com.impossibl.pgjdbc-ng", "pgjdbc-ng", Versions.postgreNG)
+     compileOnly("com.h2database", "h2", Versions.h2)
+     testCompileOnly("org.xerial", "sqlite-jdbc", Versions.sqlLite3)
++    testImplementation("io.github.hakky54:logcaptor:2.9.0")
+ }
+ 
+ tasks.withType<Test>().configureEach {
+diff --git a/exposed-tests/src/test/kotlin/org/jetbrains/exposed/sql/tests/shared/dml/JoinTests.kt b/exposed-tests/src/test/kotlin/org/jetbrains/exposed/sql/tests/shared/dml/JoinTests.kt
+index c459a7c497..552bff9428 100644
+--- a/exposed-tests/src/test/kotlin/org/jetbrains/exposed/sql/tests/shared/dml/JoinTests.kt
++++ b/exposed-tests/src/test/kotlin/org/jetbrains/exposed/sql/tests/shared/dml/JoinTests.kt
+@@ -1,5 +1,6 @@
+ package org.jetbrains.exposed.sql.tests.shared.dml
+ 
++import nl.altindag.log.LogCaptor
+ import org.jetbrains.exposed.dao.id.IntIdTable
+ import org.jetbrains.exposed.sql.*
+ import org.jetbrains.exposed.sql.tests.DatabaseTestsBase
+@@ -190,7 +191,10 @@ class JoinTests : DatabaseTestsBase() {
+         }
+     }
+ 
+-    @Test fun testNoWarningsOnLeftJoinRegression() {
++    @Test
++    fun testNoWarningsOnLeftJoinRegression() {
++        val logCaptor = LogCaptor.forName(exposedLogger.name)
++
+         val MainTable = object : Table("maintable") {
+             val id = integer("idCol")
+         }
+@@ -208,7 +212,9 @@ class JoinTests : DatabaseTestsBase() {
+                 .single()
+                 .getOrNull(JoinTable.data)
+ 
+-            // Assert no logging took place. No idea how to.
++            // Assert no logging took place
++            assertTrue(logCaptor.warnLogs.isEmpty())
++            assertTrue(logCaptor.errorLogs.isEmpty())
+         }
+     }
+ }

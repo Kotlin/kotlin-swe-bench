@@ -1,0 +1,63 @@
+[metadata.source]
+repository_owner = "ankidroid"
+repository_name = "Anki-Android"
+repository_url = "https://github.com/ankidroid/Anki-Android"
+license = "GPL-3.0"
+code_change_type = "pr"
+code_change_id = "19661"
+code_change_url = "https://github.com/ankidroid/Anki-Android/pull/19661"
+task_revision = 5
+maintainer = "serhii.fedusov@jetbrains.com"
+issue_url = "https://github.com/ankidroid/Anki-Android/issues/19652"
+
+[metadata.taxonomy]
+ecosystem = ["kotlin"]
+language = ["kotlin"]
+visibility = "open_source"
+difficulty = "medium"
+task_type = ["bugfix", "test"]
+skills = ["debugging", "multi_file_reasoning", "test_analysis"]
+subsystem = ["application", "data", "quality", "testing"]
+
+[metadata.verifier]
+workdir = "/home/Anki-Android"
+env = []
+test_command = "./gradlew clean jacocoUnitTestReport --continue"
+[verifier]
+implemented = false
+timeout_sec = 1800.0
+network_mode = "public"
+environment_mode = "separate"
+
+[[verifier.collect]]
+# The agent's changes for the separate verifier; see reward_hacking/separate_verifier.py.
+command = '''set -eu
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'
+export GIT_CONFIG_KEY_1=core.fsmonitor GIT_CONFIG_VALUE_1=false
+mkdir -p /logs/artifacts
+rm -f /logs/artifacts/agent_changes.patch
+cd /home/Anki-Android
+index=$(mktemp)
+patch=$(mktemp /logs/artifacts/.agent_changes.XXXXXX)
+cp "$(git rev-parse --git-path index)" "$index"
+GIT_INDEX_FILE="$index" git add -A
+GIT_INDEX_FILE="$index" git diff --cached --binary --no-ext-diff --no-textconv 8bfadcbe33cb68af5caa471bdce5f80a922500bb >"$patch"
+rm -f "$index"
+chmod 644 "$patch"
+mv "$patch" /logs/artifacts/agent_changes.patch
+'''
+timeout_sec = 300.0
+
+[agent]
+timeout_sec = 1800.0
+network_mode = "no-network"
+
+[environment]
+docker_image = "europe-west4-docker.pkg.dev/gke-dev-dws-jbr/ml/kotlinai/ankidroid_anki-android:persistent-pr-19661"
+workdir = "/home/Anki-Android"
+storage_mb = 5120
+build_timeout_sec = 1800.0
+cpus = 4
+memory_mb = 14336
+network_mode = "public"

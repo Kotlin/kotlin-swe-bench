@@ -1,0 +1,52 @@
+def configurationStartedAt = System.nanoTime()
+def testAggregate
+def compileAggregate
+
+if (gradle.parent != null) {
+    return
+}
+
+gradle.rootProject { rootProject ->
+    testAggregate = rootProject.tasks.register("harborDebugUnitTests") {
+        group = "verification"
+        description = "Runs every debug unit-test variant in every project."
+    }
+    compileAggregate = rootProject.tasks.register("harborCompileDebugUnitTests") {
+        group = "build"
+        description = "Compiles every debug unit-test variant without running tests."
+    }
+}
+
+gradle.projectsEvaluated {
+    def testTasks = gradle.rootProject.allprojects
+        .collectMany { project ->
+            project.tasks.findAll { task -> task.name ==~ /^test.*DebugUnitTest$/ }
+        }
+        .sort { left, right -> left.path <=> right.path }
+    def compileTasks = gradle.rootProject.allprojects
+        .collectMany { project ->
+            project.tasks.findAll { task ->
+                task.name ==~ /^compile.*DebugUnitTest(?:Kotlin|JavaWithJavac)$/
+            }
+        }
+        .sort { left, right -> left.path <=> right.path }
+
+    def testTaskPaths = testTasks.collect { task -> task.path }
+    testAggregate.configure {
+        dependsOn(testTasks)
+        inputs.property("selectedTaskPaths", testTaskPaths)
+        doFirst {
+            testTaskPaths.each { taskPath -> println("HARBOR_TEST_TASK=${taskPath}") }
+        }
+    }
+    compileAggregate.configure { dependsOn(compileTasks) }
+
+    if (gradle.startParameter.taskNames.any { taskName ->
+        taskName.tokenize(":").last() == "harborDebugUnitTests"
+    }) {
+        testTasks.each { task -> println("HARBOR_TEST_TASK=${task.path}") }
+    }
+
+    def configurationMillis = (System.nanoTime() - configurationStartedAt).intdiv(1_000_000L)
+    println("HARBOR_CONFIGURATION_MILLIS=${configurationMillis}")
+}

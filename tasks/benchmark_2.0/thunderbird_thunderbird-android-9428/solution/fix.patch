@@ -1,0 +1,517 @@
+diff --git a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettings.kt b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettings.kt
+index 005038fb0ba..fff6a1119d4 100644
+--- a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettings.kt
++++ b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettings.kt
+@@ -1,5 +1,7 @@
+ package net.thunderbird.core.preference
+ 
++import net.thunderbird.core.preference.privacy.PrivacySettings
++
+ /**
+  * Stores a snapshot of the app's general settings.
+  *
+@@ -37,6 +39,7 @@ data class GeneralSettings(
+     val quietTimeStarts: String,
+     val isQuietTimeEnabled: Boolean,
+     val isQuietTime: Boolean,
++    val privacy: PrivacySettings,
+ )
+ 
+ enum class BackgroundSync {
+diff --git a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettingsManager.kt b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettingsManager.kt
+index ee36cce3189..c6e3b3450f3 100644
+--- a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettingsManager.kt
++++ b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettingsManager.kt
+@@ -1,13 +1,14 @@
+ package net.thunderbird.core.preference
+ 
+ import kotlinx.coroutines.flow.Flow
++import net.thunderbird.core.preference.privacy.PrivacySettingsManager
+ 
+ /**
+  * Retrieve and modify general settings.
+  *
+  * TODO: Add more settings as needed.
+  */
+-interface GeneralSettingsManager {
++interface GeneralSettingsManager : PrivacySettingsManager {
+     fun getSettings(): GeneralSettings
+     fun getSettingsFlow(): Flow<GeneralSettings>
+ 
+diff --git a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/PrivacySettings.kt b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/PrivacySettings.kt
+new file mode 100644
+index 00000000000..8ad058942a9
+--- /dev/null
++++ b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/PrivacySettings.kt
+@@ -0,0 +1,5 @@
++package net.thunderbird.core.preference.privacy
++
++data class PrivacySettings(
++    val isHideTimeZone: Boolean,
++)
+diff --git a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/PrivacySettingsManager.kt b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/PrivacySettingsManager.kt
+new file mode 100644
+index 00000000000..248acfb7b0b
+--- /dev/null
++++ b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/PrivacySettingsManager.kt
+@@ -0,0 +1,7 @@
++package net.thunderbird.core.preference.privacy
++
++interface PrivacySettingsManager {
++    val privacySettings: PrivacySettings
++
++    fun setIsHideTimeZone(isHideTimeZone: Boolean)
++}
+diff --git a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/PrivacySettingsPreferenceManager.kt b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/PrivacySettingsPreferenceManager.kt
+new file mode 100644
+index 00000000000..ba769f3435f
+--- /dev/null
++++ b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/PrivacySettingsPreferenceManager.kt
+@@ -0,0 +1,5 @@
++package net.thunderbird.core.preference.privacy
++
++import net.thunderbird.core.preference.PreferenceManager
++
++interface PrivacySettingsPreferenceManager : PreferenceManager<PrivacySettings>
+diff --git a/core/preference/impl/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/DefaultPrivacySettingsManager.kt b/core/preference/impl/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/DefaultPrivacySettingsManager.kt
+new file mode 100644
+index 00000000000..2d088755001
+--- /dev/null
++++ b/core/preference/impl/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/DefaultPrivacySettingsManager.kt
+@@ -0,0 +1,13 @@
++package net.thunderbird.core.preference.privacy
++
++class DefaultPrivacySettingsManager(
++    private val preferenceManager: PrivacySettingsPreferenceManager,
++) : PrivacySettingsManager {
++    override val privacySettings: PrivacySettings
++        get() = preferenceManager.getConfig()
++
++    override fun setIsHideTimeZone(isHideTimeZone: Boolean) {
++        val privacySettings = preferenceManager.getConfig()
++        preferenceManager.save(privacySettings.copy(isHideTimeZone = isHideTimeZone))
++    }
++}
+diff --git a/core/preference/impl/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/DefaultPrivacySettingsPreferenceManager.kt b/core/preference/impl/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/DefaultPrivacySettingsPreferenceManager.kt
+new file mode 100644
+index 00000000000..4f9c5664b8a
+--- /dev/null
++++ b/core/preference/impl/src/commonMain/kotlin/net/thunderbird/core/preference/privacy/DefaultPrivacySettingsPreferenceManager.kt
+@@ -0,0 +1,82 @@
++package net.thunderbird.core.preference.privacy
++
++import kotlinx.coroutines.CoroutineDispatcher
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.channels.awaitClose
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.callbackFlow
++import kotlinx.coroutines.flow.launchIn
++import kotlinx.coroutines.flow.onEach
++import kotlinx.coroutines.flow.update
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import net.thunderbird.core.preference.PreferenceChangeBroker
++import net.thunderbird.core.preference.PreferenceChangeSubscriber
++import net.thunderbird.core.preference.storage.Storage
++import net.thunderbird.core.preference.storage.StorageEditor
++
++class DefaultPrivacySettingsPreferenceManager(
++    private val storage: Storage,
++    private val storageEditor: StorageEditor,
++    private val changeBroker: PreferenceChangeBroker,
++    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
++    private var scope: CoroutineScope = CoroutineScope(SupervisorJob()),
++) : PrivacySettingsPreferenceManager {
++    private val configState: MutableStateFlow<PrivacySettings> = MutableStateFlow(value = loadConfig())
++    private val mutex = Mutex()
++
++    init {
++        asSettingsFlow()
++            .onEach { config ->
++                configState.update { config }
++            }
++            .launchIn(scope)
++    }
++
++    override fun save(config: PrivacySettings) {
++        configState.update { config }
++        writeConfig(config)
++    }
++
++    override fun getConfig(): PrivacySettings = configState.value
++    override fun getConfigFlow(): Flow<PrivacySettings> = configState
++
++    // Not 100% sure if this method is really required, but applied the same logic
++    // present in the RealDrawerConfigManager implementation
++    private fun asSettingsFlow(): Flow<PrivacySettings> {
++        return callbackFlow {
++            send(loadConfig())
++
++            val subscriber = PreferenceChangeSubscriber {
++                configState.update { loadConfig() }
++            }
++
++            changeBroker.subscribe(subscriber)
++
++            awaitClose {
++                changeBroker.unsubscribe(subscriber)
++            }
++        }
++    }
++
++    private fun loadConfig(): PrivacySettings = PrivacySettings(
++        isHideTimeZone = storage.getBoolean(KEY_HIDE_TIME_ZONE, false),
++    )
++
++    private fun writeConfig(config: PrivacySettings) {
++        scope.launch(ioDispatcher) {
++            mutex.withLock {
++                storageEditor.putBoolean(KEY_HIDE_TIME_ZONE, config.isHideTimeZone)
++                storageEditor.commit()
++            }
++        }
++    }
++
++    companion object {
++        private const val KEY_HIDE_TIME_ZONE = "hideTimeZone"
++    }
++}
+diff --git a/legacy/core/src/main/java/com/fsck/k9/K9.kt b/legacy/core/src/main/java/com/fsck/k9/K9.kt
+index 9a2d9d09679..dc4b24affed 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/K9.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/K9.kt
+@@ -200,9 +200,6 @@ object K9 : KoinComponent {
+     @JvmStatic
+     var isHideUserAgent = false
+ 
+-    @JvmStatic
+-    var isHideTimeZone = false
+-
+     @get:Synchronized
+     @set:Synchronized
+     @JvmStatic
+@@ -300,7 +297,6 @@ object K9 : KoinComponent {
+         messageViewPostMarkAsUnreadNavigation =
+             storage.getEnum("messageViewPostMarkAsUnreadAction", PostMarkAsUnreadNavigation.ReturnToMessageList)
+         isHideUserAgent = storage.getBoolean("hideUserAgent", false)
+-        isHideTimeZone = storage.getBoolean("hideTimeZone", false)
+ 
+         isConfirmDelete = storage.getBoolean("confirmDelete", false)
+         isConfirmDiscardMessage = storage.getBoolean("confirmDiscardMessage", true)
+@@ -374,7 +370,6 @@ object K9 : KoinComponent {
+         editor.putEnum("messageViewPostDeleteAction", messageViewPostRemoveNavigation)
+         editor.putEnum("messageViewPostMarkAsUnreadAction", messageViewPostMarkAsUnreadNavigation)
+         editor.putBoolean("hideUserAgent", isHideUserAgent)
+-        editor.putBoolean("hideTimeZone", isHideTimeZone)
+ 
+         editor.putString("language", k9Language)
+ 
+diff --git a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptTransferMessageCreator.kt b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptTransferMessageCreator.kt
+index fccdca46cd6..c007b612185 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptTransferMessageCreator.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptTransferMessageCreator.kt
+@@ -1,6 +1,5 @@
+ package com.fsck.k9.autocrypt
+ 
+-import com.fsck.k9.K9
+ import com.fsck.k9.mail.Address
+ import com.fsck.k9.mail.Flag
+ import com.fsck.k9.mail.Message
+@@ -13,8 +12,12 @@ import com.fsck.k9.mail.internet.MimeMultipart
+ import com.fsck.k9.mail.internet.TextBody
+ import com.fsck.k9.mailstore.BinaryMemoryBody
+ import java.util.Date
++import net.thunderbird.core.preference.GeneralSettingsManager
+ 
+-class AutocryptTransferMessageCreator(private val stringProvider: AutocryptStringProvider) {
++class AutocryptTransferMessageCreator(
++    private val stringProvider: AutocryptStringProvider,
++    private val generalSettingsManager: GeneralSettingsManager,
++) {
+     fun createAutocryptTransferMessage(data: ByteArray, address: Address): Message {
+         try {
+             val subjectText = stringProvider.transferMessageSubject()
+@@ -41,7 +44,10 @@ class AutocryptTransferMessageCreator(private val stringProvider: AutocryptStrin
+             message.subject = subjectText
+             message.setHeader("Autocrypt-Setup-Message", "v1")
+             message.internalDate = nowDate
+-            message.addSentDate(nowDate, K9.isHideTimeZone)
++            message.addSentDate(
++                nowDate,
++                generalSettingsManager.getSettings().privacy.isHideTimeZone,
++            )
+             message.setFrom(address)
+             message.setHeader("To", address.toEncodedString())
+ 
+diff --git a/legacy/core/src/main/java/com/fsck/k9/autocrypt/KoinModule.kt b/legacy/core/src/main/java/com/fsck/k9/autocrypt/KoinModule.kt
+index ef114f0081d..0ee31fd2b9c 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/autocrypt/KoinModule.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/autocrypt/KoinModule.kt
+@@ -3,6 +3,11 @@ package com.fsck.k9.autocrypt
+ import org.koin.dsl.module
+ 
+ val autocryptModule = module {
+-    single { AutocryptTransferMessageCreator(get()) }
++    single {
++        AutocryptTransferMessageCreator(
++            stringProvider = get(),
++            generalSettingsManager = get(),
++        )
++    }
+     single { AutocryptDraftStateHeaderParser() }
+ }
+diff --git a/legacy/core/src/main/java/com/fsck/k9/message/quote/HtmlQuoteCreator.java b/legacy/core/src/main/java/com/fsck/k9/message/quote/HtmlQuoteCreator.java
+index 80769954f50..a460dd07a9f 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/message/quote/HtmlQuoteCreator.java
++++ b/legacy/core/src/main/java/com/fsck/k9/message/quote/HtmlQuoteCreator.java
+@@ -12,6 +12,7 @@
+ import com.fsck.k9.mail.Message;
+ import com.fsck.k9.mail.Message.RecipientType;
+ import com.fsck.k9.message.html.HtmlConverter;
++import net.thunderbird.core.preference.GeneralSettingsManager;
+ 
+ 
+ public class HtmlQuoteCreator {
+@@ -42,11 +43,11 @@ public class HtmlQuoteCreator {
+      * @return Modified insertable message.
+      */
+     public static InsertableHtmlContent quoteOriginalHtmlMessage(Message originalMessage,
+-            String messageBody, QuoteStyle quoteStyle) {
++            String messageBody, QuoteStyle quoteStyle, GeneralSettingsManager generalSettingsManager) {
+         CoreResourceProvider resourceProvider = DI.get(CoreResourceProvider.class);
+         InsertableHtmlContent insertable = findInsertionPoints(messageBody);
+ 
+-        String sentDate = new QuoteDateFormatter().format(originalMessage.getSentDate());
++        String sentDate = new QuoteDateFormatter(generalSettingsManager).format(originalMessage.getSentDate());
+         String fromAddress = Address.toString(originalMessage.getFrom());
+         if (quoteStyle == QuoteStyle.PREFIX) {
+             StringBuilder header = new StringBuilder();
+diff --git a/legacy/core/src/main/java/com/fsck/k9/message/quote/KoinModule.kt b/legacy/core/src/main/java/com/fsck/k9/message/quote/KoinModule.kt
+index 19e6d6101e3..4558fbb698a 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/message/quote/KoinModule.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/message/quote/KoinModule.kt
+@@ -3,6 +3,6 @@ package com.fsck.k9.message.quote
+ import org.koin.dsl.module
+ 
+ val quoteModule = module {
+-    factory { QuoteDateFormatter() }
++    factory { QuoteDateFormatter(generalSettingsManager = get()) }
+     factory { TextQuoteCreator(get(), get()) }
+ }
+diff --git a/legacy/core/src/main/java/com/fsck/k9/message/quote/QuoteDateFormatter.kt b/legacy/core/src/main/java/com/fsck/k9/message/quote/QuoteDateFormatter.kt
+index 608c5cb9414..a0ecbdc2050 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/message/quote/QuoteDateFormatter.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/message/quote/QuoteDateFormatter.kt
+@@ -1,14 +1,16 @@
+ package com.fsck.k9.message.quote
+ 
+-import com.fsck.k9.K9
+ import java.text.DateFormat
+ import java.util.Date
+ import java.util.TimeZone
++import net.thunderbird.core.preference.GeneralSettingsManager
+ 
+ /**
+  * Convert a date into a locale-specific date string suitable for use in a header for a quoted message.
+  */
+-class QuoteDateFormatter {
++class QuoteDateFormatter(
++    private val generalSettingsManager: GeneralSettingsManager,
++) {
+ 
+     fun format(date: Date): String {
+         return try {
+@@ -21,7 +23,7 @@ class QuoteDateFormatter {
+ 
+     private fun createDateFormat(): DateFormat {
+         return DateFormat.getDateTimeInstance(DATE_STYLE, TIME_STYLE).apply {
+-            if (K9.isHideTimeZone) {
++            if (generalSettingsManager.getSettings().privacy.isHideTimeZone) {
+                 timeZone = TimeZone.getTimeZone("UTC")
+             }
+         }
+diff --git a/legacy/core/src/main/java/com/fsck/k9/preferences/KoinModule.kt b/legacy/core/src/main/java/com/fsck/k9/preferences/KoinModule.kt
+index a86704aef19..27455af0fe1 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/preferences/KoinModule.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/preferences/KoinModule.kt
+@@ -5,6 +5,10 @@ import net.thunderbird.core.preference.DefaultPreferenceChangeBroker
+ import net.thunderbird.core.preference.GeneralSettingsManager
+ import net.thunderbird.core.preference.PreferenceChangeBroker
+ import net.thunderbird.core.preference.PreferenceChangePublisher
++import net.thunderbird.core.preference.privacy.DefaultPrivacySettingsManager
++import net.thunderbird.core.preference.privacy.DefaultPrivacySettingsPreferenceManager
++import net.thunderbird.core.preference.privacy.PrivacySettingsManager
++import net.thunderbird.core.preference.privacy.PrivacySettingsPreferenceManager
+ import net.thunderbird.feature.mail.account.api.AccountManager
+ import org.koin.core.qualifier.named
+ import org.koin.dsl.bind
+@@ -26,11 +30,20 @@ val preferencesModule = module {
+     factory { FolderSettingsProvider(folderRepository = get()) }
+     factory<LegacyAccountManager> { get<Preferences>() }
+     factory<AccountManager<*>> { get<LegacyAccountManager>() }
++    single<PrivacySettingsPreferenceManager> {
++        DefaultPrivacySettingsPreferenceManager(
++            storage = get<Preferences>().storage,
++            storageEditor = get<Preferences>().createStorageEditor(),
++            changeBroker = get(),
++        )
++    }
++    single<PrivacySettingsManager> { DefaultPrivacySettingsManager(preferenceManager = get()) }
+     single {
+         RealGeneralSettingsManager(
+             preferences = get(),
+             coroutineScope = get(named("AppCoroutineScope")),
+             changePublisher = get(),
++            privacySettingsManager = get(),
+         )
+     } bind GeneralSettingsManager::class
+     single {
+diff --git a/legacy/core/src/main/java/com/fsck/k9/preferences/RealGeneralSettingsManager.kt b/legacy/core/src/main/java/com/fsck/k9/preferences/RealGeneralSettingsManager.kt
+index 59bb88d7a41..fb75804a665 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/preferences/RealGeneralSettingsManager.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/preferences/RealGeneralSettingsManager.kt
+@@ -21,6 +21,7 @@ import net.thunderbird.core.preference.GeneralSettings
+ import net.thunderbird.core.preference.GeneralSettingsManager
+ import net.thunderbird.core.preference.PreferenceChangePublisher
+ import net.thunderbird.core.preference.SubTheme
++import net.thunderbird.core.preference.privacy.PrivacySettingsManager
+ import net.thunderbird.core.preference.storage.Storage
+ import net.thunderbird.core.preference.storage.StorageEditor
+ import net.thunderbird.core.preference.storage.getEnumOrDefault
+@@ -47,12 +48,15 @@ internal const val KEY_QUIET_TIME_ENABLED = "quietTimeEnabled"
+  * The [GeneralSettings] instance managed by this class is updated with state from [K9] when [K9.saveSettingsAsync] is
+  * called.
+  */
++// TODO(#9432): Split GeneralSettings and GeneralSettingsManager in smaller classes/interfaces
++@Suppress("TooManyFunctions")
+ internal class RealGeneralSettingsManager(
+     private val preferences: Preferences,
+     private val coroutineScope: CoroutineScope,
+     private val changePublisher: PreferenceChangePublisher,
+     private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO,
+-) : GeneralSettingsManager {
++    private val privacySettingsManager: PrivacySettingsManager,
++) : GeneralSettingsManager, PrivacySettingsManager by privacySettingsManager {
+     private val settingsFlow = MutableSharedFlow<GeneralSettings>(replay = 1)
+     private var generalSettings: GeneralSettings? = null
+     val clock = DI.get<Clock>()
+@@ -229,6 +233,13 @@ internal class RealGeneralSettingsManager(
+         getSettings().copy(isQuietTimeEnabled = isQuietTimeEnabled).persist()
+     }
+ 
++    override fun setIsHideTimeZone(isHideTimeZone: Boolean) {
++        privacySettingsManager.setIsHideTimeZone(isHideTimeZone)
++        getSettings()
++            .copy(privacy = privacySettings)
++            .persist()
++    }
++
+     private fun writeSettings(editor: StorageEditor, settings: GeneralSettings) {
+         editor.putBoolean("showRecentChanges", settings.showRecentChanges)
+         editor.putEnum("theme", settings.appTheme)
+@@ -295,6 +306,7 @@ internal class RealGeneralSettingsManager(
+             quietTimeStarts = storage.getStringOrDefault(KEY_QUIET_TIME_STARTS, "21:00"),
+             isQuietTimeEnabled = storage.getBoolean(KEY_QUIET_TIME_ENABLED, false),
+             isQuietTime = getIsQuietTime(),
++            privacy = privacySettingsManager.privacySettings,
+         )
+ 
+         updateSettingsFlow(settings)
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/activity/MessageCompose.java b/legacy/ui/legacy/src/main/java/com/fsck/k9/activity/MessageCompose.java
+index d6fbc7b7e63..e1b2977b75d 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/activity/MessageCompose.java
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/activity/MessageCompose.java
+@@ -118,6 +118,7 @@
+ import com.google.android.material.textview.MaterialTextView;
+ import net.thunderbird.core.android.account.MessageFormat;
+ import net.thunderbird.core.android.contact.ContactIntentHelper;
++import net.thunderbird.core.preference.GeneralSettingsManager;
+ import net.thunderbird.core.ui.theme.manager.ThemeManager;
+ import net.thunderbird.feature.search.LocalMessageSearch;
+ import org.openintents.openpgp.OpenPgpApiManager;
+@@ -191,6 +192,7 @@ public class MessageCompose extends K9Activity implements OnClickListener,
+     private final DefaultFolderProvider defaultFolderProvider = DI.get(DefaultFolderProvider.class);
+     private final MessagingController messagingController = DI.get(MessagingController.class);
+     private final Preferences preferences = DI.get(Preferences.class);
++    private final GeneralSettingsManager generalSettingsManager = DI.get(GeneralSettingsManager.class);
+ 
+     private final IntentDataMapper indentDataMapper = DI.get(IntentDataMapper.class);
+ 
+@@ -643,7 +645,7 @@ private MessageBuilder createMessageBuilder(boolean isDraft) {
+ 
+         builder.setSubject(Utility.stripNewLines(subjectView.getText().toString()))
+                 .setSentDate(new Date())
+-                .setHideTimeZone(K9.isHideTimeZone())
++                .setHideTimeZone(generalSettingsManager.getPrivacySettings().isHideTimeZone())
+                 .setInReplyTo(repliedToMessageId)
+                 .setReferences(referencedMessageIds)
+                 .setRequestReadReceipt(requestReadReceipt)
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/compose/QuotedMessagePresenter.java b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/compose/QuotedMessagePresenter.java
+index 51145cd491c..d253b177807 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/compose/QuotedMessagePresenter.java
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/compose/QuotedMessagePresenter.java
+@@ -31,6 +31,7 @@
+ import com.fsck.k9.message.signature.TextSignatureRemover;
+ import net.thunderbird.core.android.account.QuoteStyle;
+ import net.thunderbird.core.logging.legacy.Log;
++import net.thunderbird.core.preference.GeneralSettingsManager;
+ 
+ 
+ public class QuotedMessagePresenter {
+@@ -42,6 +43,7 @@ public class QuotedMessagePresenter {
+     private static final int UNKNOWN_LENGTH = 0;
+ 
+     private final TextQuoteCreator textQuoteCreator = DI.get(TextQuoteCreator.class);
++    private final GeneralSettingsManager generalSettingsManager = DI.get(GeneralSettingsManager.class);
+     private final QuotedMessageMvpView view;
+     private final MessageCompose messageCompose;
+ 
+@@ -111,7 +113,7 @@ public void populateUIWithQuotedMessage(MessageViewInfo messageViewInfo, boolean
+             }
+ 
+             // Add the HTML reply header to the top of the content.
+-            quotedHtmlContent = HtmlQuoteCreator.quoteOriginalHtmlMessage(messageViewInfo.message, content, quoteStyle);
++            quotedHtmlContent = HtmlQuoteCreator.quoteOriginalHtmlMessage(messageViewInfo.message, content, quoteStyle, generalSettingsManager);
+ 
+             // Load the message with the reply header. TODO replace with MessageViewInfo data
+             view.setQuotedHtml(quotedHtmlContent.getQuotedContent(),
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/general/GeneralSettingsDataStore.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/general/GeneralSettingsDataStore.kt
+index 8e61cedde83..14e64a741f4 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/general/GeneralSettingsDataStore.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/general/GeneralSettingsDataStore.kt
+@@ -47,7 +47,7 @@ class GeneralSettingsDataStore(
+             "quiet_time_enabled" -> generalSettingsManager.getSettings().isQuietTimeEnabled
+             "disable_notifications_during_quiet_time" -> !K9.isNotificationDuringQuietTimeEnabled
+             "privacy_hide_useragent" -> K9.isHideUserAgent
+-            "privacy_hide_timezone" -> K9.isHideTimeZone
++            "privacy_hide_timezone" -> generalSettingsManager.getSettings().privacy.isHideTimeZone
+             "debug_logging" -> K9.isDebugLoggingEnabled
+             "sync_debug_logging" -> K9.isSyncLoggingEnabled
+             "sensitive_logging" -> K9.isSensitiveDebugLoggingEnabled
+@@ -87,7 +87,7 @@ class GeneralSettingsDataStore(
+             "quiet_time_enabled" -> setIsQuietTimeEnabled(isQuietTimeEnabled = value)
+             "disable_notifications_during_quiet_time" -> K9.isNotificationDuringQuietTimeEnabled = !value
+             "privacy_hide_useragent" -> K9.isHideUserAgent = value
+-            "privacy_hide_timezone" -> K9.isHideTimeZone = value
++            "privacy_hide_timezone" -> setIsHideTimeZone(isHideTimeZone = value)
+             "debug_logging" -> K9.isDebugLoggingEnabled = value
+             "sync_debug_logging" -> K9.isSyncLoggingEnabled = value
+             "sensitive_logging" -> K9.isSensitiveDebugLoggingEnabled = value
+@@ -381,6 +381,13 @@ class GeneralSettingsDataStore(
+         )
+     }
+ 
++    private fun setIsHideTimeZone(isHideTimeZone: Boolean) {
++        skipSaveSettings = true
++        generalSettingsManager.setIsHideTimeZone(
++            isHideTimeZone = isHideTimeZone,
++        )
++    }
++
+     private fun appThemeToString(theme: AppTheme) = when (theme) {
+         AppTheme.LIGHT -> "light"
+         AppTheme.DARK -> "dark"

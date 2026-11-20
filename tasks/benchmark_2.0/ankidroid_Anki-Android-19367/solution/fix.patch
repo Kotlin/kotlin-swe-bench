@@ -1,0 +1,127 @@
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/CardTemplateEditor.kt b/AnkiDroid/src/main/java/com/ichi2/anki/CardTemplateEditor.kt
+index b9965c0e470a..11944edca8ec 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/CardTemplateEditor.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/CardTemplateEditor.kt
+@@ -76,7 +76,6 @@ import com.ichi2.anki.dialogs.DeckSelectionDialog
+ import com.ichi2.anki.dialogs.DeckSelectionDialog.DeckSelectionListener
+ import com.ichi2.anki.dialogs.DiscardChangesDialog
+ import com.ichi2.anki.dialogs.InsertFieldDialog
+-import com.ichi2.anki.dialogs.InsertFieldDialog.Companion.REQUEST_FIELD_INSERT
+ import com.ichi2.anki.libanki.CardTemplates
+ import com.ichi2.anki.libanki.Collection
+ import com.ichi2.anki.libanki.Note
+@@ -522,6 +521,13 @@ open class CardTemplateEditor :
+         private val refreshFragmentHandler = Handler(Looper.getMainLooper())
+         private lateinit var editorEditText: FixedEditText
+ 
++        // Index of this card template fragment in ViewPager
++        private val cardIndex
++            get() = requireArguments().getInt(CARD_INDEX)
++
++        val insertFieldRequestKey
++            get() = "request_field_insert_$cardIndex"
++
+         var currentEditorViewId = 0
+ 
+         private lateinit var templateEditor: CardTemplateEditor
+@@ -536,7 +542,6 @@ open class CardTemplateEditor :
+             // Storing a reference to the templateEditor allows us to use member variables
+             templateEditor = activity as CardTemplateEditor
+             val mainView = inflater.inflate(R.layout.card_template_editor_item, container, false)
+-            val cardIndex = requireArguments().getInt(CARD_INDEX)
+             tempModel = templateEditor.tempNoteType!!
+             // Load template
+             val template: BackendCardTemplate =
+@@ -729,7 +734,8 @@ open class CardTemplateEditor :
+         )
+         fun showInsertFieldDialog() {
+             templateEditor.fieldNames?.let { fieldNames ->
+-                templateEditor.showDialogFragment(InsertFieldDialog.newInstance(fieldNames))
++                val dialog = InsertFieldDialog.newInstance(fieldNames, insertFieldRequestKey)
++                templateEditor.showDialogFragment(dialog)
+             }
+         }
+ 
+@@ -810,11 +816,10 @@ open class CardTemplateEditor :
+                     }
+                 },
+             )
+-            parentFragmentManager.setFragmentResultListener(REQUEST_FIELD_INSERT, viewLifecycleOwner) { key, bundle ->
+-                if (key == REQUEST_FIELD_INSERT) {
+-                    // this is guaranteed to be non null, as we put a non null value on the other side
+-                    insertField(bundle.getString(InsertFieldDialog.KEY_INSERTED_FIELD)!!)
+-                }
++
++            parentFragmentManager.setFragmentResultListener(insertFieldRequestKey, viewLifecycleOwner) { key, bundle ->
++                // this is guaranteed to be non null, as we put a non null value on the other side
++                insertField(bundle.getString(InsertFieldDialog.KEY_INSERTED_FIELD)!!)
+             }
+             setupMenu()
+         }
+diff --git a/AnkiDroid/src/main/java/com/ichi2/anki/dialogs/InsertFieldDialog.kt b/AnkiDroid/src/main/java/com/ichi2/anki/dialogs/InsertFieldDialog.kt
+index a72af3613a33..a17025c954f7 100644
+--- a/AnkiDroid/src/main/java/com/ichi2/anki/dialogs/InsertFieldDialog.kt
++++ b/AnkiDroid/src/main/java/com/ichi2/anki/dialogs/InsertFieldDialog.kt
+@@ -38,6 +38,7 @@ import com.ichi2.utils.title
+  */
+ class InsertFieldDialog : DialogFragment() {
+     private lateinit var fieldList: List<String>
++    private lateinit var requestKey: String
+ 
+     /**
+      * A dialog for inserting field in card template editor
+@@ -45,6 +46,7 @@ class InsertFieldDialog : DialogFragment() {
+     override fun onCreateDialog(savedInstanceState: Bundle?): AlertDialog {
+         super.onCreate(savedInstanceState)
+         fieldList = requireArguments().getStringArrayList(KEY_FIELD_ITEMS)!!
++        requestKey = requireArguments().getString(KEY_REQUEST_KEY)!!
+         val adapter: RecyclerView.Adapter<*> =
+             object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                 override fun onCreateViewHolder(
+@@ -75,28 +77,37 @@ class InsertFieldDialog : DialogFragment() {
+ 
+     private fun selectFieldAndClose(textView: TextView) {
+         parentFragmentManager.setFragmentResult(
+-            REQUEST_FIELD_INSERT,
++            requestKey,
+             bundleOf(KEY_INSERTED_FIELD to textView.text.toString()),
+         )
+         dismiss()
+     }
+ 
+     companion object {
+-        /**
+-         * Other fragments sharing the activity can use this with
+-         * [androidx.fragment.app.FragmentManager.setFragmentResultListener] to get a result back.
+-         */
+-        const val REQUEST_FIELD_INSERT = "request_field_insert"
+-
+         /**
+          * This fragment requires that a list of fields names to be passed in.
+          */
+         const val KEY_INSERTED_FIELD = "key_inserted_field"
+         private const val KEY_FIELD_ITEMS = "key_field_items"
++        private const val KEY_REQUEST_KEY = "key_request_key"
+ 
+-        fun newInstance(fieldItems: List<String>): InsertFieldDialog =
++        /**
++         * Creates a new instance of [InsertFieldDialog]
++         *
++         * @param fieldItems The list of field names to be displayed in the dialog.
++         * @param requestKey The key used to identify the result when returning the selected field
++         *                   to the calling fragment.
++         */
++        fun newInstance(
++            fieldItems: List<String>,
++            requestKey: String,
++        ): InsertFieldDialog =
+             InsertFieldDialog().apply {
+-                arguments = bundleOf(KEY_FIELD_ITEMS to ArrayList(fieldItems))
++                arguments =
++                    bundleOf(
++                        KEY_FIELD_ITEMS to ArrayList(fieldItems),
++                        KEY_REQUEST_KEY to requestKey,
++                    )
+             }
+     }
+ }

@@ -1,0 +1,377 @@
+diff --git a/resources/src/test/kotlin/io/bkbn/kompendium/resources/KompendiumResourcesTest.kt b/resources/src/test/kotlin/io/bkbn/kompendium/resources/KompendiumResourcesTest.kt
+new file mode 100644
+index 0000000000..ec0370635b
+--- /dev/null
++++ b/resources/src/test/kotlin/io/bkbn/kompendium/resources/KompendiumResourcesTest.kt
+@@ -0,0 +1,120 @@
++package io.bkbn.kompendium.resources
++
++import Listing
++import Type
++import io.bkbn.kompendium.core.fixtures.TestHelpers.openApiTestAllSerializers
++import io.bkbn.kompendium.core.fixtures.TestResponse
++import io.bkbn.kompendium.core.metadata.GetInfo
++import io.bkbn.kompendium.json.schema.definition.TypeDefinition
++import io.bkbn.kompendium.oas.payload.Parameter
++import io.kotest.core.spec.style.DescribeSpec
++import io.ktor.http.HttpStatusCode
++import io.ktor.server.application.call
++import io.ktor.server.application.install
++import io.ktor.server.resources.Resources
++import io.ktor.server.resources.get
++import io.ktor.server.response.respondText
++
++class KompendiumResourcesTest : DescribeSpec({
++  describe("Resource Tests") {
++    it("Can notarize a simple resource") {
++      openApiTestAllSerializers(
++        snapshotName = "T0001__simple_resource.json",
++        applicationSetup = {
++          install(Resources)
++          install(NotarizedResources()) {
++            resources = mapOf(
++              Listing::class to NotarizedResources.ResourceMetadata(
++                parameters = listOf(
++                  Parameter(
++                    name = "name",
++                    `in` = Parameter.Location.path,
++                    schema = TypeDefinition.STRING
++                  ),
++                  Parameter(
++                    name = "page",
++                    `in` = Parameter.Location.path,
++                    schema = TypeDefinition.INT
++                  )
++                ),
++                get = GetInfo.builder {
++                  summary("Resource")
++                  description("example resource")
++                  response {
++                    responseCode(HttpStatusCode.OK)
++                    responseType<TestResponse>()
++                    description("does great things")
++                  }
++                }
++              ),
++            )
++          }
++        }
++      ) {
++        get<Listing> { listing ->
++          call.respondText("Listing ${listing.name}, page ${listing.page}")
++        }
++      }
++    }
++    it("Can notarize nested resources") {
++      openApiTestAllSerializers(
++        snapshotName = "T0002__nested_resources.json",
++        applicationSetup = {
++          install(Resources)
++          install(NotarizedResources()) {
++            resources = mapOf(
++              Type.Edit::class to NotarizedResources.ResourceMetadata(
++                parameters = listOf(
++                  Parameter(
++                    name = "name",
++                    `in` = Parameter.Location.path,
++                    schema = TypeDefinition.STRING
++                  )
++                ),
++                get = GetInfo.builder {
++                  summary("Edit")
++                  description("example resource")
++                  response {
++                    responseCode(HttpStatusCode.OK)
++                    responseType<TestResponse>()
++                    description("does great things")
++                  }
++                }
++              ),
++              Type.Other::class to NotarizedResources.ResourceMetadata(
++                parameters = listOf(
++                  Parameter(
++                    name = "name",
++                    `in` = Parameter.Location.path,
++                    schema = TypeDefinition.STRING
++                  ),
++                  Parameter(
++                    name = "page",
++                    `in` = Parameter.Location.path,
++                    schema = TypeDefinition.INT
++                  )
++                ),
++                get = GetInfo.builder {
++                  summary("Other")
++                  description("example resource")
++                  response {
++                    responseCode(HttpStatusCode.OK)
++                    responseType<TestResponse>()
++                    description("does great things")
++                  }
++                }
++              ),
++            )
++          }
++        }
++      ) {
++        get<Type.Edit> { edit ->
++          call.respondText("Listing ${edit.parent.name}")
++        }
++        get<Type.Other> { other ->
++          call.respondText("Listing ${other.parent.name}, page ${other.page}")
++        }
++      }
++    }
++  }
++})
+diff --git a/resources/src/test/kotlin/io/bkbn/kompendium/resources/util/TestModels.kt b/resources/src/test/kotlin/io/bkbn/kompendium/resources/util/TestModels.kt
+new file mode 100644
+index 0000000000..b625adae3d
+--- /dev/null
++++ b/resources/src/test/kotlin/io/bkbn/kompendium/resources/util/TestModels.kt
+@@ -0,0 +1,17 @@
++import io.ktor.resources.Resource
++import kotlinx.serialization.Serializable
++
++@Serializable
++@Resource("/list/{name}/page/{page}")
++data class Listing(val name: String, val page: Int)
++
++@Serializable
++@Resource("/type/{name}")
++data class Type(val name: String) {
++  @Serializable
++  @Resource("/edit")
++  data class Edit(val parent: Type)
++  @Serializable
++  @Resource("/other/{page}")
++  data class Other(val parent: Type, val page: Int)
++}
+diff --git a/resources/src/test/resources/T0001__simple_resource.json b/resources/src/test/resources/T0001__simple_resource.json
+new file mode 100644
+index 0000000000..97b24f4f80
+--- /dev/null
++++ b/resources/src/test/resources/T0001__simple_resource.json
+@@ -0,0 +1,92 @@
++{
++  "openapi": "3.1.0",
++  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
++  "info": {
++    "title": "Test API",
++    "version": "1.33.7",
++    "description": "An amazing, fully-ish 😉 generated API spec",
++    "termsOfService": "https://example.com",
++    "contact": {
++      "name": "Homer Simpson",
++      "url": "https://gph.is/1NPUDiM",
++      "email": "chunkylover53@aol.com"
++    },
++    "license": {
++      "name": "MIT",
++      "url": "https://github.com/bkbnio/kompendium/blob/main/LICENSE"
++    }
++  },
++  "servers": [
++    {
++      "url": "https://myawesomeapi.com",
++      "description": "Production instance of my API"
++    },
++    {
++      "url": "https://staging.myawesomeapi.com",
++      "description": "Where the fun stuff happens"
++    }
++  ],
++  "paths": {
++    "/list/{name}/page/{page}": {
++      "get": {
++        "tags": [],
++        "summary": "Resource",
++        "description": "example resource",
++        "parameters": [],
++        "responses": {
++          "200": {
++            "description": "does great things",
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/TestResponse"
++                }
++              }
++            }
++          }
++        },
++        "deprecated": false
++      },
++      "parameters": [
++        {
++          "name": "name",
++          "in": "path",
++          "schema": {
++            "type": "string"
++          },
++          "required": true,
++          "deprecated": false
++        },
++        {
++          "name": "page",
++          "in": "path",
++          "schema": {
++            "type": "number",
++            "format": "int32"
++          },
++          "required": true,
++          "deprecated": false
++        }
++      ]
++    }
++  },
++  "webhooks": {},
++  "components": {
++    "schemas": {
++      "TestResponse": {
++        "type": "object",
++        "properties": {
++          "c": {
++            "type": "string"
++          }
++        },
++        "required": [
++          "c"
++        ]
++      }
++    },
++    "securitySchemes": {}
++  },
++  "security": [],
++  "tags": []
++}
+diff --git a/resources/src/test/resources/T0002__nested_resources.json b/resources/src/test/resources/T0002__nested_resources.json
+new file mode 100644
+index 0000000000..59b7fdfe87
+--- /dev/null
++++ b/resources/src/test/resources/T0002__nested_resources.json
+@@ -0,0 +1,124 @@
++{
++  "openapi": "3.1.0",
++  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
++  "info": {
++    "title": "Test API",
++    "version": "1.33.7",
++    "description": "An amazing, fully-ish 😉 generated API spec",
++    "termsOfService": "https://example.com",
++    "contact": {
++      "name": "Homer Simpson",
++      "url": "https://gph.is/1NPUDiM",
++      "email": "chunkylover53@aol.com"
++    },
++    "license": {
++      "name": "MIT",
++      "url": "https://github.com/bkbnio/kompendium/blob/main/LICENSE"
++    }
++  },
++  "servers": [
++    {
++      "url": "https://myawesomeapi.com",
++      "description": "Production instance of my API"
++    },
++    {
++      "url": "https://staging.myawesomeapi.com",
++      "description": "Where the fun stuff happens"
++    }
++  ],
++  "paths": {
++    "/type/{name}/edit": {
++      "get": {
++        "tags": [],
++        "summary": "Edit",
++        "description": "example resource",
++        "parameters": [],
++        "responses": {
++          "200": {
++            "description": "does great things",
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/TestResponse"
++                }
++              }
++            }
++          }
++        },
++        "deprecated": false
++      },
++      "parameters": [
++        {
++          "name": "name",
++          "in": "path",
++          "schema": {
++            "type": "string"
++          },
++          "required": true,
++          "deprecated": false
++        }
++      ]
++    },
++    "/type/{name}/other/{page}": {
++      "get": {
++        "tags": [],
++        "summary": "Other",
++        "description": "example resource",
++        "parameters": [],
++        "responses": {
++          "200": {
++            "description": "does great things",
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/TestResponse"
++                }
++              }
++            }
++          }
++        },
++        "deprecated": false
++      },
++      "parameters": [
++        {
++          "name": "name",
++          "in": "path",
++          "schema": {
++            "type": "string"
++          },
++          "required": true,
++          "deprecated": false
++        },
++        {
++          "name": "page",
++          "in": "path",
++          "schema": {
++            "type": "number",
++            "format": "int32"
++          },
++          "required": true,
++          "deprecated": false
++        }
++      ]
++    }
++  },
++  "webhooks": {},
++  "components": {
++    "schemas": {
++      "TestResponse": {
++        "type": "object",
++        "properties": {
++          "c": {
++            "type": "string"
++          }
++        },
++        "required": [
++          "c"
++        ]
++      }
++    },
++    "securitySchemes": {}
++  },
++  "security": [],
++  "tags": []
++}

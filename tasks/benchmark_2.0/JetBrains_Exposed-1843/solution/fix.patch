@@ -1,0 +1,113 @@
+diff --git a/detekt/detekt-config.yml b/detekt/detekt-config.yml
+index 365b23452d..b7aae10aa0 100644
+--- a/detekt/detekt-config.yml
++++ b/detekt/detekt-config.yml
+@@ -18,6 +18,9 @@ formatting:
+     NoMultipleSpaces:
+         active: true
+         autoCorrect: false
++    SpacingAroundUnaryOperator:
++        active: true
++        autoCorrect: true
+ 
+ style:
+     MaxLineLength:
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ResultRow.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ResultRow.kt
+index 22ee8d40ca..3bada266c2 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ResultRow.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ResultRow.kt
+@@ -12,23 +12,53 @@ class ResultRow(
+     private val lookUpCache = HashMap<Expression<*>, Any?>()
+ 
+     /**
+-     * Retrieves value of a given expression on this row.
++     * Retrieves the value of a given expression on this row.
+      *
+      * @param expression expression to evaluate
+      * @throws IllegalStateException if expression is not in record set or if result value is uninitialized
+      *
+      * @see [getOrNull] to get null in the cases an exception would be thrown
+      */
+-    operator fun <T> get(expression: Expression<T>): T {
++    operator fun <T> get(expression: Expression<T>): T = getInternal(expression, checkNullability = true)
++
++    /**
++     * Sets the value of a given expression on this row.
++     *
++     * @param expression expression for which to set the value
++     * @param value value to be set for the given expression
++     */
++    operator fun <T> set(expression: Expression<out T>, value: T) {
++        setInternal(expression, value)
++        lookUpCache.remove(expression)
++    }
++
++    private fun <T> setInternal(expression: Expression<out T>, value: T) {
++        val index = getExpressionIndex(expression)
++        data[index] = value
++    }
++
++    fun <T> hasValue(expression: Expression<T>): Boolean = fieldIndex[expression]?.let { data[it] != NotInitializedValue } ?: false
++
++    /**
++     * Retrieves the value of a given expression on this row.
++     * Returns null in the cases an exception would be thrown in [get].
++     *
++     * @param expression expression to evaluate
++     */
++    fun <T> getOrNull(expression: Expression<T>): T? = if (hasValue(expression)) getInternal(expression, checkNullability = false) else null
++
++    private fun <T> getInternal(expression: Expression<T>, checkNullability: Boolean): T {
+         if (expression in lookUpCache) return lookUpCache[expression] as T
+ 
+         val d = getRaw(expression)
+ 
+-        if (d == null && expression is Column<*> && expression.dbDefaultValue != null && !expression.columnType.nullable) {
+-            exposedLogger.warn(
+-                "Column ${TransactionManager.current().fullIdentity(expression)} is marked as not null, " +
+-                    "has default db value, but returns null. Possible have to re-read it from DB."
+-            )
++        if (checkNullability) {
++            if (d == null && expression is Column<*> && expression.dbDefaultValue != null && !expression.columnType.nullable) {
++                exposedLogger.warn(
++                    "Column ${TransactionManager.current().fullIdentity(expression)} is marked as not null, " +
++                        "has default db value, but returns null. Possible have to re-read it from DB."
++                )
++            }
+         }
+ 
+         val result = database?.dialect?.let {
+@@ -40,20 +70,6 @@ class ResultRow(
+         return result
+     }
+ 
+-    operator fun <T> set(expression: Expression<out T>, value: T) {
+-        setInternal(expression, value)
+-        lookUpCache.remove(expression)
+-    }
+-
+-    private fun <T> setInternal(expression: Expression<out T>, value: T) {
+-        val index = getExpressionIndex(expression)
+-        data[index] = value
+-    }
+-
+-    fun <T> hasValue(expression: Expression<T>): Boolean = fieldIndex[expression]?.let { data[it] != NotInitializedValue } ?: false
+-
+-    fun <T> getOrNull(expression: Expression<T>): T? = if (hasValue(expression)) get(expression) else null
+-
+     @Suppress("UNCHECKED_CAST")
+     private fun <T> rawToColumnValue(raw: T?, expression: Expression<T>): T {
+         return when {
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLServerDialect.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLServerDialect.kt
+index 7ef965cc98..14d242e385 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLServerDialect.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLServerDialect.kt
+@@ -267,7 +267,7 @@ open class SQLServerDialect : VendorDialect(dialectName, SQLServerDataTypeProvid
+                     val isPKColumn = column.table.primaryKey?.columns?.contains(column) == true
+ 
+                     if (column.columnType.nullable ||
+-                        (defaultValue != null && column.defaultValueFun == null && ! currentDialect.isAllowedAsColumnDefault(defaultValue))
++                        (defaultValue != null && column.defaultValueFun == null && !currentDialect.isAllowedAsColumnDefault(defaultValue))
+                     ) {
+                         append(" NULL")
+                     } else if (!isPKColumn) {

@@ -1,0 +1,30 @@
+diff --git a/github-crawler-core/src/test/java/com/societegenerale/githubcrawler/ConfigValidatorTest.kt b/github-crawler-core/src/test/java/com/societegenerale/githubcrawler/ConfigValidatorTest.kt
+index be15c18..738e079 100644
+--- a/github-crawler-core/src/test/java/com/societegenerale/githubcrawler/ConfigValidatorTest.kt
++++ b/github-crawler-core/src/test/java/com/societegenerale/githubcrawler/ConfigValidatorTest.kt
+@@ -12,14 +12,23 @@ class ConfigValidatorTest {
+     private val mockRemoteSourceControl = mock(RemoteSourceControl::class.java)
+ 
+     @Test
+-    fun shouldNotHaveEmptyGitHubUrl() {
++    fun shouldNotHaveEmptyGitLabUrl() {
+ 
+-        val configValidator = ConfigValidator(GitHubCrawlerProperties(SourceControlConfig(url = "",organizationName="notEmpty")),mockRemoteSourceControl)
++        val configValidator = ConfigValidator(GitHubCrawlerProperties(SourceControlConfig(type=SourceControlType.GITLAB, url = "",organizationName="notEmpty")),mockRemoteSourceControl)
+ 
+         assertThat(configValidator.getValidationErrors()).containsOnly("source-control.url can't be empty");
+ 
+     }
+ 
++    @Test
++    fun gitHubUrlCanBeEmpty() {
++
++        val configValidator = ConfigValidator(GitHubCrawlerProperties(SourceControlConfig(type=SourceControlType.GITHUB, url = "",organizationName="notEmpty")),mockRemoteSourceControl)
++
++        assertThat(configValidator.getValidationErrors()).isEmpty();
++
++    }
++
+     @Test
+     fun shouldNotHaveEmptyOrganization() {
+ 

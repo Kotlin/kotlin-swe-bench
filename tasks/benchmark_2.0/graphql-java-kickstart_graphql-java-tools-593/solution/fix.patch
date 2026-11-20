@@ -1,0 +1,65 @@
+diff --git a/src/main/kotlin/graphql/kickstart/tools/DictionaryTypeResolver.kt b/src/main/kotlin/graphql/kickstart/tools/DictionaryTypeResolver.kt
+index e5f0a901..d7c40b6e 100644
+--- a/src/main/kotlin/graphql/kickstart/tools/DictionaryTypeResolver.kt
++++ b/src/main/kotlin/graphql/kickstart/tools/DictionaryTypeResolver.kt
+@@ -13,8 +13,7 @@ import graphql.schema.TypeResolver
+  * @author Andrew Potter
+  */
+ internal abstract class DictionaryTypeResolver(
+-    private val dictionary: BiMap<JavaType, TypeDefinition<*>>,
+-    private val types: Map<String, GraphQLObjectType>
++        private val dictionary: BiMap<JavaType, TypeDefinition<*>>
+ ) : TypeResolver {
+     private fun <T> getTypeDefinition(clazz: Class<T>): TypeDefinition<*>? {
+         return dictionary[clazz]
+@@ -25,7 +24,7 @@ internal abstract class DictionaryTypeResolver(
+     override fun getType(env: TypeResolutionEnvironment): GraphQLObjectType? {
+         val clazz = env.getObject<Any>().javaClass
+         val name = getTypeDefinition(clazz)?.name ?: clazz.simpleName
+-        return types[name] ?: throw TypeResolverError(getError(name))
++        return env.schema.getObjectType(name) ?: throw TypeResolverError(getError(name))
+     }
+ 
+     abstract fun getError(name: String): String
+@@ -33,22 +32,18 @@ internal abstract class DictionaryTypeResolver(
+ 
+ internal class InterfaceTypeResolver(
+     dictionary: BiMap<JavaType, TypeDefinition<*>>,
+-    private val thisInterface: GraphQLInterfaceType,
+-    types: List<GraphQLObjectType>
++    private val thisInterface: GraphQLInterfaceType
+ ) : DictionaryTypeResolver(
+-    dictionary,
+-    types.filter { type -> type.interfaces.any { it.name == thisInterface.name } }.associateBy { it.name }
++        dictionary
+ ) {
+     override fun getError(name: String) = "Expected object type with name '$name' to implement interface '${thisInterface.name}', but it doesn't!"
+ }
+ 
+ internal class UnionTypeResolver(
+     dictionary: BiMap<JavaType, TypeDefinition<*>>,
+-    private val thisUnion: GraphQLUnionType,
+-    types: List<GraphQLObjectType>
++    private val thisUnion: GraphQLUnionType
+ ) : DictionaryTypeResolver(
+-    dictionary,
+-    types.filter { type -> thisUnion.types.any { it.name == type.name } }.associateBy { it.name }
++        dictionary
+ ) {
+     override fun getError(name: String) = "Expected object type with name '$name' to exist for union '${thisUnion.name}', but it doesn't!"
+ }
+diff --git a/src/main/kotlin/graphql/kickstart/tools/SchemaParser.kt b/src/main/kotlin/graphql/kickstart/tools/SchemaParser.kt
+index 673d7010..75adc3cb 100644
+--- a/src/main/kotlin/graphql/kickstart/tools/SchemaParser.kt
++++ b/src/main/kotlin/graphql/kickstart/tools/SchemaParser.kt
+@@ -85,8 +85,8 @@ class SchemaParser internal constructor(
+         val enums = enumDefinitions.map { createEnumObject(it) }
+ 
+         // Assign type resolver to interfaces now that we know all of the object types
+-        interfaces.forEach { codeRegistryBuilder.typeResolver(it, InterfaceTypeResolver(dictionary.inverse(), it, objects)) }
+-        unions.forEach { codeRegistryBuilder.typeResolver(it, UnionTypeResolver(dictionary.inverse(), it, objects)) }
++        interfaces.forEach { codeRegistryBuilder.typeResolver(it, InterfaceTypeResolver(dictionary.inverse(), it)) }
++        unions.forEach { codeRegistryBuilder.typeResolver(it, UnionTypeResolver(dictionary.inverse(), it)) }
+ 
+         // Find query type and mutation/subscription type (if mutation/subscription type exists)
+         val queryName = rootInfo.getQueryName()

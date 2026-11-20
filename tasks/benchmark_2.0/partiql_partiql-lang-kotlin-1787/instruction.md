@@ -1,0 +1,2 @@
+Support `ABS` on `INTERVAL` fields
+`ABS` is in the SQL spec and is currently defined on numeric exprs. It's not yet implemented on INTERVAL. We should add support for `ABS` on interval values -- https://ronsavage.github.io/SQL/sql-99.bnf.html#interval%20absolute%20value%20function.

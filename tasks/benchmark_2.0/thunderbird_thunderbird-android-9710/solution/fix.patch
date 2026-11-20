@@ -1,0 +1,807 @@
+diff --git a/backend/api/src/main/java/com/fsck/k9/backend/api/Backend.kt b/backend/api/src/main/java/com/fsck/k9/backend/api/Backend.kt
+index 73d5b9f0616..d9808d4f19f 100644
+--- a/backend/api/src/main/java/com/fsck/k9/backend/api/Backend.kt
++++ b/backend/api/src/main/java/com/fsck/k9/backend/api/Backend.kt
+@@ -5,6 +5,7 @@ import com.fsck.k9.mail.Flag
+ import com.fsck.k9.mail.Message
+ import com.fsck.k9.mail.Part
+ import net.thunderbird.core.common.exception.MessagingException
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+ interface Backend {
+     val supportsFlags: Boolean
+@@ -18,7 +19,7 @@ interface Backend {
+     val isPushCapable: Boolean
+ 
+     @Throws(MessagingException::class)
+-    fun refreshFolderList()
++    fun refreshFolderList(): FolderPathDelimiter?
+ 
+     // TODO: Add a way to cancel the sync process
+     fun sync(folderServerId: String, syncConfig: SyncConfig, listener: SyncListener)
+diff --git a/backend/api/src/main/java/com/fsck/k9/backend/api/FolderInfo.kt b/backend/api/src/main/java/com/fsck/k9/backend/api/FolderInfo.kt
+index dfee1c45b98..ea9ef8e4cb3 100644
+--- a/backend/api/src/main/java/com/fsck/k9/backend/api/FolderInfo.kt
++++ b/backend/api/src/main/java/com/fsck/k9/backend/api/FolderInfo.kt
+@@ -1,5 +1,11 @@
+ package com.fsck.k9.backend.api
+ 
+ import com.fsck.k9.mail.FolderType
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+-data class FolderInfo(val serverId: String, val name: String, val type: FolderType)
++data class FolderInfo(
++    val serverId: String,
++    val name: String,
++    val type: FolderType,
++    val folderPathDelimiter: FolderPathDelimiter? = null,
++)
+diff --git a/backend/demo/build.gradle.kts b/backend/demo/build.gradle.kts
+index 4bf0d3beb0b..c44044616e0 100644
+--- a/backend/demo/build.gradle.kts
++++ b/backend/demo/build.gradle.kts
+@@ -6,6 +6,7 @@ plugins {
+ 
+ dependencies {
+     api(projects.backend.api)
++    implementation(projects.feature.mail.folder.api)
+ 
+     implementation(libs.kotlinx.serialization.json)
+ 
+diff --git a/backend/demo/src/main/kotlin/app/k9mail/backend/demo/CommandRefreshFolderList.kt b/backend/demo/src/main/kotlin/app/k9mail/backend/demo/CommandRefreshFolderList.kt
+index 62baee4e010..70f5dea06a5 100644
+--- a/backend/demo/src/main/kotlin/app/k9mail/backend/demo/CommandRefreshFolderList.kt
++++ b/backend/demo/src/main/kotlin/app/k9mail/backend/demo/CommandRefreshFolderList.kt
+@@ -3,13 +3,15 @@ package app.k9mail.backend.demo
+ import com.fsck.k9.backend.api.BackendStorage
+ import com.fsck.k9.backend.api.FolderInfo
+ import com.fsck.k9.backend.api.updateFolders
++import net.thunderbird.feature.mail.folder.api.FOLDER_DEFAULT_PATH_DELIMITER
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+ internal class CommandRefreshFolderList(
+     private val backendStorage: BackendStorage,
+     private val demoStore: DemoStore,
+ ) {
+ 
+-    fun refreshFolderList() {
++    fun refreshFolderList(): FolderPathDelimiter? {
+         val localFolderServerIds = backendStorage.getFolderServerIds().toSet()
+ 
+         backendStorage.updateFolders {
+@@ -25,5 +27,7 @@ internal class CommandRefreshFolderList(
+             val folderServerIdsToRemove = (localFolderServerIds - remoteFolderServerIds).toList()
+             deleteFolders(folderServerIdsToRemove)
+         }
++
++        return FOLDER_DEFAULT_PATH_DELIMITER
+     }
+ }
+diff --git a/backend/demo/src/main/kotlin/app/k9mail/backend/demo/DemoBackend.kt b/backend/demo/src/main/kotlin/app/k9mail/backend/demo/DemoBackend.kt
+index 5e079695d50..ca1e8a59c3f 100644
+--- a/backend/demo/src/main/kotlin/app/k9mail/backend/demo/DemoBackend.kt
++++ b/backend/demo/src/main/kotlin/app/k9mail/backend/demo/DemoBackend.kt
+@@ -11,6 +11,7 @@ import com.fsck.k9.mail.BodyFactory
+ import com.fsck.k9.mail.Flag
+ import com.fsck.k9.mail.Message
+ import com.fsck.k9.mail.Part
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+ class DemoBackend(
+     private val backendStorage: BackendStorage,
+@@ -31,8 +32,8 @@ class DemoBackend(
+     override val supportsFolderSubscriptions: Boolean = false
+     override val isPushCapable: Boolean = false
+ 
+-    override fun refreshFolderList() {
+-        commandRefreshFolderList.refreshFolderList()
++    override fun refreshFolderList(): FolderPathDelimiter? {
++        return commandRefreshFolderList.refreshFolderList()
+     }
+ 
+     override fun sync(folderServerId: String, syncConfig: SyncConfig, listener: SyncListener) {
+diff --git a/backend/imap/build.gradle.kts b/backend/imap/build.gradle.kts
+index 0a0d6302d9d..37cd4eaa5dc 100644
+--- a/backend/imap/build.gradle.kts
++++ b/backend/imap/build.gradle.kts
+@@ -13,6 +13,8 @@ dependencies {
+     api(projects.mail.protocols.imap)
+     api(projects.mail.protocols.smtp)
+ 
++    implementation(projects.feature.mail.folder.api)
++
+     implementation(libs.kotlinx.coroutines.core)
+ 
+     testImplementation(projects.core.logging.testing)
+diff --git a/backend/imap/src/main/java/com/fsck/k9/backend/imap/CommandRefreshFolderList.kt b/backend/imap/src/main/java/com/fsck/k9/backend/imap/CommandRefreshFolderList.kt
+index f6f70b3e7bd..9ae0e96d537 100644
+--- a/backend/imap/src/main/java/com/fsck/k9/backend/imap/CommandRefreshFolderList.kt
++++ b/backend/imap/src/main/java/com/fsck/k9/backend/imap/CommandRefreshFolderList.kt
+@@ -6,15 +6,18 @@ import com.fsck.k9.backend.api.updateFolders
+ import com.fsck.k9.mail.FolderType
+ import com.fsck.k9.mail.store.imap.FolderListItem
+ import com.fsck.k9.mail.store.imap.ImapStore
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+ internal class CommandRefreshFolderList(
+     private val backendStorage: BackendStorage,
+     private val imapStore: ImapStore,
+ ) {
+-    fun refreshFolderList() {
++    fun refreshFolderList(): FolderPathDelimiter? {
+         // TODO: Start using the proper server ID.
+         //  For now we still use the old server ID format (decoded, with prefix removed).
+-        val foldersOnServer = imapStore.getFolders().toLegacyFolderList()
++        val folders = imapStore.getFolders()
++        val folderPathDelimiter = folders.firstOrNull { it.folderPathDelimiter != null }?.folderPathDelimiter
++        val foldersOnServer = folders.toLegacyFolderList()
+         val oldFolderServerIds = backendStorage.getFolderServerIds()
+ 
+         backendStorage.updateFolders {
+@@ -32,6 +35,7 @@ internal class CommandRefreshFolderList(
+             val removedFolderServerIds = oldFolderServerIds - newFolderServerIds
+             deleteFolders(removedFolderServerIds)
+         }
++        return folderPathDelimiter
+     }
+ }
+ 
+diff --git a/backend/imap/src/main/java/com/fsck/k9/backend/imap/ImapBackend.kt b/backend/imap/src/main/java/com/fsck/k9/backend/imap/ImapBackend.kt
+index ff4577956a8..216d5a0efa3 100644
+--- a/backend/imap/src/main/java/com/fsck/k9/backend/imap/ImapBackend.kt
++++ b/backend/imap/src/main/java/com/fsck/k9/backend/imap/ImapBackend.kt
+@@ -14,6 +14,7 @@ import com.fsck.k9.mail.power.PowerManager
+ import com.fsck.k9.mail.store.imap.IdleRefreshManager
+ import com.fsck.k9.mail.store.imap.ImapStore
+ import com.fsck.k9.mail.transport.smtp.SmtpTransport
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+ class ImapBackend(
+     private val accountName: String,
+@@ -48,8 +49,8 @@ class ImapBackend(
+     override val supportsFolderSubscriptions = true
+     override val isPushCapable = true
+ 
+-    override fun refreshFolderList() {
+-        commandRefreshFolderList.refreshFolderList()
++    override fun refreshFolderList(): FolderPathDelimiter? {
++        return commandRefreshFolderList.refreshFolderList()
+     }
+ 
+     override fun sync(folderServerId: String, syncConfig: SyncConfig, listener: SyncListener) {
+diff --git a/backend/jmap/build.gradle.kts b/backend/jmap/build.gradle.kts
+index 54e8b23f6fa..de05a60594b 100644
+--- a/backend/jmap/build.gradle.kts
++++ b/backend/jmap/build.gradle.kts
+@@ -7,6 +7,7 @@ plugins {
+ dependencies {
+     api(projects.backend.api)
+     implementation(projects.core.common)
++    implementation(projects.feature.mail.folder.api)
+ 
+     api(libs.okhttp)
+     implementation(libs.jmap.client)
+diff --git a/backend/jmap/src/main/java/com/fsck/k9/backend/jmap/CommandRefreshFolderList.kt b/backend/jmap/src/main/java/com/fsck/k9/backend/jmap/CommandRefreshFolderList.kt
+index 7d46ed6ee95..adf8daa19c3 100644
+--- a/backend/jmap/src/main/java/com/fsck/k9/backend/jmap/CommandRefreshFolderList.kt
++++ b/backend/jmap/src/main/java/com/fsck/k9/backend/jmap/CommandRefreshFolderList.kt
+@@ -6,6 +6,8 @@ import com.fsck.k9.backend.api.FolderInfo
+ import com.fsck.k9.mail.AuthenticationFailedException
+ import com.fsck.k9.mail.FolderType
+ import net.thunderbird.core.common.exception.MessagingException
++import net.thunderbird.feature.mail.folder.api.FOLDER_DEFAULT_PATH_DELIMITER
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ import rs.ltt.jmap.client.JmapClient
+ import rs.ltt.jmap.client.api.ErrorResponseException
+ import rs.ltt.jmap.client.api.InvalidSessionResourceException
+@@ -24,7 +26,8 @@ internal class CommandRefreshFolderList(
+     private val jmapClient: JmapClient,
+     private val accountId: String,
+ ) {
+-    fun refreshFolderList() {
++    @Suppress("ThrowsCount", "TooGenericExceptionCaught")
++    fun refreshFolderList(): FolderPathDelimiter? {
+         try {
+             backendStorage.createFolderUpdater().use { folderUpdater ->
+                 val state = backendStorage.getExtraString(STATE)
+@@ -45,6 +48,7 @@ internal class CommandRefreshFolderList(
+         } catch (e: Exception) {
+             throw MessagingException(e)
+         }
++        return FOLDER_DEFAULT_PATH_DELIMITER
+     }
+ 
+     private fun fetchMailboxes(folderUpdater: BackendFolderUpdater) {
+diff --git a/backend/jmap/src/main/java/com/fsck/k9/backend/jmap/JmapBackend.kt b/backend/jmap/src/main/java/com/fsck/k9/backend/jmap/JmapBackend.kt
+index a2f3c42c73f..2ebb04e7847 100644
+--- a/backend/jmap/src/main/java/com/fsck/k9/backend/jmap/JmapBackend.kt
++++ b/backend/jmap/src/main/java/com/fsck/k9/backend/jmap/JmapBackend.kt
+@@ -10,6 +10,7 @@ import com.fsck.k9.mail.BodyFactory
+ import com.fsck.k9.mail.Flag
+ import com.fsck.k9.mail.Message
+ import com.fsck.k9.mail.Part
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+ import okhttp3.OkHttpClient
+ import rs.ltt.jmap.client.JmapClient
+@@ -40,8 +41,8 @@ class JmapBackend(
+     override val supportsFolderSubscriptions = false // TODO: add support
+     override val isPushCapable = false // FIXME
+ 
+-    override fun refreshFolderList() {
+-        commandRefreshFolderList.refreshFolderList()
++    override fun refreshFolderList(): FolderPathDelimiter? {
++        return commandRefreshFolderList.refreshFolderList()
+     }
+ 
+     override fun sync(folderServerId: String, syncConfig: SyncConfig, listener: SyncListener) {
+diff --git a/backend/pop3/build.gradle.kts b/backend/pop3/build.gradle.kts
+index cb51358491a..916ff6d427d 100644
+--- a/backend/pop3/build.gradle.kts
++++ b/backend/pop3/build.gradle.kts
+@@ -8,6 +8,7 @@ dependencies {
+     api(projects.mail.protocols.pop3)
+     api(projects.mail.protocols.smtp)
+     implementation(projects.core.common)
++    implementation(projects.feature.mail.folder.api)
+ 
+     testImplementation(projects.mail.testing)
+ }
+diff --git a/backend/pop3/src/main/java/com/fsck/k9/backend/pop3/Pop3Backend.kt b/backend/pop3/src/main/java/com/fsck/k9/backend/pop3/Pop3Backend.kt
+index 94ad0b1d9c2..463419d40ab 100644
+--- a/backend/pop3/src/main/java/com/fsck/k9/backend/pop3/Pop3Backend.kt
++++ b/backend/pop3/src/main/java/com/fsck/k9/backend/pop3/Pop3Backend.kt
+@@ -12,6 +12,7 @@ import com.fsck.k9.mail.Message
+ import com.fsck.k9.mail.Part
+ import com.fsck.k9.mail.store.pop3.Pop3Store
+ import com.fsck.k9.mail.transport.smtp.SmtpTransport
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+ class Pop3Backend(
+     accountName: String,
+@@ -34,8 +35,9 @@ class Pop3Backend(
+     override val supportsFolderSubscriptions = false
+     override val isPushCapable = false
+ 
+-    override fun refreshFolderList() {
++    override fun refreshFolderList(): FolderPathDelimiter? {
+         commandRefreshFolderList.refreshFolderList()
++        return null
+     }
+ 
+     override fun sync(folderServerId: String, syncConfig: SyncConfig, listener: SyncListener) {
+diff --git a/core/android/account/src/main/kotlin/net/thunderbird/core/android/account/LegacyAccount.kt b/core/android/account/src/main/kotlin/net/thunderbird/core/android/account/LegacyAccount.kt
+index 7c33afc7438..81338d9e6d2 100644
+--- a/core/android/account/src/main/kotlin/net/thunderbird/core/android/account/LegacyAccount.kt
++++ b/core/android/account/src/main/kotlin/net/thunderbird/core/android/account/LegacyAccount.kt
+@@ -11,6 +11,7 @@ import net.thunderbird.feature.account.AccountIdFactory
+ import net.thunderbird.feature.account.storage.profile.AvatarDto
+ import net.thunderbird.feature.account.storage.profile.AvatarTypeDto
+ import net.thunderbird.feature.mail.account.api.BaseAccount
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ import net.thunderbird.feature.mail.folder.api.SpecialFolderSelection
+ import net.thunderbird.feature.notification.NotificationSettings
+ 
+@@ -437,6 +438,11 @@ open class LegacyAccount(
+     @set:Synchronized
+     var shouldMigrateToOAuth = false
+ 
++    @get:JvmName("folderPathDelimiter")
++    @get:Synchronized
++    @set:Synchronized
++    var folderPathDelimiter: FolderPathDelimiter = "/"
++
+     /**
+      * @param automaticCheckIntervalMinutes or -1 for never.
+      */
+diff --git a/core/android/account/src/main/kotlin/net/thunderbird/core/android/account/LegacyAccountWrapper.kt b/core/android/account/src/main/kotlin/net/thunderbird/core/android/account/LegacyAccountWrapper.kt
+index 339abd0b1f9..accad420dd3 100644
+--- a/core/android/account/src/main/kotlin/net/thunderbird/core/android/account/LegacyAccountWrapper.kt
++++ b/core/android/account/src/main/kotlin/net/thunderbird/core/android/account/LegacyAccountWrapper.kt
+@@ -7,6 +7,7 @@ import net.thunderbird.feature.account.Account
+ import net.thunderbird.feature.account.AccountId
+ import net.thunderbird.feature.account.storage.profile.ProfileDto
+ import net.thunderbird.feature.mail.account.api.BaseAccount
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ import net.thunderbird.feature.mail.folder.api.SpecialFolderSelection
+ import net.thunderbird.feature.notification.NotificationSettings
+ 
+@@ -114,6 +115,7 @@ data class LegacyAccountWrapper(
+     val signatureUse: Boolean = identities[0].signatureUse,
+     val signature: String? = identities[0].signature,
+     val shouldMigrateToOAuth: Boolean = false,
++    val folderPathDelimiter: FolderPathDelimiter = "/",
+ ) : Account, BaseAccount {
+ 
+     override val uuid: String = id.asRaw()
+diff --git a/feature/account/storage/legacy/src/main/kotlin/net/thunderbird/feature/account/storage/legacy/LegacyAccountStorageHandler.kt b/feature/account/storage/legacy/src/main/kotlin/net/thunderbird/feature/account/storage/legacy/LegacyAccountStorageHandler.kt
+index b9e7485a159..fd634056a7e 100644
+--- a/feature/account/storage/legacy/src/main/kotlin/net/thunderbird/feature/account/storage/legacy/LegacyAccountStorageHandler.kt
++++ b/feature/account/storage/legacy/src/main/kotlin/net/thunderbird/feature/account/storage/legacy/LegacyAccountStorageHandler.kt
+@@ -16,6 +16,7 @@ import net.thunderbird.core.preference.storage.StorageEditor
+ import net.thunderbird.core.preference.storage.getEnumOrDefault
+ import net.thunderbird.feature.account.AccountId
+ import net.thunderbird.feature.account.storage.legacy.serializer.ServerSettingsDtoSerializer
++import net.thunderbird.feature.mail.folder.api.FOLDER_DEFAULT_PATH_DELIMITER
+ import net.thunderbird.feature.mail.folder.api.SpecialFolderSelection
+ import net.thunderbird.feature.notification.NotificationLight
+ import net.thunderbird.feature.notification.NotificationSettings
+@@ -246,6 +247,10 @@ class LegacyAccountStorageHandler(
+             lastFolderListRefreshTime = storage.getLong(keyGen.create("lastFolderListRefreshTime"), 0L)
+ 
+             shouldMigrateToOAuth = storage.getBoolean(keyGen.create("migrateToOAuth"), false)
++            folderPathDelimiter = storage.getStringOrDefault(
++                key = keyGen.create(FOLDER_PATH_DELIMITER_KEY),
++                defValue = FOLDER_DEFAULT_PATH_DELIMITER,
++            )
+ 
+             val isFinishedSetup = storage.getBoolean(keyGen.create("isFinishedSetup"), true)
+             if (isFinishedSetup) markSetupFinished()
+@@ -412,6 +417,7 @@ class LegacyAccountStorageHandler(
+             editor.putBoolean(keyGen.create("useCompression"), useCompression)
+             editor.putBoolean(keyGen.create("sendClientInfo"), isSendClientInfoEnabled)
+             editor.putBoolean(keyGen.create("migrateToOAuth"), shouldMigrateToOAuth)
++            editor.putString(keyGen.create(FOLDER_PATH_DELIMITER_KEY), folderPathDelimiter)
+         }
+ 
+         saveIdentities(data, storage, editor)
+@@ -534,6 +540,7 @@ class LegacyAccountStorageHandler(
+         editor.remove(keyGen.create("useCompression"))
+         editor.remove(keyGen.create("sendClientInfo"))
+         editor.remove(keyGen.create("migrateToOAuth"))
++        editor.remove(keyGen.create(FOLDER_PATH_DELIMITER_KEY))
+ 
+         deleteIdentities(data, storage, editor)
+         // TODO: Remove preference settings that may exist for individual folders in the account.
+@@ -600,5 +607,7 @@ class LegacyAccountStorageHandler(
+         const val IDENTITY_NAME_KEY = "name"
+         const val IDENTITY_EMAIL_KEY = "email"
+         const val IDENTITY_DESCRIPTION_KEY = "description"
++
++        const val FOLDER_PATH_DELIMITER_KEY = "folderPathDelimiter"
+     }
+ }
+diff --git a/feature/account/storage/legacy/src/main/kotlin/net/thunderbird/feature/account/storage/legacy/mapper/DefaultLegacyAccountWrapperDataMapper.kt b/feature/account/storage/legacy/src/main/kotlin/net/thunderbird/feature/account/storage/legacy/mapper/DefaultLegacyAccountWrapperDataMapper.kt
+index af8bb260540..0e892fcfcd2 100644
+--- a/feature/account/storage/legacy/src/main/kotlin/net/thunderbird/feature/account/storage/legacy/mapper/DefaultLegacyAccountWrapperDataMapper.kt
++++ b/feature/account/storage/legacy/src/main/kotlin/net/thunderbird/feature/account/storage/legacy/mapper/DefaultLegacyAccountWrapperDataMapper.kt
+@@ -105,6 +105,7 @@ class DefaultLegacyAccountWrapperDataMapper : DataMapper<LegacyAccountWrapper, L
+             signatureUse = dto.signatureUse,
+             signature = dto.signature,
+             shouldMigrateToOAuth = dto.shouldMigrateToOAuth,
++            folderPathDelimiter = dto.folderPathDelimiter,
+         )
+     }
+ 
+@@ -211,6 +212,7 @@ class DefaultLegacyAccountWrapperDataMapper : DataMapper<LegacyAccountWrapper, L
+             signatureUse = domain.signatureUse
+             signature = domain.signature
+             shouldMigrateToOAuth = domain.shouldMigrateToOAuth
++            folderPathDelimiter = domain.folderPathDelimiter
+         }
+     }
+ 
+diff --git a/feature/mail/folder/api/src/commonMain/kotlin/net/thunderbird/feature/mail/folder/api/FolderPathDelimiter.kt b/feature/mail/folder/api/src/commonMain/kotlin/net/thunderbird/feature/mail/folder/api/FolderPathDelimiter.kt
+new file mode 100644
+index 00000000000..2f5a32b06f6
+--- /dev/null
++++ b/feature/mail/folder/api/src/commonMain/kotlin/net/thunderbird/feature/mail/folder/api/FolderPathDelimiter.kt
+@@ -0,0 +1,5 @@
++package net.thunderbird.feature.mail.folder.api
++
++typealias FolderPathDelimiter = String
++
++const val FOLDER_DEFAULT_PATH_DELIMITER = "/"
+diff --git a/feature/navigation/drawer/dropdown/build.gradle.kts b/feature/navigation/drawer/dropdown/build.gradle.kts
+index 77d5f86ff48..279a0c53e06 100644
+--- a/feature/navigation/drawer/dropdown/build.gradle.kts
++++ b/feature/navigation/drawer/dropdown/build.gradle.kts
+@@ -25,6 +25,7 @@ dependencies {
+     implementation(projects.core.featureflag)
+ 
+     testImplementation(projects.core.ui.compose.testing)
++    testImplementation(projects.core.logging.testing)
+ 
+     // Fakes
+     debugImplementation(projects.feature.account.fake)
+diff --git a/feature/navigation/drawer/dropdown/src/debug/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/FakeData.kt b/feature/navigation/drawer/dropdown/src/debug/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/FakeData.kt
+index 029373f7ba2..0f078268d1c 100644
+--- a/feature/navigation/drawer/dropdown/src/debug/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/FakeData.kt
++++ b/feature/navigation/drawer/dropdown/src/debug/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/FakeData.kt
+@@ -66,6 +66,7 @@ internal object FakeData {
+         isInTopGroup = false,
+         unreadMessageCount = 14,
+         starredMessageCount = 5,
++        pathDelimiter = "/",
+     )
+ 
+     val DISPLAY_TREE_FOLDER = DisplayTreeFolder(
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/NavigationDrawerModule.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/NavigationDrawerModule.kt
+index 42c6aa7f5bb..69925458c0f 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/NavigationDrawerModule.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/NavigationDrawerModule.kt
+@@ -50,7 +50,9 @@ val navigationDropDownDrawerModule: Module = module {
+     }
+ 
+     single<UseCase.GetDisplayTreeFolder> {
+-        GetDisplayTreeFolder()
++        GetDisplayTreeFolder(
++            logger = get(),
++        )
+     }
+ 
+     single<UseCase.SyncAccount> {
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/DisplayFolder.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/DisplayFolder.kt
+index 40c4f11083b..950755635ab 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/DisplayFolder.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/DisplayFolder.kt
+@@ -1,7 +1,10 @@
+ package net.thunderbird.feature.navigation.drawer.dropdown.domain.entity
+ 
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
++
+ internal interface DisplayFolder {
+     val id: String
+     val unreadMessageCount: Int
+     val starredMessageCount: Int
++    val pathDelimiter: FolderPathDelimiter
+ }
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/MailDisplayFolder.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/MailDisplayFolder.kt
+index 07b8a6643d4..f01231ce864 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/MailDisplayFolder.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/MailDisplayFolder.kt
+@@ -1,6 +1,7 @@
+ package net.thunderbird.feature.navigation.drawer.dropdown.domain.entity
+ 
+ import net.thunderbird.feature.mail.folder.api.Folder
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+ internal data class MailDisplayFolder(
+     val accountId: String?,
+@@ -8,6 +9,7 @@ internal data class MailDisplayFolder(
+     val isInTopGroup: Boolean,
+     override val unreadMessageCount: Int,
+     override val starredMessageCount: Int,
++    override val pathDelimiter: FolderPathDelimiter,
+ ) : DisplayFolder {
+     override val id: String = createMailDisplayAccountFolderId(accountId.orEmpty(), folder.id)
+ }
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/UnifiedDisplayFolder.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/UnifiedDisplayFolder.kt
+index 7d9c0770062..bdcb67f6df3 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/UnifiedDisplayFolder.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/UnifiedDisplayFolder.kt
+@@ -1,8 +1,12 @@
+ package net.thunderbird.feature.navigation.drawer.dropdown.domain.entity
+ 
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
++
+ internal data class UnifiedDisplayFolder(
+     override val id: String,
+     val unifiedType: UnifiedDisplayFolderType,
+     override val unreadMessageCount: Int,
+     override val starredMessageCount: Int,
+-) : DisplayFolder
++) : DisplayFolder {
++    override val pathDelimiter: FolderPathDelimiter = "/"
++}
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayFoldersForAccount.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayFoldersForAccount.kt
+index b925b9a484c..4a2cd1b7f08 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayFoldersForAccount.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayFoldersForAccount.kt
+@@ -29,6 +29,7 @@ internal class GetDisplayFoldersForAccount(
+                         isInTopGroup = displayFolder.isInTopGroup,
+                         unreadMessageCount = displayFolder.unreadMessageCount,
+                         starredMessageCount = displayFolder.starredMessageCount,
++                        pathDelimiter = displayFolder.pathDelimiter,
+                     )
+                 }
+             }
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolder.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolder.kt
+index ae75fcae30a..08db2b4a117 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolder.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolder.kt
+@@ -2,7 +2,9 @@ package net.thunderbird.feature.navigation.drawer.dropdown.domain.usecase
+ 
+ import kotlinx.collections.immutable.persistentListOf
+ import kotlinx.collections.immutable.toImmutableList
++import net.thunderbird.core.logging.Logger
+ import net.thunderbird.feature.mail.folder.api.Folder
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ import net.thunderbird.feature.mail.folder.api.FolderType
+ import net.thunderbird.feature.navigation.drawer.dropdown.domain.DomainContract.UseCase
+ import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayFolder
+@@ -10,7 +12,9 @@ import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayT
+ import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayFolder
+ import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolder
+ 
+-internal class GetDisplayTreeFolder : UseCase.GetDisplayTreeFolder {
++internal class GetDisplayTreeFolder(
++    private val logger: Logger,
++) : UseCase.GetDisplayTreeFolder {
+     private var placeholderCounter = 0L
+ 
+     override fun invoke(folders: List<DisplayFolder>, maxDepth: Int): DisplayTreeFolder {
+@@ -24,12 +28,13 @@ internal class GetDisplayTreeFolder : UseCase.GetDisplayTreeFolder {
+             )
+         }
+ 
++        val pathDelimiter = folders.first().pathDelimiter
+         val accountFolders = folders.filterIsInstance<MailDisplayFolder>().map {
+-            val path = flattenPath(it.folder.name, maxDepth)
+-            println("Flattened path for ${it.folder.name} → $path")
++            val path = flattenPath(it.folder.name, pathDelimiter, maxDepth)
++            logger.debug { "Flattened path for ${it.folder.name} → $path" }
+             path to it
+         }
+-        val accountFolderTreeList = buildAccountFolderTree(accountFolders)
++        val accountFolderTreeList = buildAccountFolderTree(accountFolders, pathDelimiter)
+ 
+         return DisplayTreeFolder(
+             displayFolder = null,
+@@ -40,18 +45,19 @@ internal class GetDisplayTreeFolder : UseCase.GetDisplayTreeFolder {
+         )
+     }
+ 
+-    private fun flattenPath(folderName: String, maxDepth: Int): List<String> {
+-        val parts = folderName.split("/").map { it.takeIf { it.isNotBlank() } ?: "(Unnamed)" }
++    private fun flattenPath(folderName: String, folderPathDelimiter: FolderPathDelimiter, maxDepth: Int): List<String> {
++        val parts = folderName.split(folderPathDelimiter).map { it.takeIf { it.isNotBlank() } ?: "(Unnamed)" }
+ 
+         return if (parts.size <= maxDepth) {
+             parts
+         } else {
+-            parts.take(maxDepth) + listOf(parts.drop(maxDepth).joinToString("/"))
++            parts.take(maxDepth) + listOf(parts.drop(maxDepth).joinToString(folderPathDelimiter))
+         }
+     }
+ 
+     private fun buildAccountFolderTree(
+         paths: List<Pair<List<String>, MailDisplayFolder>>,
++        pathDelimiter: FolderPathDelimiter,
+         parentPath: String = "",
+     ): List<DisplayTreeFolder> {
+         return paths.groupBy { it.first.getOrNull(0) ?: "(Unnamed)" }
+@@ -68,11 +74,15 @@ internal class GetDisplayTreeFolder : UseCase.GetDisplayTreeFolder {
+                     if (segments.size == 1) folder else null
+                 }
+ 
+-                val fullPath = if (parentPath.isBlank()) segment else "$parentPath/$segment"
++                val fullPath = if (parentPath.isBlank()) segment else "${parentPath}${pathDelimiter}$segment"
+ 
+-                val currentFolder = currentFolders.firstOrNull() ?: createPlaceholderFolder(fullPath)
++                val currentFolder = currentFolders.firstOrNull() ?: createPlaceholderFolder(fullPath, pathDelimiter)
+ 
+-                val children = buildAccountFolderTree(childPaths, fullPath)
++                val children = buildAccountFolderTree(
++                    paths = childPaths,
++                    pathDelimiter = pathDelimiter,
++                    parentPath = fullPath,
++                )
+ 
+                 val totalUnread = children.sumOf { it.totalUnreadCount } + currentFolder.unreadMessageCount
+                 val totalStarred = children.sumOf { it.totalStarredCount } + currentFolder.starredMessageCount
+@@ -87,7 +97,7 @@ internal class GetDisplayTreeFolder : UseCase.GetDisplayTreeFolder {
+             }
+     }
+ 
+-    private fun createPlaceholderFolder(name: String): MailDisplayFolder {
++    private fun createPlaceholderFolder(name: String, pathDelimiter: FolderPathDelimiter): MailDisplayFolder {
+         placeholderCounter += 1
+         return MailDisplayFolder(
+             accountId = null,
+@@ -100,6 +110,7 @@ internal class GetDisplayTreeFolder : UseCase.GetDisplayTreeFolder {
+             isInTopGroup = true,
+             unreadMessageCount = 0,
+             starredMessageCount = 0,
++            pathDelimiter = pathDelimiter,
+         )
+     }
+ }
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/folder/FolderListItem.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/folder/FolderListItem.kt
+index 3dd9ef6fb49..7e9ff0ee38f 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/folder/FolderListItem.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/folder/FolderListItem.kt
+@@ -156,7 +156,11 @@ private fun mapFolderName(
+     parentPrefix: String? = "",
+ ): String {
+     return when (displayFolder) {
+-        is MailDisplayFolder -> folderNameFormatter.displayName(displayFolder.folder).removePrefix("$parentPrefix/")
++        is MailDisplayFolder ->
++            folderNameFormatter
++                .displayName(displayFolder.folder)
++                .removePrefix("$parentPrefix${displayFolder.pathDelimiter}")
++
+         is UnifiedDisplayFolder -> mapUnifiedFolderName(displayFolder)
+         else -> throw IllegalArgumentException("Unknown display folder: $displayFolder")
+     }
+diff --git a/legacy/core/src/main/java/com/fsck/k9/controller/MessagingController.java b/legacy/core/src/main/java/com/fsck/k9/controller/MessagingController.java
+index f399b3dde29..721c7be164e 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/controller/MessagingController.java
++++ b/legacy/core/src/main/java/com/fsck/k9/controller/MessagingController.java
+@@ -412,8 +412,13 @@ void refreshFolderListSynchronous(LegacyAccount account) {
+                 return;
+             }
+ 
+-            Backend backend = getBackend(account);
+-            backend.refreshFolderList();
++            final Backend backend = getBackend(account);
++            final String folderPathDelimiter = backend.refreshFolderList();
++            if (folderPathDelimiter != null &&
++                !folderPathDelimiter.isEmpty() &&
++                !folderPathDelimiter.equals(account.folderPathDelimiter())) {
++                account.setFolderPathDelimiter(folderPathDelimiter);
++            }
+ 
+             long now = System.currentTimeMillis();
+             Log.d("Folder list successfully refreshed @ %tc", now);
+diff --git a/legacy/core/src/main/java/com/fsck/k9/preferences/AccountSettingsDescriptions.java b/legacy/core/src/main/java/com/fsck/k9/preferences/AccountSettingsDescriptions.java
+index d5b1aa2d8a8..7ef30400594 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/preferences/AccountSettingsDescriptions.java
++++ b/legacy/core/src/main/java/com/fsck/k9/preferences/AccountSettingsDescriptions.java
+@@ -8,7 +8,6 @@
+ import java.util.TreeMap;
+ import android.content.Context;
+ import app.k9mail.legacy.di.DI;
+-import com.fsck.k9.K9;
+ import com.fsck.k9.core.R;
+ import com.fsck.k9.preferences.Settings.BooleanSetting;
+ import com.fsck.k9.preferences.Settings.ColorSetting;
+@@ -20,6 +19,7 @@
+ import com.fsck.k9.preferences.Settings.StringSetting;
+ import com.fsck.k9.preferences.Settings.V;
+ import com.fsck.k9.preferences.upgrader.AccountSettingsUpgraderTo104;
++import com.fsck.k9.preferences.upgrader.AccountSettingsUpgraderTo106;
+ import com.fsck.k9.preferences.upgrader.AccountSettingsUpgraderTo53;
+ import com.fsck.k9.preferences.upgrader.AccountSettingsUpgraderTo54;
+ import com.fsck.k9.preferences.upgrader.AccountSettingsUpgraderTo74;
+@@ -34,6 +34,7 @@
+ import net.thunderbird.core.android.account.QuoteStyle;
+ import net.thunderbird.core.android.account.ShowPictures;
+ import net.thunderbird.core.android.account.SortType;
++import net.thunderbird.feature.account.storage.legacy.serializer.ServerSettingsDtoSerializer;
+ import net.thunderbird.feature.account.storage.profile.AvatarTypeDto;
+ import net.thunderbird.feature.mail.folder.api.SpecialFolderSelection;
+ import net.thunderbird.feature.notification.NotificationLight;
+@@ -47,6 +48,8 @@
+ import static net.thunderbird.core.android.account.AccountDefaultsProvider.DEFAULT_SORT_ASCENDING;
+ import static net.thunderbird.core.android.account.AccountDefaultsProvider.DEFAULT_STRIP_SIGNATURE;
+ import static net.thunderbird.core.android.account.AccountDefaultsProvider.DEFAULT_VISIBLE_LIMIT;
++import static net.thunderbird.feature.account.storage.legacy.LegacyAccountStorageHandler.FOLDER_PATH_DELIMITER_KEY;
++import static net.thunderbird.feature.mail.folder.api.FolderPathDelimiterKt.FOLDER_DEFAULT_PATH_DELIMITER;
+ 
+ 
+ class AccountSettingsDescriptions {
+@@ -303,6 +306,10 @@ class AccountSettingsDescriptions {
+         s.put("avatarIconName", Settings.versions(
+             new V(104, new StringSetting(null))
+         ));
++        s.put(
++            FOLDER_PATH_DELIMITER_KEY,
++            Settings.versions(new V(106, new StringSetting(FOLDER_DEFAULT_PATH_DELIMITER)))
++        );
+         // note that there is no setting for openPgpProvider, because this will have to be set up together
+         // with the actual provider after import anyways.
+ 
+@@ -316,6 +323,7 @@ class AccountSettingsDescriptions {
+         u.put(81, new AccountSettingsUpgraderTo81());
+         u.put(91, new AccountSettingsUpgraderTo91());
+         u.put(104, new AccountSettingsUpgraderTo104());
++        u.put(106, new AccountSettingsUpgraderTo106(new ServerSettingsDtoSerializer()));
+ 
+         UPGRADERS = Collections.unmodifiableMap(u);
+     }
+diff --git a/legacy/core/src/main/java/com/fsck/k9/preferences/Settings.java b/legacy/core/src/main/java/com/fsck/k9/preferences/Settings.java
+index f17b3ea5673..b07203a1f36 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/preferences/Settings.java
++++ b/legacy/core/src/main/java/com/fsck/k9/preferences/Settings.java
+@@ -34,7 +34,7 @@ class Settings {
+      *
+      * @see SettingsExporter
+      */
+-    public static final int VERSION = 105;
++    public static final int VERSION = 106;
+ 
+     static Map<String, Object> validate(int version, Map<String, TreeMap<Integer, SettingsDescription<?>>> settings,
+             Map<String, String> importedSettings, boolean useDefaultValues) {
+diff --git a/legacy/core/src/main/java/com/fsck/k9/preferences/upgrader/AccountSettingsUpgraderTo106.kt b/legacy/core/src/main/java/com/fsck/k9/preferences/upgrader/AccountSettingsUpgraderTo106.kt
+new file mode 100644
+index 00000000000..ae3a938585f
+--- /dev/null
++++ b/legacy/core/src/main/java/com/fsck/k9/preferences/upgrader/AccountSettingsUpgraderTo106.kt
+@@ -0,0 +1,20 @@
++package com.fsck.k9.preferences.upgrader
++
++import com.fsck.k9.preferences.SettingsUpgrader
++import net.thunderbird.feature.account.storage.legacy.LegacyAccountStorageHandler
++import net.thunderbird.feature.account.storage.legacy.LegacyAccountStorageHandler.Companion.INCOMING_SERVER_SETTINGS_KEY
++import net.thunderbird.feature.account.storage.legacy.serializer.ServerSettingsDtoSerializer
++import net.thunderbird.feature.mail.folder.api.FOLDER_DEFAULT_PATH_DELIMITER
++
++class AccountSettingsUpgraderTo106(
++    private val serverSettingsDtoSerializer: ServerSettingsDtoSerializer,
++) : SettingsUpgrader {
++    override fun upgrade(settings: MutableMap<String, Any?>) {
++        val incomingSettings = (settings[INCOMING_SERVER_SETTINGS_KEY] as? String)
++            ?.let(serverSettingsDtoSerializer::deserialize)
++        val pathPrefix = incomingSettings?.extra["pathPrefix"]
++        settings[LegacyAccountStorageHandler.FOLDER_PATH_DELIMITER_KEY] = pathPrefix
++            .orEmpty()
++            .ifBlank { FOLDER_DEFAULT_PATH_DELIMITER }
++    }
++}
+diff --git a/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DefaultDisplayFolderRepository.kt b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DefaultDisplayFolderRepository.kt
+index fd3de5b6755..3aff3cad965 100644
+--- a/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DefaultDisplayFolderRepository.kt
++++ b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DefaultDisplayFolderRepository.kt
+@@ -49,6 +49,7 @@ class DefaultDisplayFolderRepository(
+                 isInTopGroup = folder.isInTopGroup,
+                 unreadMessageCount = folder.unreadMessageCount,
+                 starredMessageCount = folder.starredMessageCount,
++                pathDelimiter = account.folderPathDelimiter,
+             )
+         }.sortedWith(sortForDisplay)
+     }
+diff --git a/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DisplayFolder.kt b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DisplayFolder.kt
+index 11b34ae5c29..3e35904ad2e 100644
+--- a/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DisplayFolder.kt
++++ b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DisplayFolder.kt
+@@ -1,10 +1,12 @@
+ package app.k9mail.legacy.ui.folder
+ 
+ import net.thunderbird.feature.mail.folder.api.Folder
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+ data class DisplayFolder(
+     val folder: Folder,
+     val isInTopGroup: Boolean,
+     val unreadMessageCount: Int,
+     val starredMessageCount: Int,
++    val pathDelimiter: FolderPathDelimiter,
+ )
+diff --git a/mail/protocols/imap/build.gradle.kts b/mail/protocols/imap/build.gradle.kts
+index 2058eb0c8ca..5dbb5c163dd 100644
+--- a/mail/protocols/imap/build.gradle.kts
++++ b/mail/protocols/imap/build.gradle.kts
+@@ -11,6 +11,7 @@ if (testCoverageEnabled) {
+ dependencies {
+     api(projects.mail.common)
+     implementation(projects.core.common)
++    implementation(projects.feature.mail.folder.api)
+ 
+     implementation(libs.jzlib)
+     implementation(libs.jutf7)
+diff --git a/mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/FolderListItem.kt b/mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/FolderListItem.kt
+index ce2f0cb5f48..22d3c17859f 100644
+--- a/mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/FolderListItem.kt
++++ b/mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/FolderListItem.kt
+@@ -1,9 +1,11 @@
+ package com.fsck.k9.mail.store.imap
+ 
+ import com.fsck.k9.mail.FolderType
++import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+ 
+ data class FolderListItem(
+     val serverId: String,
+     val name: String,
+     val type: FolderType,
++    val folderPathDelimiter: FolderPathDelimiter? = null,
+ )
+diff --git a/mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/RealImapStore.kt b/mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/RealImapStore.kt
+index 065d8bc8b85..cb440b41001 100644
+--- a/mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/RealImapStore.kt
++++ b/mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/RealImapStore.kt
+@@ -169,12 +169,12 @@ internal open class RealImapStore(
+ 
+             val existingItem = folderMap[serverId]
+             if (existingItem == null || existingItem.type == FolderType.REGULAR) {
+-                folderMap[serverId] = FolderListItem(serverId, name, type)
++                folderMap[serverId] = FolderListItem(serverId, name, type, pathDelimiter)
+             }
+         }
+ 
+         return buildList {
+-            add(FolderListItem(RealImapFolder.INBOX, RealImapFolder.INBOX, FolderType.INBOX))
++            add(FolderListItem(RealImapFolder.INBOX, RealImapFolder.INBOX, FolderType.INBOX, pathDelimiter))
+             addAll(folderMap.values)
+         }
+     }

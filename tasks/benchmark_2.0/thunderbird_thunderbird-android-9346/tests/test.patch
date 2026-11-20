@@ -1,0 +1,148 @@
+diff --git a/feature/mail/message/list/src/test/kotlin/net/thunderbird/feature/mail/message/list/domain/usecase/BuildSwipeActionsTest.kt b/feature/mail/message/list/src/test/kotlin/net/thunderbird/feature/mail/message/list/domain/usecase/BuildSwipeActionsTest.kt
+index f16de8936d4..386bdf5d263 100644
+--- a/feature/mail/message/list/src/test/kotlin/net/thunderbird/feature/mail/message/list/domain/usecase/BuildSwipeActionsTest.kt
++++ b/feature/mail/message/list/src/test/kotlin/net/thunderbird/feature/mail/message/list/domain/usecase/BuildSwipeActionsTest.kt
+@@ -43,6 +43,7 @@ class BuildSwipeActionsTest {
+             isMessageListSenderAboveSubject = false,
+             isShowContactName = false,
+             isShowContactPicture = false,
++            isChangeContactNameColor = false,
+         )
+ 
+     @Test
+@@ -398,6 +399,8 @@ private class FakeGeneralSettingsManager(
+     override fun setIsShowContactName(isShowContactName: Boolean) = error("not implemented")
+ 
+     override fun setIsShowContactPicture(isShowContactPicture: Boolean) = error("not implemented")
++
++    override fun setIsChangeContactNameColor(isChangeContactNameColor: Boolean) = error("not implemented")
+ }
+ 
+ private class FakeStorage(
+diff --git a/legacy/core/src/test/java/com/fsck/k9/helper/MessageHelperTest.kt b/legacy/core/src/test/java/com/fsck/k9/helper/MessageHelperTest.kt
+index 53e2a0f68e2..3d0eb59658b 100644
+--- a/legacy/core/src/test/java/com/fsck/k9/helper/MessageHelperTest.kt
++++ b/legacy/core/src/test/java/com/fsck/k9/helper/MessageHelperTest.kt
+@@ -53,6 +53,7 @@ class MessageHelperTest : RobolectricTest() {
+                 isMessageListSenderAboveSubject = false,
+                 isShowContactName = false,
+                 isShowContactPicture = false,
++                isChangeContactNameColor = false,
+             ),
+         )
+     }
+@@ -64,6 +65,7 @@ class MessageHelperTest : RobolectricTest() {
+             toFriendly(
+                 address,
+                 generalSettingsManager.getSettings().isShowCorrespondentNames,
++                generalSettingsManager.getSettings().isChangeContactNameColor,
+                 contactRepository,
+             ),
+         ).isEqualTo("Tim Testor")
+@@ -76,6 +78,7 @@ class MessageHelperTest : RobolectricTest() {
+             toFriendly(
+                 address,
+                 generalSettingsManager.getSettings().isShowCorrespondentNames,
++                generalSettingsManager.getSettings().isChangeContactNameColor,
+                 contactRepository,
+             ),
+         ).isEqualTo("test@testor.com")
+@@ -90,6 +93,7 @@ class MessageHelperTest : RobolectricTest() {
+             toFriendly(
+                 addresses,
+                 generalSettingsManager.getSettings().isShowCorrespondentNames,
++                generalSettingsManager.getSettings().isChangeContactNameColor,
+                 contactRepository,
+             ).toString(),
+         ).isEqualTo("Tim Testor,Foo Bar")
+@@ -104,6 +108,7 @@ class MessageHelperTest : RobolectricTest() {
+             toFriendly(
+                 address,
+                 generalSettingsManager.getSettings().isShowCorrespondentNames,
++                generalSettingsManager.getSettings().isChangeContactNameColor,
+                 contactRepository,
+             ),
+         ).isEqualTo("Tim Testor")
+@@ -144,7 +149,12 @@ class MessageHelperTest : RobolectricTest() {
+     fun toFriendly_spoofPreventionOverridesPersonal() {
+         val address = Address("test@testor.com", "potus@whitehouse.gov")
+         val friendly =
+-            toFriendly(address, generalSettingsManager.getSettings().isShowCorrespondentNames, contactRepository)
++            toFriendly(
++                address,
++                generalSettingsManager.getSettings().isShowCorrespondentNames,
++                generalSettingsManager.getSettings().isChangeContactNameColor,
++                contactRepository,
++            )
+         assertThat(friendly).isEqualTo("test@testor.com")
+     }
+ 
+@@ -152,7 +162,12 @@ class MessageHelperTest : RobolectricTest() {
+     fun toFriendly_atPrecededByOpeningParenthesisShouldNotTriggerSpoofPrevention() {
+         val address = Address("gitlab@gitlab.example", "username (@username)")
+         val friendly =
+-            toFriendly(address, generalSettingsManager.getSettings().isShowCorrespondentNames, contactRepository)
++            toFriendly(
++                address,
++                generalSettingsManager.getSettings().isShowCorrespondentNames,
++                generalSettingsManager.getSettings().isChangeContactNameColor,
++                contactRepository,
++            )
+         assertThat(friendly).isEqualTo("username (@username)")
+     }
+ 
+@@ -160,7 +175,12 @@ class MessageHelperTest : RobolectricTest() {
+     fun toFriendly_nameStartingWithAtShouldNotTriggerSpoofPrevention() {
+         val address = Address("address@domain.example", "@username")
+         val friendly =
+-            toFriendly(address, generalSettingsManager.getSettings().isShowCorrespondentNames, contactRepository)
++            toFriendly(
++                address,
++                generalSettingsManager.getSettings().isShowCorrespondentNames,
++                generalSettingsManager.getSettings().isChangeContactNameColor,
++                contactRepository,
++            )
+         assertThat(friendly).isEqualTo("@username")
+     }
+ 
+@@ -188,6 +208,7 @@ class MessageHelperTest : RobolectricTest() {
+         val displayName = messageHelper.getRecipientDisplayNames(
+             addresses,
+             generalSettingsManager.getSettings().isShowCorrespondentNames,
++            generalSettingsManager.getSettings().isChangeContactNameColor,
+         )
+         assertThat(displayName.toString()).isEqualTo("To: Tim Testor,Foo Bar")
+     }
+@@ -201,6 +222,7 @@ class MessageHelperTest : RobolectricTest() {
+         val displayName = messageHelper.getRecipientDisplayNames(
+             addresses,
+             generalSettingsManager.getSettings().isShowCorrespondentNames,
++            generalSettingsManager.getSettings().isChangeContactNameColor,
+         )
+         assertThat(displayName.toString()).isEqualTo("To: test@testor.com,foo@bar.com")
+     }
+@@ -208,7 +230,11 @@ class MessageHelperTest : RobolectricTest() {
+     @Test
+     fun testGetSenderDisplayNameWithoutInputReturnCorrectOutput() {
+         val displayName =
+-            messageHelper.getRecipientDisplayNames(null, generalSettingsManager.getSettings().isShowCorrespondentNames)
++            messageHelper.getRecipientDisplayNames(
++                null,
++                generalSettingsManager.getSettings().isShowCorrespondentNames,
++                generalSettingsManager.getSettings().isChangeContactNameColor,
++            )
+         assertThat(displayName.toString()).isEqualTo(resourceProvider.contactUnknownRecipient())
+     }
+ 
+diff --git a/legacy/core/src/test/java/com/fsck/k9/notification/NotificationContentCreatorTest.kt b/legacy/core/src/test/java/com/fsck/k9/notification/NotificationContentCreatorTest.kt
+index 5bdca0d1519..f8f3c0cf9fd 100644
+--- a/legacy/core/src/test/java/com/fsck/k9/notification/NotificationContentCreatorTest.kt
++++ b/legacy/core/src/test/java/com/fsck/k9/notification/NotificationContentCreatorTest.kt
+@@ -163,6 +163,7 @@ class NotificationContentCreatorTest : RobolectricTest() {
+                     isMessageListSenderAboveSubject = false,
+                     isShowContactName = false,
+                     isShowContactPicture = false,
++                    isChangeContactNameColor = false,
+                 )
+             },
+         )

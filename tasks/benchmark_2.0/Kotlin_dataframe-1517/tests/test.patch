@@ -1,0 +1,35 @@
+diff --git a/core/src/test/kotlin/org/jetbrains/kotlinx/dataframe/testSets/person/DataFrameTreeTests.kt b/core/src/test/kotlin/org/jetbrains/kotlinx/dataframe/testSets/person/DataFrameTreeTests.kt
+index aa4d6e220d..5e36dc0f65 100644
+--- a/core/src/test/kotlin/org/jetbrains/kotlinx/dataframe/testSets/person/DataFrameTreeTests.kt
++++ b/core/src/test/kotlin/org/jetbrains/kotlinx/dataframe/testSets/person/DataFrameTreeTests.kt
+@@ -25,6 +25,7 @@ import org.jetbrains.kotlinx.dataframe.api.asDataFrame
+ import org.jetbrains.kotlinx.dataframe.api.asFrame
+ import org.jetbrains.kotlinx.dataframe.api.asGroupBy
+ import org.jetbrains.kotlinx.dataframe.api.at
++import org.jetbrains.kotlinx.dataframe.api.before
+ import org.jetbrains.kotlinx.dataframe.api.by
+ import org.jetbrains.kotlinx.dataframe.api.cast
+ import org.jetbrains.kotlinx.dataframe.api.colsOf
+@@ -702,6 +703,22 @@ class DataFrameTreeTests : BaseTest() {
+         typed2.insert(colName) { nameAndCity.name.reversed() }.after { nameAndCity.name }.check()
+     }
+ 
++    @Test
++    fun `insert column before`() {
++        val colName = "reversed"
++
++        fun DataFrame<GroupedPerson>.check() {
++            nameAndCity.columnsCount() shouldBe 3
++            nameAndCity.columnNames() shouldBe listOf(
++                typed2.nameAndCity.name.name(),
++                colName,
++                typed2.nameAndCity.city.name(),
++            )
++        }
++
++        typed2.insert(colName) { nameAndCity.name.reversed() }.before { nameAndCity.city }.check()
++    }
++
+     @Test
+     fun append() {
+         val res = typed2.append(listOf("Bill", "San Francisco"), null, 66)

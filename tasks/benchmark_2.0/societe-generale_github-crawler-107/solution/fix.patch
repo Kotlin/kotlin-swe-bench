@@ -1,0 +1,151 @@
+diff --git a/README.md b/README.md
+index 0993d26..1028fa2 100644
+--- a/README.md
++++ b/README.md
+@@ -41,7 +41,7 @@ Following a simple configuration, it will use Github API starting from a given o
+ 
+ You can easily exclude repositories from the analysis, configure the files and patterns you're interested in. If you have several types of repositories (front-end, back-end, config repositories for instance), you can have separate configuration files so that the information retrieved is relevant to each scope of analysis.
+ 
+-Several output types are available in [this package](./github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/output/) :
++Several output types are available in [this package](./tree/master/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/output) :
+ - console is the default and will be used if no output is configured
+ - a simple "raw" file output
+ - HTTP output, which enables you to POST the results to an endpoint like ElasticSearch, for easy analysis in Kibana
+@@ -59,12 +59,11 @@ crawler:
+         # since v2.0.0, we need to mention the source control type. defaults to GitHub, but other options are possible
+         # as defined in https://github.com/societe-generale/github-crawler/blob/master/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/GithubConfig.kt
+         type: "GITHUB"
+-        # the base GitHub URL for your Github enterprise instance to crawl
+-        # or if it's github.com...
+-        # gitHub.url: https://api.github.com
++        # the base GitHub URL for your Github enterprise or on prem GitLab instance to crawl. 
++        # defaults to public URL for GitHub and Azure Devops if not provided in config. 
+         url: https://my.githubEnterprise/api/v3
+         apiToken: "YOUR_TOKEN"
+-        # the name of the GitHub organization to crawl. To fetch the repositories, the crawler will hit 
++        # the name of the GitHub organization (or equivalent for other systems) to crawl. To fetch the repositories, the crawler will hit 
+         # https://${gitHub.url}/api/v3/orgs/${organizationName}/repos
+         organizationName: MyOrganization
+         # default is false - API URL is slightly different depending on whether you're crawling an organization (most common case) or a user's repositories
+diff --git a/github-crawler-autoconfigure/src/main/kotlin/com/societegenerale/githubcrawler/config/GitHubConfiguration.kt b/github-crawler-autoconfigure/src/main/kotlin/com/societegenerale/githubcrawler/config/GitHubConfiguration.kt
+index 9c9a507..7d542e6 100644
+--- a/github-crawler-autoconfigure/src/main/kotlin/com/societegenerale/githubcrawler/config/GitHubConfiguration.kt
++++ b/github-crawler-autoconfigure/src/main/kotlin/com/societegenerale/githubcrawler/config/GitHubConfiguration.kt
+@@ -4,6 +4,7 @@ package com.societegenerale.githubcrawler.config
+ import com.societegenerale.githubcrawler.GitHubCrawlerProperties
+ import com.societegenerale.githubcrawler.remote.RemoteGitHubImpl
+ import com.societegenerale.githubcrawler.remote.RemoteSourceControl
++import org.slf4j.LoggerFactory
+ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+ import org.springframework.context.annotation.Bean
+ import org.springframework.context.annotation.Configuration
+@@ -12,10 +13,22 @@ import org.springframework.context.annotation.Configuration
+ @ConditionalOnProperty(prefix = "crawler.source-control", name = ["type"], havingValue = "GITHUB")
+ open class GitHubConfiguration {
+ 
++    val log = LoggerFactory.getLogger(this.javaClass)
++
+     @Bean
+     open fun remoteGitHub(gitHubCrawlerProperties: GitHubCrawlerProperties): RemoteSourceControl {
+ 
+-        return RemoteGitHubImpl(gitHubCrawlerProperties.sourceControl.url,
++        val targetUrl:String
++
++        if(gitHubCrawlerProperties.sourceControl.url.isEmpty()){
++            log.info("'source-control.url' is not provided - defaulting to "+RemoteGitHubImpl.GITHUB_URL)
++            targetUrl = RemoteGitHubImpl.GITHUB_URL
++        }
++        else{
++            targetUrl=gitHubCrawlerProperties.sourceControl.url
++        }
++
++        return RemoteGitHubImpl(targetUrl,
+                                 gitHubCrawlerProperties.sourceControl.crawlUsersRepoInsteadOfOrgasRepos,
+                                 gitHubCrawlerProperties.sourceControl.apiToken)
+     }
+diff --git a/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/ConfigValidator.kt b/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/ConfigValidator.kt
+index f766580..ddb2a6f 100644
+--- a/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/ConfigValidator.kt
++++ b/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/ConfigValidator.kt
+@@ -17,8 +17,9 @@ class ConfigValidator(val properties : GitHubCrawlerProperties,
+ 
+         val validationErrors = mutableListOf<String>()
+ 
+-        // there's a default url for AzureDevops, no need to configure it
+-        if(properties.sourceControl.type!= SourceControlType.AZURE_DEVOPS &&
++        // there's a default url for AzureDevops and GitHub, no need to configure it
++        if(properties.sourceControl.type != SourceControlType.AZURE_DEVOPS &&
++            properties.sourceControl.type != SourceControlType.GITHUB &&
+            properties.sourceControl.url.isBlank()){
+             validationErrors.add("source-control.url can't be empty")
+         }
+@@ -28,10 +29,10 @@ class ConfigValidator(val properties : GitHubCrawlerProperties,
+         }
+ 
+         if(validationErrors.isNotEmpty()){
+-            return ImmutableList.copyOf(validationErrors);
++            return ImmutableList.copyOf(validationErrors)
+         }
+ 
+-        val organizationName=properties.sourceControl.organizationName;
++        val organizationName=properties.sourceControl.organizationName
+ 
+         try{
+             remoteSourceControl.validateRemoteConfig(organizationName)
+@@ -50,7 +51,7 @@ class ConfigValidator(val properties : GitHubCrawlerProperties,
+             return ImmutableList.of(errorMessage)
+         }
+ 
+-        return ImmutableList.of();
++        return ImmutableList.of()
+ 
+     }
+ 
+diff --git a/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/remote/RemoteGitHubImpl.kt b/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/remote/RemoteGitHubImpl.kt
+index b5c9302..77de868 100644
+--- a/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/remote/RemoteGitHubImpl.kt
++++ b/github-crawler-core/src/main/kotlin/com/societegenerale/githubcrawler/remote/RemoteGitHubImpl.kt
+@@ -46,6 +46,7 @@ import java.lang.reflect.Type
+ class RemoteGitHubImpl @JvmOverloads constructor(val gitHubUrl: String, val usersReposInsteadOfOrgasRepos: Boolean = false, val apiKey: String) : RemoteSourceControl {
+ 
+     companion object {
++        const val GITHUB_URL= "https://api.github.com"
+         const val REPO_LEVEL_CONFIG_FILE = ".githubCrawler"
+         const val APPLICATION_JSON = "application/json"
+         const val ACCEPT = "accept"
+@@ -223,7 +224,7 @@ class RemoteGitHubImpl @JvmOverloads constructor(val gitHubUrl: String, val user
+ 
+         val searchCodeUrl = HttpUrl.parse(gitHubUrl +buildQueryString(query,repositoryFullName))!!.newBuilder().build().toString()
+ 
+-        log.info("fetching code search result from $searchCodeUrl");
++        log.info("fetching code search result from $searchCodeUrl")
+ 
+         val requestBuilder = okhttp3.Request.Builder()
+             .url(searchCodeUrl)
+@@ -381,7 +382,7 @@ internal class GiHubErrorDecoder : ErrorDecoder {
+             throw GitHubResponseDecoder.GithubException("problem while fetching content... conflict state as per HTTP 409 code")
+         }
+ 
+-        return errorStatus(methodKey, response);
++        return errorStatus(methodKey, response)
+     }
+ }
+ 
+@@ -395,7 +396,7 @@ internal class GitHubResponseDecoder : Decoder {
+         repoConfigMapper.registerModule(KotlinModule.Builder().build())
+     }
+ 
+-    fun decodeRepoConfig(response: okhttp3.Response): RepositoryConfig {
++    fun decodeRepoConfig(response: Response): RepositoryConfig {
+ 
+         val writer = StringWriter()
+         IOUtils.copy(response.body()?.byteStream(), writer, "UTF-8")
+@@ -436,7 +437,7 @@ internal class GitHubResponseDecoder : Decoder {
+         }
+     }
+ 
+-    private fun parseRepositoryConfigResponse(responseAsString: String, response: okhttp3.Response): RepositoryConfig {
++    private fun parseRepositoryConfigResponse(responseAsString: String, response: Response): RepositoryConfig {
+         if (responseAsString.isEmpty()) {
+             return RepositoryConfig()
+         }

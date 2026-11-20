@@ -1,0 +1,74 @@
+{
+  "f2p_tests": [
+    "graphql.kickstart.tools.SchemaClassScannerTest"
+  ],
+  "p2p_tests": [
+    "graphql.kickstart.tools.BuiltInIdTest",
+    "graphql.kickstart.tools.PlaceTest",
+    "graphql.kickstart.tools.DeprecatedDirectiveTest",
+    "graphql.kickstart.tools.EndToEndTest",
+    "graphql.kickstart.tools.EnumDefaultValueTest",
+    "graphql.kickstart.tools.EnumListParameterTest",
+    "graphql.kickstart.tools.FieldResolverScannerTest",
+    "graphql.kickstart.tools.GenericResolverTest",
+    "graphql.kickstart.tools.InaccessibleFieldResolverTest",
+    "graphql.kickstart.tools.MethodFieldResolverDataFetcherTest",
+    "graphql.kickstart.tools.MethodFieldResolverTest",
+    "graphql.kickstart.tools.MissingFieldResolverTest",
+    "graphql.kickstart.tools.MultiResolverTest",
+    "graphql.kickstart.tools.NestedInputTypesTest",
+    "graphql.kickstart.tools.ParameterizedGetterTest",
+    "graphql.kickstart.tools.ReactiveTest",
+    "graphql.kickstart.tools.RelayConnectionTest",
+    "graphql.kickstart.tools.SchemaParserBuilderTest",
+    "graphql.kickstart.tools.SchemaParserTest",
+    "graphql.kickstart.tools.SuperclassResolverTest",
+    "graphql.kickstart.tools.TypeClassMatcherTest",
+    "graphql.kickstart.tools.relay.RelayConnectionFactoryTest",
+    "graphql.kickstart.tools.util.BiMapTest",
+    "graphql.kickstart.tools.util.PrimitivesTest",
+    "graphql.kickstart.tools.util.UtilsTest",
+    "graphql.kickstart.tools.ResolverMethodsTest"
+  ],
+  "s2p_tests": [],
+  "n2p_tests": [],
+  "test_patch_result": {
+    "passed_tests": [
+      "graphql.kickstart.tools.BuiltInIdTest",
+      "graphql.kickstart.tools.PlaceTest",
+      "graphql.kickstart.tools.DeprecatedDirectiveTest",
+      "graphql.kickstart.tools.EndToEndTest",
+      "graphql.kickstart.tools.EnumDefaultValueTest",
+      "graphql.kickstart.tools.EnumListParameterTest",
+      "graphql.kickstart.tools.FieldResolverScannerTest",
+      "graphql.kickstart.tools.GenericResolverTest",
+      "graphql.kickstart.tools.InaccessibleFieldResolverTest",
+      "graphql.kickstart.tools.MethodFieldResolverDataFetcherTest",
+      "graphql.kickstart.tools.MethodFieldResolverTest",
+      "graphql.kickstart.tools.MissingFieldResolverTest",
+      "graphql.kickstart.tools.MultiResolverTest",
+      "graphql.kickstart.tools.NestedInputTypesTest",
+      "graphql.kickstart.tools.ParameterizedGetterTest",
+      "graphql.kickstart.tools.ReactiveTest",
+      "graphql.kickstart.tools.RelayConnectionTest",
+      "graphql.kickstart.tools.SchemaParserBuilderTest",
+      "graphql.kickstart.tools.SchemaParserTest",
+      "graphql.kickstart.tools.SuperclassResolverTest",
+      "graphql.kickstart.tools.TypeClassMatcherTest",
+      "graphql.kickstart.tools.relay.RelayConnectionFactoryTest",
+      "graphql.kickstart.tools.util.BiMapTest",
+      "graphql.kickstart.tools.util.PrimitivesTest",
+      "graphql.kickstart.tools.util.UtilsTest",
+      "graphql.kickstart.tools.ResolverMethodsTest"
+    ],
+    "failed_tests": [
+      "graphql.kickstart.tools.SchemaClassScannerTest"
+    ],
+    "skipped_tests": []
+  },
+  "run_result": {
+    "passed_tests": [],
+    "failed_tests": [],
+    "skipped_tests": []
+  }
+}

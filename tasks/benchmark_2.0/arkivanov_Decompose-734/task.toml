@@ -1,0 +1,77 @@
+[metadata.source]
+repository_owner = "arkivanov"
+repository_name = "Decompose"
+repository_url = "https://github.com/arkivanov/Decompose"
+license = "Apache-2.0"
+code_change_type = "pr"
+code_change_id = "734"
+code_change_url = "https://github.com/arkivanov/Decompose/pull/734"
+task_revision = 6
+maintainer = "serhii.fedusov@jetbrains.com"
+
+[metadata.taxonomy]
+ecosystem = ["kotlin"]
+language = ["kotlin"]
+visibility = "open_source"
+difficulty = "medium"
+task_type = ["bugfix"]
+skills = ["api_navigation", "debugging", "multi_file_reasoning"]
+subsystem = ["ui"]
+
+[metadata.verifier]
+workdir = "/Decompose"
+env = []
+test_command = "./gradlew :decompose:jvmTest --no-daemon --console=plain && find . -name '*.xml' -path '*/test-results/*' -exec cat {} \\;"
+
+[[metadata.instruction_assets]]
+container_path = "/task-assets/instruction/93b5b198ffa288d2.png"
+media_type = "image/png"
+sha256 = "93b5b198ffa288d20baf55d97094b67ec6ae8bb6b49b2cc36e474762636d7ce5"
+description = "Screenshot 2024-07-08 074601"
+
+[[metadata.instruction_assets]]
+container_path = "/task-assets/instruction/abab31a2ba30ac71.png"
+media_type = "image/png"
+sha256 = "abab31a2ba30ac713d2e35d155467a9605c224cce622ad880c98cdb3c08fc95b"
+description = "Screenshot 2024-07-08 074632"
+[verifier]
+implemented = false
+timeout_sec = 900.0
+network_mode = "public"
+environment_mode = "separate"
+
+[[verifier.collect]]
+# The agent's changes for the separate verifier; see reward_hacking/separate_verifier.py.
+command = '''set -eu
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'
+export GIT_CONFIG_KEY_1=core.fsmonitor GIT_CONFIG_VALUE_1=false
+mkdir -p /logs/artifacts
+rm -f /logs/artifacts/agent_changes.patch
+cd /Decompose
+index=$(mktemp)
+patch=$(mktemp /logs/artifacts/.agent_changes.XXXXXX)
+cp "$(git rev-parse --git-path index)" "$index"
+GIT_INDEX_FILE="$index" git add -A
+GIT_INDEX_FILE="$index" git diff --cached --binary --no-ext-diff --no-textconv 6f24983cb1e00f67443148967e5d30769eeb068a >"$patch"
+rm -f "$index"
+chmod 644 "$patch"
+mv "$patch" /logs/artifacts/agent_changes.patch
+'''
+timeout_sec = 300.0
+
+[agent]
+timeout_sec = 1800.0
+network_mode = "no-network"
+
+[environment]
+docker_image = "docker.io/swerebenchv2/arkivanov-decompose:734-6f24983"
+workdir = "/Decompose"
+storage_mb = 5120
+build_timeout_sec = 1800.0
+cpus = 4
+memory_mb = 10240
+network_mode = "public"
+
+[environment.env]
+_JAVA_OPTIONS = "-Djava.net.preferIPv4Stack=true"

@@ -1,0 +1,49 @@
+FROM eclipse-temurin:21-jdk
+
+WORKDIR /home/
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
+# Run the suite in AnkiDroid's "CI mode". The build sets BuildConfig.CI from
+# `System.getenv("CI") == "true"`, and RobolectricTest installs
+# IgnoreFlakyTestsInCIRule, which deterministically SKIPS tests annotated
+# @Flaky(...) (e.g. CardBrowserTest "FindReplace - replaces text based on
+# regular expression", which races on a transient snackbar) instead of letting
+# them randomly fail. This removes the floating pass/fail behaviour.
+ENV CI=true
+
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends \
+  curl \
+  git \
+  bash \
+  ca-certificates \
+  unzip \
+  libncurses6 \
+  libvulkan1 \
+  libpulse0 \
+  libgl1 && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
+
+RUN $JAVA_HOME/bin/keytool -importkeystore -noprompt -trustcacerts \
+  -srckeystore /etc/ssl/certs/java/cacerts \
+  -destkeystore $JAVA_HOME/lib/security/cacerts \
+  -srcstorepass changeit -deststorepass changeit || true
+
+ENV ANDROID_SDK_ROOT=/opt/android-sdk \
+    ANDROID_HOME=/opt/android-sdk \
+    PATH=$PATH:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools
+
+RUN mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools && \
+  curl -o sdk-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip && \
+  unzip sdk-tools.zip -d ${ANDROID_SDK_ROOT}/cmdline-tools && \
+  mv ${ANDROID_SDK_ROOT}/cmdline-tools/cmdline-tools ${ANDROID_SDK_ROOT}/cmdline-tools/latest && \
+  rm sdk-tools.zip
+
+RUN yes | sdkmanager --licenses && \
+  sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+RUN git clone https://github.com/ankidroid/Anki-Android.git /home/Anki-Android
+
+RUN git config --global --add safe.directory /home

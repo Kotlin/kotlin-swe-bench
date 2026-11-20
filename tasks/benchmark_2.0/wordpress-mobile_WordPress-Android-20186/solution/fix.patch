@@ -1,0 +1,206 @@
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/main/WPMainActivity.java b/WordPress/src/main/java/org/wordpress/android/ui/main/WPMainActivity.java
+index 6d67608adebb..3d432ded823f 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/main/WPMainActivity.java
++++ b/WordPress/src/main/java/org/wordpress/android/ui/main/WPMainActivity.java
+@@ -108,6 +108,7 @@
+ import org.wordpress.android.ui.mysite.cards.quickstart.QuickStartRepository;
+ import org.wordpress.android.ui.notifications.NotificationEvents;
+ import org.wordpress.android.ui.notifications.NotificationsListFragment;
++import org.wordpress.android.ui.notifications.NotificationsListViewModel;
+ import org.wordpress.android.ui.notifications.SystemNotificationsTracker;
+ import org.wordpress.android.ui.notifications.adapters.NotesAdapter;
+ import org.wordpress.android.ui.notifications.receivers.NotificationsPendingDraftsReceiver;
+@@ -127,7 +128,9 @@
+ import org.wordpress.android.ui.prefs.privacy.banner.PrivacyBannerFragment;
+ import org.wordpress.android.ui.quickstart.QuickStartMySitePrompts;
+ import org.wordpress.android.ui.quickstart.QuickStartTracker;
++import org.wordpress.android.ui.reader.ReaderActivityLauncher;
+ import org.wordpress.android.ui.reader.ReaderFragment;
++import org.wordpress.android.ui.reader.comments.ThreadedCommentsActionSource;
+ import org.wordpress.android.ui.reader.services.update.ReaderUpdateLogic.UpdateTask;
+ import org.wordpress.android.ui.reader.services.update.ReaderUpdateServiceStarter;
+ import org.wordpress.android.ui.reader.tracker.ReaderTracker;
+@@ -190,6 +193,9 @@
+ import static org.wordpress.android.util.extensions.InAppReviewExtensionsKt.logException;
+ 
+ import dagger.hilt.android.AndroidEntryPoint;
++import kotlin.Unit;
++import kotlin.jvm.functions.Function0;
++import kotlin.jvm.functions.Function3;
+ 
+ /**
+  * Main activity which hosts sites, reader, me and notifications pages
+@@ -251,6 +257,7 @@ public class WPMainActivity extends LocaleAwareActivity implements
+     private ModalLayoutPickerViewModel mMLPViewModel;
+     @NonNull private ReviewViewModel mReviewViewModel;
+     private BloggingRemindersViewModel mBloggingRemindersViewModel;
++    private NotificationsListViewModel mNotificationsViewModel;
+     private FloatingActionButton mFloatingActionButton;
+     private static final String MAIN_BOTTOM_SHEET_TAG = "MAIN_BOTTOM_SHEET_TAG";
+     private static final String BLOGGING_REMINDERS_BOTTOM_SHEET_TAG = "BLOGGING_REMINDERS_BOTTOM_SHEET_TAG";
+@@ -1057,11 +1064,34 @@ public void onTokenInvalid() {
+                     // we processed the voice reply, so we exit this function immediately
+                     return;
+                 } else {
+-                    boolean shouldShowKeyboard =
+-                            getIntent().getBooleanExtra(NotificationsListFragment.NOTE_INSTANT_REPLY_EXTRA, false);
+-                    NotificationsListFragment
+-                            .openNoteForReply(this, noteId, shouldShowKeyboard, null,
+-                                    NotesAdapter.FILTERS.FILTER_ALL, true);
++                    if (mNotificationsViewModel == null) {
++                        mNotificationsViewModel = new ViewModelProvider(this).get(NotificationsListViewModel.class);
++                    }
++                    mNotificationsViewModel.openNote(noteId, new Function3<Long, Long, Long, Unit>() {
++                                @Nullable @Override
++                                public Unit invoke(@NonNull Long siteId, @NonNull Long postId,
++                                                   @NonNull Long commentId) {
++                                    ReaderActivityLauncher.showReaderComments(
++                                            WPMainActivity.this,
++                                            siteId,
++                                            postId,
++                                            commentId,
++                                            ThreadedCommentsActionSource.COMMENT_NOTIFICATION.getSourceDescription()
++                                    );
++                                    return null;
++                                }
++                            }, new Function0<Unit>() {
++                                @Nullable @Override
++                                public Unit invoke() {
++                                    boolean shouldShowKeyboard = getIntent().getBooleanExtra(
++                                            NotificationsListFragment.NOTE_INSTANT_REPLY_EXTRA,
++                                            false);
++                                    NotificationsListFragment.openNoteForReply(WPMainActivity.this, noteId,
++                                            shouldShowKeyboard, null, NotesAdapter.FILTERS.FILTER_ALL, true);
++                                    return null;
++                                }
++                            }
++                    );
+                 }
+             } else {
+                 AppLog.e(T.NOTIFS, "app launched from a PN that doesn't have a note_id in it!!");
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/notifications/NotificationsListFragmentPage.kt b/WordPress/src/main/java/org/wordpress/android/ui/notifications/NotificationsListFragmentPage.kt
+index 36d1a996cbde..f578ed92910f 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/notifications/NotificationsListFragmentPage.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/notifications/NotificationsListFragmentPage.kt
+@@ -57,6 +57,8 @@ import org.wordpress.android.ui.notifications.adapters.NotesAdapter.DataLoadedLi
+ import org.wordpress.android.ui.notifications.adapters.NotesAdapter.FILTERS
+ import org.wordpress.android.ui.notifications.services.NotificationsUpdateServiceStarter
+ import org.wordpress.android.ui.notifications.utils.NotificationsActions
++import org.wordpress.android.ui.reader.ReaderActivityLauncher
++import org.wordpress.android.ui.reader.comments.ThreadedCommentsActionSource
+ import org.wordpress.android.util.AniUtils
+ import org.wordpress.android.util.AppLog
+ import org.wordpress.android.util.AppLog.T
+@@ -232,9 +234,24 @@ class NotificationsListFragmentPage : ViewPagerFragment(R.layout.notifications_l
+             }
+             incrementInteractions(APP_REVIEWS_EVENT_INCREMENTED_BY_CHECKING_NOTIFICATION)
+ 
+-            // Open the latest version of this note in case it has changed, which can happen if the note was tapped
+-            // from the list after it was updated by another fragment (such as NotificationsDetailListFragment).
+-            openNoteForReply(activity, noteId, false, null, notesAdapter.currentFilter, false)
++            viewModel.openNote(
++                noteId,
++                { siteId, postId, commentId ->
++                    ReaderActivityLauncher.showReaderComments(
++                        activity,
++                        siteId,
++                        postId,
++                        commentId,
++                        ThreadedCommentsActionSource.COMMENT_NOTIFICATION.sourceDescription
++                    )
++                },
++                {
++                    // Open the latest version of this note in case it has changed, which can happen if the note was
++                    // tapped from the list after it was updated by another fragment (such as the
++                    // NotificationsDetailListFragment).
++                    openNoteForReply(activity, noteId, filter = notesAdapter.currentFilter)
++                }
++            )
+         }
+     }
+     private val mOnScrollListener: OnScrollListener = object : OnScrollListener() {
+@@ -516,10 +533,10 @@ class NotificationsListFragmentPage : ViewPagerFragment(R.layout.notifications_l
+         fun openNoteForReply(
+             activity: Activity?,
+             noteId: String?,
+-            shouldShowKeyboard: Boolean,
+-            replyText: String?,
+-            filter: FILTERS?,
+-            isTappedFromPushNotification: Boolean
++            shouldShowKeyboard: Boolean = false,
++            replyText: String? = null,
++            filter: FILTERS? = null,
++            isTappedFromPushNotification: Boolean = false,
+         ) {
+             if (noteId == null || activity == null || activity.isFinishing) {
+                 return
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/notifications/NotificationsListViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/notifications/NotificationsListViewModel.kt
+index cf2300568044..fae774fb59c4 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/notifications/NotificationsListViewModel.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/notifications/NotificationsListViewModel.kt
+@@ -13,6 +13,7 @@ import org.wordpress.android.fluxc.model.SiteModel
+ import org.wordpress.android.fluxc.store.AccountStore
+ import org.wordpress.android.fluxc.store.CommentsStore
+ import org.wordpress.android.fluxc.store.SiteStore
++import org.wordpress.android.fluxc.utils.AppLogWrapper
+ import org.wordpress.android.models.Note
+ import org.wordpress.android.models.Notification.PostNotification
+ import org.wordpress.android.modules.BG_THREAD
+@@ -21,8 +22,11 @@ import org.wordpress.android.ui.jetpackoverlay.JetpackFeatureRemovalOverlayUtil
+ import org.wordpress.android.ui.jetpackoverlay.JetpackOverlayConnectedFeature.NOTIFICATIONS
+ import org.wordpress.android.ui.notifications.NotificationEvents.NotificationsChanged
+ import org.wordpress.android.ui.notifications.utils.NotificationsActions
++import org.wordpress.android.ui.notifications.utils.NotificationsUtilsWrapper
+ import org.wordpress.android.ui.prefs.AppPrefsWrapper
++import org.wordpress.android.ui.reader.actions.ReaderActions
+ import org.wordpress.android.ui.reader.actions.ReaderPostActionsWrapper
++import org.wordpress.android.util.AppLog
+ import org.wordpress.android.viewmodel.Event
+ import org.wordpress.android.viewmodel.ScopedViewModel
+ import javax.inject.Inject
+@@ -34,6 +38,8 @@ class NotificationsListViewModel @Inject constructor(
+     private val appPrefsWrapper: AppPrefsWrapper,
+     private val jetpackFeatureRemovalOverlayUtil: JetpackFeatureRemovalOverlayUtil,
+     private val gcmMessageHandler: GCMMessageHandler,
++    private val notificationsUtilsWrapper: NotificationsUtilsWrapper,
++    private val appLogWrapper: AppLogWrapper,
+     private val siteStore: SiteStore,
+     private val commentStore: CommentsStore,
+     private val readerPostTableWrapper: ReaderPostTableWrapper,
+@@ -97,6 +103,36 @@ class NotificationsListViewModel @Inject constructor(
+         }
+     }
+ 
++    fun openNote(
++        noteId: String?,
++        openInTheReader: (siteId: Long, postId: Long, commentId: Long) -> Unit,
++        openDetailView: () -> Unit
++    ) {
++        val note = noteId?.let { notificationsUtilsWrapper.getNoteById(noteId) }
++        if (note != null && note.isCommentType && !note.canModerate()) {
++            val readerPost = readerPostTableWrapper.getBlogPost(note.siteId.toLong(), note.postId.toLong(), false)
++            if (readerPost != null) {
++                openInTheReader(note.siteId.toLong(), note.postId.toLong(), note.commentId)
++            } else {
++                readerPostActionsWrapper.requestBlogPost(
++                    note.siteId.toLong(),
++                    note.postId.toLong(),
++                    object : ReaderActions.OnRequestListener<String> {
++                        override fun onSuccess(result: String?) {
++                            openInTheReader(note.siteId.toLong(), note.postId.toLong(), note.commentId)
++                        }
++
++                        override fun onFailure(statusCode: Int) {
++                            appLogWrapper.w(AppLog.T.NOTIFS, "Failed to fetch post for comment: $statusCode")
++                            openDetailView()
++                        }
++                    })
++            }
++        } else {
++            openDetailView()
++        }
++    }
++
+     fun likePost(note: Note, liked: Boolean) = launch {
+         note.setLikedPost(liked)
+         _updatedNote.postValue(note)

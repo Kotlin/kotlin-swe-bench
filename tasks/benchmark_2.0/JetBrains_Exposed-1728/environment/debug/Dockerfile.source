@@ -1,0 +1,15 @@
+FROM mswebench/jetbrains_m_exposed:base
+
+COPY check_git_changes.sh /home/
+COPY prepare.sh /home/
+COPY seal_git_history.sh /home/
+
+RUN bash /home/prepare.sh
+RUN chmod +x /home/*.sh
+RUN mkdir -p /reference-projects/exposed-primary-key-repro /tmp/reference-project \
+    && git init -q /tmp/reference-project \
+    && git -C /tmp/reference-project remote add origin https://github.com/zuzkins/exposed-primary-key-repro.git \
+    && git -C /tmp/reference-project fetch -q --depth=1 origin ec66c5fe043d4ce20ea8355b4695999c91864d2c \
+    && git -C /tmp/reference-project archive --format=tar --output=/tmp/reference-project.tar FETCH_HEAD \
+    && tar -xf /tmp/reference-project.tar -C /reference-projects/exposed-primary-key-repro \
+    && rm -rf /tmp/reference-project /tmp/reference-project.tar

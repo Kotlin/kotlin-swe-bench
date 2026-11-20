@@ -1,0 +1,91 @@
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/ActivityLauncher.java b/WordPress/src/main/java/org/wordpress/android/ui/ActivityLauncher.java
+index b789b372eb11..6722836cd815 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/ActivityLauncher.java
++++ b/WordPress/src/main/java/org/wordpress/android/ui/ActivityLauncher.java
+@@ -1927,6 +1927,7 @@ public static void showJetpackStaticPoster(@NonNull Context context) {
+ 
+     public static void openDomainManagement(@NonNull Context context) {
+         Intent intent = new Intent(context, DomainManagementActivity.class);
++        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+         context.startActivity(intent);
+     }
+ 
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainActivity.kt b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainActivity.kt
+index 5d5730f1b2c0..a7df53d7ec35 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainActivity.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainActivity.kt
+@@ -12,6 +12,7 @@ import dagger.hilt.android.AndroidEntryPoint
+ import kotlinx.coroutines.flow.launchIn
+ import kotlinx.coroutines.flow.onEach
+ import org.wordpress.android.fluxc.store.SiteStore
++import org.wordpress.android.ui.ActivityLauncher
+ import org.wordpress.android.ui.domains.DomainRegistrationCheckoutWebViewActivity
+ import org.wordpress.android.ui.domains.management.M3Theme
+ import org.wordpress.android.ui.domains.management.purchasedomain.PurchaseDomainViewModel.ActionEvent.GoBack
+@@ -19,6 +20,7 @@ import org.wordpress.android.ui.domains.management.purchasedomain.PurchaseDomain
+ import org.wordpress.android.ui.domains.management.purchasedomain.PurchaseDomainViewModel.ActionEvent.GoToSitePicker
+ import org.wordpress.android.ui.domains.management.purchasedomain.PurchaseDomainViewModel.ActionEvent.GoToExistingSiteCheckout
+ import org.wordpress.android.ui.domains.management.purchasedomain.PurchaseDomainViewModel.ActionEvent.GoToExistingSitePlans
++import org.wordpress.android.ui.domains.management.purchasedomain.PurchaseDomainViewModel.ActionEvent.OpenDomainManagement
+ import org.wordpress.android.ui.domains.management.purchasedomain.composable.PurchaseDomainScreen
+ import org.wordpress.android.ui.main.SitePickerContract
+ import javax.inject.Inject
+@@ -108,6 +110,9 @@ class PurchaseDomainActivity : AppCompatActivity() {
+                 )
+             }
+             GoBack -> onBackPressedDispatcher.onBackPressed()
++            OpenDomainManagement -> {
++                ActivityLauncher.openDomainManagement(this)
++            }
+         }
+     }
+ 
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainViewModel.kt
+index 0755288cc91f..649dc90b9983 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainViewModel.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainViewModel.kt
+@@ -67,9 +67,12 @@ class PurchaseDomainViewModel @AssistedInject constructor(
+         }
+     }
+ 
+-    @Suppress("UNUSED_PARAMETER")
+-    fun onDomainRegistrationComplete(event: DomainRegistrationCompletedEvent?) {
+-        // TODO Handle domain registration complete
++    fun onDomainRegistrationComplete(event: DomainRegistrationCompletedEvent?) = event?.also {
++        launch {
++            _actionEvents.emit(ActionEvent.OpenDomainManagement)
++        }
++    } ?: run {
++        _uiStateFlow.value = UiState.ErrorInCheckout
+     }
+ 
+     private val SiteModel.shouldOfferPlans
+@@ -112,6 +115,7 @@ class PurchaseDomainViewModel @AssistedInject constructor(
+         object SubmittingJustDomainCart : UiState
+         object SubmittingSiteDomainCart : UiState
+         object ErrorSubmittingCart : UiState
++        object ErrorInCheckout : UiState
+     }
+ 
+     sealed class ActionEvent {
+@@ -120,6 +124,7 @@ class PurchaseDomainViewModel @AssistedInject constructor(
+         data class GoToSitePicker(val domain: String) : ActionEvent()
+         data class GoToExistingSiteCheckout(val domain: String, val siteModel: SiteModel) : ActionEvent()
+         data class GoToExistingSitePlans(val domain: String, val siteModel: SiteModel) : ActionEvent()
++        object OpenDomainManagement : ActionEvent()
+     }
+ 
+     @AssistedFactory
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/composable/PurchaseDomainScreen.kt b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/composable/PurchaseDomainScreen.kt
+index 1241e68bd43e..86fe6d1df044 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/composable/PurchaseDomainScreen.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/composable/PurchaseDomainScreen.kt
+@@ -67,7 +67,7 @@ fun PurchaseDomainScreen(
+             )
+         },
+         content = {
+-            if (uiState == UiState.ErrorSubmittingCart) {
++            if (uiState == UiState.ErrorSubmittingCart || uiState == UiState.ErrorInCheckout) {
+                 ErrorScreen(onButtonTapped = onErrorButtonTapped)
+             } else {
+                 Box(

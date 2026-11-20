@@ -1,0 +1,127 @@
+diff --git a/decompose/src/commonMain/kotlin/com/arkivanov/decompose/Utils.kt b/decompose/src/commonMain/kotlin/com/arkivanov/decompose/Utils.kt
+index bf6ec7e93..187c8a25a 100644
+--- a/decompose/src/commonMain/kotlin/com/arkivanov/decompose/Utils.kt
++++ b/decompose/src/commonMain/kotlin/com/arkivanov/decompose/Utils.kt
+@@ -7,6 +7,10 @@ import kotlin.reflect.KClass
+ fun Any.hashString(): String =
+     "${this::class.uniqueName ?: this::class.simpleName}_${hashCode().toString(radix = 36)}"
+ 
++@InternalDecomposeApi
++fun Child<*, *>.keyHashString(): String =
++    "${configuration::class.uniqueName ?: configuration::class.simpleName}_${key.hashCode().toString(radix = 36)}"
++
+ internal expect val KClass<*>.uniqueName: String?
+ 
+ internal val Lifecycle.isDestroyed: Boolean get() = state == Lifecycle.State.DESTROYED
+diff --git a/extensions-android/src/main/java/com/arkivanov/decompose/extensions/android/stack/StackRouterView.kt b/extensions-android/src/main/java/com/arkivanov/decompose/extensions/android/stack/StackRouterView.kt
+index 01bdc1145..e10493540 100644
+--- a/extensions-android/src/main/java/com/arkivanov/decompose/extensions/android/stack/StackRouterView.kt
++++ b/extensions-android/src/main/java/com/arkivanov/decompose/extensions/android/stack/StackRouterView.kt
+@@ -16,7 +16,7 @@ import com.arkivanov.decompose.extensions.android.DefaultViewContext
+ import com.arkivanov.decompose.extensions.android.R
+ import com.arkivanov.decompose.extensions.android.ViewContext
+ import com.arkivanov.decompose.extensions.android.forEachChild
+-import com.arkivanov.decompose.hashString
++import com.arkivanov.decompose.keyHashString
+ import com.arkivanov.decompose.lifecycle.MergedLifecycle
+ import com.arkivanov.decompose.router.stack.ChildStack
+ import com.arkivanov.decompose.value.Value
+@@ -99,7 +99,7 @@ class StackRouterView @JvmOverloads constructor(
+     private fun <C : Any, T : Any> onStackChanged(
+         stack: ChildStack<C, T>,
+         lifecycle: Lifecycle,
+-        replaceChildView:  ViewContext.(parent: ViewGroup, newStack: ChildStack<C, T>, oldStack: ChildStack<C, T>?) -> Unit,
++        replaceChildView: ViewContext.(parent: ViewGroup, newStack: ChildStack<C, T>, oldStack: ChildStack<C, T>?) -> Unit,
+     ) {
+         val activeChild = stack.active
+ 
+@@ -126,7 +126,7 @@ class StackRouterView @JvmOverloads constructor(
+ 
+         val newChildView = findNewChildView()
+ 
+-        val activeChildKey = activeChild.key.hashString()
++        val activeChildKey = activeChild.keyHashString()
+ 
+         newChildView.key = activeChildKey
+ 
+diff --git a/extensions-compose/src/commonMain/kotlin/com/arkivanov/decompose/extensions/compose/pages/Pages.kt b/extensions-compose/src/commonMain/kotlin/com/arkivanov/decompose/extensions/compose/pages/Pages.kt
+index ad26a0b02..6127d6761 100644
+--- a/extensions-compose/src/commonMain/kotlin/com/arkivanov/decompose/extensions/compose/pages/Pages.kt
++++ b/extensions-compose/src/commonMain/kotlin/com/arkivanov/decompose/extensions/compose/pages/Pages.kt
+@@ -9,7 +9,6 @@ import androidx.compose.foundation.pager.rememberPagerState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.State
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.remember
+ import androidx.compose.ui.Modifier
+@@ -17,7 +16,7 @@ import com.arkivanov.decompose.Child
+ import com.arkivanov.decompose.ExperimentalDecomposeApi
+ import com.arkivanov.decompose.Ref
+ import com.arkivanov.decompose.extensions.compose.subscribeAsState
+-import com.arkivanov.decompose.hashString
++import com.arkivanov.decompose.keyHashString
+ import com.arkivanov.decompose.router.pages.ChildPages
+ import com.arkivanov.decompose.value.Value
+ 
+@@ -33,7 +32,7 @@ fun <C : Any, T : Any> Pages(
+     modifier: Modifier = Modifier,
+     scrollAnimation: PagesScrollAnimation = PagesScrollAnimation.Disabled,
+     pager: Pager = defaultHorizontalPager(),
+-    key: (Child<C, T>) -> Any = { it.key.hashString() },
++    key: (Child<C, T>) -> Any = Child<*, *>::keyHashString,
+     pageContent: @Composable PagerScope.(index: Int, page: T) -> Unit,
+ ) {
+     val state by pages.subscribeAsState()
+@@ -61,7 +60,7 @@ fun <C : Any, T : Any> Pages(
+     modifier: Modifier = Modifier,
+     scrollAnimation: PagesScrollAnimation = PagesScrollAnimation.Disabled,
+     pager: Pager = defaultHorizontalPager(),
+-    key: (Child<C, T>) -> Any = { it.key.hashString() },
++    key: (Child<C, T>) -> Any = Child<*, *>::keyHashString,
+     pageContent: @Composable PagerScope.(index: Int, page: T) -> Unit,
+ ) {
+     val selectedIndex = pages.selectedIndex
+diff --git a/extensions-compose/src/commonMain/kotlin/com/arkivanov/decompose/extensions/compose/stack/Children.kt b/extensions-compose/src/commonMain/kotlin/com/arkivanov/decompose/extensions/compose/stack/Children.kt
+index d5d8015c3..067e16932 100644
+--- a/extensions-compose/src/commonMain/kotlin/com/arkivanov/decompose/extensions/compose/stack/Children.kt
++++ b/extensions-compose/src/commonMain/kotlin/com/arkivanov/decompose/extensions/compose/stack/Children.kt
+@@ -7,16 +7,14 @@ import androidx.compose.runtime.saveable.SaveableStateHolder
+ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+ import androidx.compose.ui.Modifier
+ import com.arkivanov.decompose.Child
+-import com.arkivanov.decompose.ExperimentalDecomposeApi
+ import com.arkivanov.decompose.extensions.compose.stack.animation.LocalStackAnimationProvider
+ import com.arkivanov.decompose.extensions.compose.stack.animation.StackAnimation
+ import com.arkivanov.decompose.extensions.compose.stack.animation.emptyStackAnimation
+ import com.arkivanov.decompose.extensions.compose.subscribeAsState
+-import com.arkivanov.decompose.hashString
++import com.arkivanov.decompose.keyHashString
+ import com.arkivanov.decompose.router.stack.ChildStack
+ import com.arkivanov.decompose.value.Value
+ 
+-@OptIn(ExperimentalDecomposeApi::class)
+ @Composable
+ fun <C : Any, T : Any> Children(
+     stack: ChildStack<C, T>,
+@@ -32,7 +30,7 @@ fun <C : Any, T : Any> Children(
+     val anim = animation ?: remember(animationProvider, animationProvider::provide) ?: emptyStackAnimation()
+ 
+     anim(stack = stack, modifier = modifier) { child ->
+-        holder.SaveableStateProvider(child.key.hashString()) {
++        holder.SaveableStateProvider(child.keyHashString()) {
+             content(child)
+         }
+     }
+@@ -55,9 +53,8 @@ fun <C : Any, T : Any> Children(
+     )
+ }
+ 
+-@OptIn(ExperimentalDecomposeApi::class)
+ private fun ChildStack<*, *>.getKeys(): Set<String> =
+-    items.mapTo(HashSet()) { it.key.hashString() }
++    items.mapTo(HashSet(), Child<*, *>::keyHashString)
+ 
+ @Composable
+ private fun SaveableStateHolder.retainStates(currentKeys: Set<String>) {

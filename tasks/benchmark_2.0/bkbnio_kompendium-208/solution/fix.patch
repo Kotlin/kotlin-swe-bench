@@ -1,0 +1,64 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 7389223014..d28541152a 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,7 @@
+ 
+ ## Unreleased
+ - Fixed support Location classes located in other non-location classes
++- Fixed formatting of a custom SimpleSchema
+ 
+ ### Added
+ 
+diff --git a/kompendium-core/src/main/kotlin/io/bkbn/kompendium/core/constraint/ConstraintScanner.kt b/kompendium-core/src/main/kotlin/io/bkbn/kompendium/core/constraint/ConstraintScanner.kt
+index 6c30df2f3f..a43c092f35 100644
+--- a/kompendium-core/src/main/kotlin/io/bkbn/kompendium/core/constraint/ConstraintScanner.kt
++++ b/kompendium-core/src/main/kotlin/io/bkbn/kompendium/core/constraint/ConstraintScanner.kt
+@@ -82,22 +82,18 @@ fun FormattedSchema.scanForConstraints(prop: KProperty1<*, *>): FormattedSchema
+ }
+ 
+ fun SimpleSchema.scanForConstraints(prop: KProperty1<*, *>): SimpleSchema {
+-  val minLength = prop.findAnnotation<MinLength>()
+-  val maxLength = prop.findAnnotation<MaxLength>()
+-  val pattern = prop.findAnnotation<Pattern>()
+-  val format = prop.findAnnotation<Format>()
+-
+-  var schema = this
+-
+-  if (prop.returnType.isMarkedNullable) {
+-    schema = schema.copy(nullable = true)
+-  }
+-
+-  return schema.copy(
+-    minLength = minLength?.length,
+-    maxLength = maxLength?.length,
+-    pattern = pattern?.pattern,
+-    format = format?.format
++  val minLength = prop.findAnnotation<MinLength>()?.length ?: this.minLength
++  val maxLength = prop.findAnnotation<MaxLength>()?.length ?: this.maxLength
++  val pattern = prop.findAnnotation<Pattern>()?.pattern ?: this.pattern
++  val format = prop.findAnnotation<Format>()?.format ?: this.format
++  val nullable = if (prop.returnType.isMarkedNullable) true else this.nullable
++
++  return copy(
++    nullable = nullable,
++    minLength = minLength,
++    maxLength = maxLength,
++    pattern = pattern,
++    format = format
+   )
+ }
+ 
+diff --git a/kompendium-playground/src/main/kotlin/io/bkbn/kompendium/playground/CustomTypePlayground.kt b/kompendium-playground/src/main/kotlin/io/bkbn/kompendium/playground/CustomTypePlayground.kt
+index 1c4fe68602..d7e5e428c2 100644
+--- a/kompendium-playground/src/main/kotlin/io/bkbn/kompendium/playground/CustomTypePlayground.kt
++++ b/kompendium-playground/src/main/kotlin/io/bkbn/kompendium/playground/CustomTypePlayground.kt
+@@ -43,7 +43,7 @@ private fun Application.mainModule() {
+   install(Kompendium) {
+     spec = Util.baseSpec
+     // Tells Kompendium how to handle a specific type
+-    addCustomTypeSchema(Instant::class, SimpleSchema("string"))
++    addCustomTypeSchema(Instant::class, SimpleSchema("string", format = "date-time"))
+   }
+   routing {
+     redoc(pageTitle = "Custom overridden type Docs")

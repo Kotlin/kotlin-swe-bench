@@ -1,0 +1,79 @@
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/discover/ReaderDiscoverFragment.kt b/WordPress/src/main/java/org/wordpress/android/ui/reader/discover/ReaderDiscoverFragment.kt
+index bea9580b298a..00918013c71e 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/discover/ReaderDiscoverFragment.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/discover/ReaderDiscoverFragment.kt
+@@ -131,9 +131,6 @@ class ReaderDiscoverFragment : ViewPagerFragment(R.layout.reader_discover_fragme
+             when (it) {
+                 is DiscoverUiState.ContentUiState -> {
+                     (recyclerView.adapter as ReaderDiscoverAdapter).update(it.cards)
+-                    if (it.scrollToTop) {
+-                        recyclerView.scrollToPosition(0)
+-                    }
+                 }
+                 is DiscoverUiState.EmptyUiState -> {
+                     uiHelpers.setTextOrHide(actionableEmptyView.title, it.titleResId)
+@@ -153,9 +150,10 @@ class ReaderDiscoverFragment : ViewPagerFragment(R.layout.reader_discover_fragme
+             ptrLayout.isEnabled = it.swipeToRefreshEnabled
+             ptrLayout.isRefreshing = it.reloadProgressVisibility
+         }
++        viewModel.scrollToTopEvent.observeEvent(viewLifecycleOwner) { recyclerView.scrollToPosition(0) }
+         viewModel.navigationEvents.observeEvent(viewLifecycleOwner) { handleNavigation(it) }
+-        viewModel.snackbarEvents.observeEvent(viewLifecycleOwner, { it.showSnackbar() })
+-        viewModel.preloadPostEvents.observeEvent(viewLifecycleOwner, { it.addWebViewCachingFragment() })
++        viewModel.snackbarEvents.observeEvent(viewLifecycleOwner) { it.showSnackbar() }
++        viewModel.preloadPostEvents.observeEvent(viewLifecycleOwner) { it.addWebViewCachingFragment() }
+         viewModel.start(parentViewModel)
+     }
+ 
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/discover/ReaderDiscoverViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/reader/discover/ReaderDiscoverViewModel.kt
+index d9b5091f88a2..c9b02681ea84 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/discover/ReaderDiscoverViewModel.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/discover/ReaderDiscoverViewModel.kt
+@@ -2,6 +2,7 @@ package org.wordpress.android.ui.reader.discover
+ 
+ import androidx.lifecycle.LiveData
+ import androidx.lifecycle.MediatorLiveData
++import androidx.lifecycle.MutableLiveData
+ import androidx.lifecycle.Observer
+ import androidx.lifecycle.viewModelScope
+ import kotlinx.coroutines.CoroutineDispatcher
+@@ -79,6 +80,9 @@ class ReaderDiscoverViewModel @Inject constructor(
+     private val _preloadPostEvents = MediatorLiveData<Event<PreLoadPostContent>>()
+     val preloadPostEvents: LiveData<Event<PreLoadPostContent>> = _preloadPostEvents
+ 
++    private val _scrollToTopEvent = MutableLiveData<Event<Unit>>()
++    val scrollToTopEvent: LiveData<Event<Unit>> = _scrollToTopEvent
++
+     /**
+      * Post which is about to be reblogged after the user selects a target site.
+      */
+@@ -155,9 +159,11 @@ class ReaderDiscoverViewModel @Inject constructor(
+                             convertCardsToUiStates(posts),
+                             reloadProgressVisibility = false,
+                             loadMoreProgressVisibility = false,
+-                            scrollToTop = swipeToRefreshTriggered
+                         )
+-                        swipeToRefreshTriggered = false
++                        if (swipeToRefreshTriggered) {
++                            _scrollToTopEvent.postValue(Event(Unit))
++                            swipeToRefreshTriggered = false
++                        }
+                     } else {
+                         _uiState.value = DiscoverUiState.EmptyUiState.ShowNoPostsUiState {
+                             _navigationEvents.value = Event(ShowReaderSubs)
+@@ -523,7 +529,6 @@ class ReaderDiscoverViewModel @Inject constructor(
+         val fullscreenProgressVisibility: Boolean = false,
+         val swipeToRefreshEnabled: Boolean = false,
+         open val fullscreenEmptyVisibility: Boolean = false,
+-        open val scrollToTop: Boolean = false
+     ) {
+         open val reloadProgressVisibility: Boolean = false
+         open val loadMoreProgressVisibility: Boolean = false
+@@ -532,7 +537,6 @@ class ReaderDiscoverViewModel @Inject constructor(
+             val cards: List<ReaderCardUiState>,
+             override val reloadProgressVisibility: Boolean,
+             override val loadMoreProgressVisibility: Boolean,
+-            override val scrollToTop: Boolean
+         ) : DiscoverUiState(contentVisiblity = true, swipeToRefreshEnabled = true)
+ 
+         object LoadingUiState : DiscoverUiState(fullscreenProgressVisibility = true)

@@ -1,0 +1,328 @@
+diff --git a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettings.kt b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettings.kt
+index 2fa2899c0da..77e6d5cfc7e 100644
+--- a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettings.kt
++++ b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettings.kt
+@@ -26,6 +26,7 @@ data class GeneralSettings(
+     val isMessageListSenderAboveSubject: Boolean,
+     val isShowContactName: Boolean,
+     val isShowContactPicture: Boolean,
++    val isChangeContactNameColor: Boolean,
+ )
+ 
+ enum class BackgroundSync {
+diff --git a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettingsManager.kt b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettingsManager.kt
+index e8b749d8ff1..e89c5ff6698 100644
+--- a/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettingsManager.kt
++++ b/core/preference/api/src/commonMain/kotlin/net/thunderbird/core/preference/GeneralSettingsManager.kt
+@@ -25,4 +25,5 @@ interface GeneralSettingsManager {
+     fun setIsMessageListSenderAboveSubject(isMessageListSenderAboveSubject: Boolean)
+     fun setIsShowContactName(isShowContactName: Boolean)
+     fun setIsShowContactPicture(isShowContactPicture: Boolean)
++    fun setIsChangeContactNameColor(isChangeContactNameColor: Boolean)
+ }
+diff --git a/feature/widget/message-list-glance/src/main/kotlin/net/thunderbird/feature/widget/message/list/MessageListItemMapper.kt b/feature/widget/message-list-glance/src/main/kotlin/net/thunderbird/feature/widget/message/list/MessageListItemMapper.kt
+index a8ab21609fd..43e4bd8c677 100644
+--- a/feature/widget/message-list-glance/src/main/kotlin/net/thunderbird/feature/widget/message/list/MessageListItemMapper.kt
++++ b/feature/widget/message-list-glance/src/main/kotlin/net/thunderbird/feature/widget/message/list/MessageListItemMapper.kt
+@@ -27,8 +27,9 @@ internal class MessageListItemMapper(
+         val displayAddress = if (showRecipients) toAddresses.firstOrNull() else fromAddresses.firstOrNull()
+         val displayName = if (showRecipients) {
+             messageHelper.getRecipientDisplayNames(
+-                toAddresses.toTypedArray(),
+-                generalSettingsManager.getSettings().isShowCorrespondentNames,
++                addresses = toAddresses.toTypedArray(),
++                isShowCorrespondentNames = generalSettingsManager.getSettings().isShowCorrespondentNames,
++                isChangeContactNameColor = generalSettingsManager.getSettings().isChangeContactNameColor,
+             ).toString()
+         } else {
+             messageHelper.getSenderDisplayName(displayAddress).toString()
+diff --git a/feature/widget/message-list/src/main/kotlin/app/k9mail/feature/widget/message/list/MessageListItemMapper.kt b/feature/widget/message-list/src/main/kotlin/app/k9mail/feature/widget/message/list/MessageListItemMapper.kt
+index 9d6b7787c97..112df676491 100644
+--- a/feature/widget/message-list/src/main/kotlin/app/k9mail/feature/widget/message/list/MessageListItemMapper.kt
++++ b/feature/widget/message-list/src/main/kotlin/app/k9mail/feature/widget/message/list/MessageListItemMapper.kt
+@@ -27,8 +27,9 @@ internal class MessageListItemMapper(
+         val displayAddress = if (showRecipients) toAddresses.firstOrNull() else fromAddresses.firstOrNull()
+         val displayName = if (showRecipients) {
+             messageHelper.getRecipientDisplayNames(
+-                toAddresses.toTypedArray(),
+-                generalSettingsManager.getSettings().isShowCorrespondentNames,
++                addresses = toAddresses.toTypedArray(),
++                isShowCorrespondentNames = generalSettingsManager.getSettings().isShowCorrespondentNames,
++                isChangeContactNameColor = generalSettingsManager.getSettings().isChangeContactNameColor,
+             ).toString()
+         } else {
+             messageHelper.getSenderDisplayName(displayAddress).toString()
+diff --git a/legacy/core/src/main/java/com/fsck/k9/K9.kt b/legacy/core/src/main/java/com/fsck/k9/K9.kt
+index 76bb5a984db..be138497186 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/K9.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/K9.kt
+@@ -183,9 +183,6 @@ object K9 : KoinComponent {
+     @JvmStatic
+     var isShowContactName = false
+ 
+-    @JvmStatic
+-    var isChangeContactNameColor = false
+-
+     @JvmStatic
+     var contactNameColor = 0xFF1093F5.toInt()
+ 
+@@ -338,7 +335,6 @@ object K9 : KoinComponent {
+         quietTimeEnds = storage.getStringOrDefault("quietTimeEnds", "7:00")
+ 
+         messageListDensity = storage.getEnum("messageListDensity", UiDensity.Default)
+-        isChangeContactNameColor = storage.getBoolean("changeRegisteredNameColor", false)
+         contactNameColor = storage.getInt("registeredNameColor", 0xFF1093F5.toInt())
+         isUseMessageViewFixedWidthFont = storage.getBoolean("messageViewFixedWidthFont", false)
+         messageViewPostRemoveNavigation =
+@@ -427,7 +423,6 @@ object K9 : KoinComponent {
+         editor.putEnum("messageListDensity", messageListDensity)
+         editor.putBoolean("showAccountSelector", isShowAccountSelector)
+         editor.putInt("messageListPreviewLines", messageListPreviewLines)
+-        editor.putBoolean("changeRegisteredNameColor", isChangeContactNameColor)
+         editor.putInt("registeredNameColor", contactNameColor)
+         editor.putBoolean("messageViewFixedWidthFont", isUseMessageViewFixedWidthFont)
+         editor.putEnum("messageViewPostDeleteAction", messageViewPostRemoveNavigation)
+diff --git a/legacy/core/src/main/java/com/fsck/k9/helper/MessageHelper.kt b/legacy/core/src/main/java/com/fsck/k9/helper/MessageHelper.kt
+index f1bb570538d..76dc8c775d8 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/helper/MessageHelper.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/helper/MessageHelper.kt
+@@ -8,7 +8,6 @@ import android.text.style.ForegroundColorSpan
+ import app.k9mail.core.android.common.contact.ContactRepository
+ import com.fsck.k9.CoreResourceProvider
+ import com.fsck.k9.K9.contactNameColor
+-import com.fsck.k9.K9.isChangeContactNameColor
+ import com.fsck.k9.mail.Address
+ import java.util.regex.Pattern
+ import net.thunderbird.core.common.mail.toEmailAddressOrNull
+@@ -25,15 +24,24 @@ class MessageHelper(
+             return resourceProvider.contactUnknownSender()
+         }
+         val repository = if (generalSettingsManager.getSettings().isShowContactName) contactRepository else null
+-        return toFriendly(address, generalSettingsManager.getSettings().isShowCorrespondentNames, repository)
++        return toFriendly(
++            address,
++            generalSettingsManager.getSettings().isShowCorrespondentNames,
++            generalSettingsManager.getSettings().isChangeContactNameColor,
++            repository,
++        )
+     }
+ 
+-    fun getRecipientDisplayNames(addresses: Array<Address>?, isShowCorrespondentNames: Boolean): CharSequence {
++    fun getRecipientDisplayNames(
++        addresses: Array<Address>?,
++        isShowCorrespondentNames: Boolean,
++        isChangeContactNameColor: Boolean,
++    ): CharSequence {
+         if (addresses == null || addresses.isEmpty()) {
+             return resourceProvider.contactUnknownRecipient()
+         }
+         val repository = if (generalSettingsManager.getSettings().isShowContactName) contactRepository else null
+-        val recipients = toFriendly(addresses, isShowCorrespondentNames, repository)
++        val recipients = toFriendly(addresses, isShowCorrespondentNames, isChangeContactNameColor, repository)
+         return SpannableStringBuilder(resourceProvider.contactDisplayNamePrefix()).append(' ').append(recipients)
+     }
+ 
+@@ -63,6 +71,7 @@ class MessageHelper(
+         fun toFriendly(
+             address: Address,
+             isShowCorrespondentNames: Boolean,
++            isChangeContactNameColor: Boolean,
+             contactRepository: ContactRepository?,
+         ): CharSequence {
+             return toFriendly(
+@@ -77,6 +86,7 @@ class MessageHelper(
+         fun toFriendly(
+             addresses: Array<Address>?,
+             isShowCorrespondentNames: Boolean,
++            isChangeContactNameColor: Boolean,
+             contactRepository: ContactRepository?,
+         ): CharSequence? {
+             var repository = contactRepository
+@@ -89,7 +99,14 @@ class MessageHelper(
+             }
+             val stringBuilder = SpannableStringBuilder()
+             for (i in addresses.indices) {
+-                stringBuilder.append(toFriendly(addresses[i], isShowCorrespondentNames, repository))
++                stringBuilder.append(
++                    toFriendly(
++                        addresses[i],
++                        isShowCorrespondentNames,
++                        isChangeContactNameColor,
++                        repository,
++                    ),
++                )
+                 if (i < addresses.size - 1) {
+                     stringBuilder.append(',')
+                 }
+diff --git a/legacy/core/src/main/java/com/fsck/k9/notification/NotificationContentCreator.kt b/legacy/core/src/main/java/com/fsck/k9/notification/NotificationContentCreator.kt
+index cadcc0d2011..31ed4f90c65 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/notification/NotificationContentCreator.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/notification/NotificationContentCreator.kt
+@@ -82,6 +82,7 @@ internal class NotificationContentCreator(
+                 return MessageHelper.toFriendly(
+                     fromAddresses.first(),
+                     generalSettingsManager.getSettings().isShowCorrespondentNames,
++                    generalSettingsManager.getSettings().isChangeContactNameColor,
+                     localContactRepository,
+                 ).toString()
+             }
+@@ -94,6 +95,7 @@ internal class NotificationContentCreator(
+                 val recipientDisplayName = MessageHelper.toFriendly(
+                     address = recipients.first(),
+                     isShowCorrespondentNames = generalSettingsManager.getSettings().isShowCorrespondentNames,
++                    isChangeContactNameColor = generalSettingsManager.getSettings().isChangeContactNameColor,
+                     contactRepository = localContactRepository,
+                 ).toString()
+                 return resourceProvider.recipientDisplayName(recipientDisplayName)
+diff --git a/legacy/core/src/main/java/com/fsck/k9/preferences/RealGeneralSettingsManager.kt b/legacy/core/src/main/java/com/fsck/k9/preferences/RealGeneralSettingsManager.kt
+index dfc82c045c9..07cff85276d 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/preferences/RealGeneralSettingsManager.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/preferences/RealGeneralSettingsManager.kt
+@@ -24,6 +24,7 @@ import net.thunderbird.core.preference.storage.getEnumOrDefault
+ import net.thunderbird.core.preference.storage.putEnum
+ 
+ internal const val KEY_SHOULD_SHOW_SETUP_ARCHIVE_FOLDER_DIALOG = "shouldShowSetupArchiveFolderDialog"
++internal const val KEY_CHANGE_REGISTERED_NAME_COLOR = "changeRegisteredNameColor"
+ 
+ /**
+  * Retrieve and modify general settings.
+@@ -175,6 +176,10 @@ internal class RealGeneralSettingsManager(
+         getSettings().copy(isShowContactPicture = isShowContactPicture).persist()
+     }
+ 
++    override fun setIsChangeContactNameColor(isChangeContactNameColor: Boolean) {
++        getSettings().copy(isChangeContactNameColor = isChangeContactNameColor).persist()
++    }
++
+     private fun writeSettings(editor: StorageEditor, settings: GeneralSettings) {
+         editor.putBoolean("showRecentChanges", settings.showRecentChanges)
+         editor.putEnum("theme", settings.appTheme)
+@@ -190,6 +195,7 @@ internal class RealGeneralSettingsManager(
+         editor.putBoolean("messageListSenderAboveSubject", settings.isMessageListSenderAboveSubject)
+         editor.putBoolean("showContactName", settings.isShowContactName)
+         editor.putBoolean("showContactPicture", settings.isShowContactPicture)
++        editor.putBoolean(KEY_CHANGE_REGISTERED_NAME_COLOR, settings.isChangeContactNameColor)
+     }
+ 
+     private fun loadGeneralSettings(): GeneralSettings {
+@@ -220,6 +226,7 @@ internal class RealGeneralSettingsManager(
+             isMessageListSenderAboveSubject = storage.getBoolean("messageListSenderAboveSubject", false),
+             isShowContactName = storage.getBoolean("showContactName", false),
+             isShowContactPicture = storage.getBoolean("showContactPicture", true),
++            isChangeContactNameColor = storage.getBoolean(KEY_CHANGE_REGISTERED_NAME_COLOR, false),
+         )
+ 
+         updateSettingsFlow(settings)
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/activity/MessageListActivityConfig.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/activity/MessageListActivityConfig.kt
+index 7986073b3d1..bda7f3d54ff 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/activity/MessageListActivityConfig.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/activity/MessageListActivityConfig.kt
+@@ -45,13 +45,13 @@ data class MessageListActivityConfig(
+             val settings = generalSettingsManager.getSettings()
+             return MessageListActivityConfig(
+                 appTheme = settings.appTheme,
+-                isShowUnifiedInbox = generalSettingsManager.getSettings().isShowUnifiedInbox,
+-                isShowMessageListStars = generalSettingsManager.getSettings().isShowMessageListStars,
+-                isShowCorrespondentNames = generalSettingsManager.getSettings().isShowCorrespondentNames,
+-                isMessageListSenderAboveSubject = generalSettingsManager.getSettings().isMessageListSenderAboveSubject,
+-                isShowContactName = generalSettingsManager.getSettings().isShowContactName,
+-                isChangeContactNameColor = K9.isChangeContactNameColor,
+-                isShowContactPicture = generalSettingsManager.getSettings().isShowContactPicture,
++                isShowUnifiedInbox = settings.isShowUnifiedInbox,
++                isShowMessageListStars = settings.isShowMessageListStars,
++                isShowCorrespondentNames = settings.isShowCorrespondentNames,
++                isMessageListSenderAboveSubject = settings.isMessageListSenderAboveSubject,
++                isShowContactName = settings.isShowContactName,
++                isChangeContactNameColor = settings.isChangeContactNameColor,
++                isShowContactPicture = settings.isShowContactPicture,
+                 isColorizeMissingContactPictures = K9.isColorizeMissingContactPictures,
+                 isUseBackgroundAsUnreadIndicator = K9.isUseBackgroundAsUnreadIndicator,
+                 isShowComposeButton = K9.isShowComposeButtonOnMessageList,
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagedetails/MessageDetailsParticipantFormatter.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagedetails/MessageDetailsParticipantFormatter.kt
+index d3b4dd9bf5c..faec37c723e 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagedetails/MessageDetailsParticipantFormatter.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagedetails/MessageDetailsParticipantFormatter.kt
+@@ -67,7 +67,13 @@ internal fun createMessageDetailsParticipantFormatter(
+     return RealMessageDetailsParticipantFormatter(
+         contactNameProvider = contactNameProvider,
+         showContactNames = generalSettingsManager.getSettings().isShowContactName,
+-        contactNameColor = if (K9.isChangeContactNameColor) K9.contactNameColor else null,
++        contactNameColor = if (
++            generalSettingsManager.getSettings().isChangeContactNameColor
++        ) {
++            K9.contactNameColor
++        } else {
++            null
++        },
+         meText = resources.getString(R.string.message_view_me_text),
+     )
+ }
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagelist/MessageListItemMapper.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagelist/MessageListItemMapper.kt
+index f6c288352a8..097d1f90451 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagelist/MessageListItemMapper.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagelist/MessageListItemMapper.kt
+@@ -25,8 +25,9 @@ class MessageListItemMapper(
+         val displayAddress = if (showRecipients) toAddresses.firstOrNull() else fromAddresses.firstOrNull()
+         val displayName = if (showRecipients) {
+             messageHelper.getRecipientDisplayNames(
+-                toAddresses.toTypedArray(),
+-                generalSettingsManager.getSettings().isShowCorrespondentNames,
++                addresses = toAddresses.toTypedArray(),
++                isShowCorrespondentNames = generalSettingsManager.getSettings().isShowCorrespondentNames,
++                isChangeContactNameColor = generalSettingsManager.getSettings().isChangeContactNameColor,
+             )
+         } else {
+             messageHelper.getSenderDisplayName(displayAddress)
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messageview/MessageViewRecipientFormatter.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messageview/MessageViewRecipientFormatter.kt
+index b4c3e03cd82..ef22dbd6633 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messageview/MessageViewRecipientFormatter.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messageview/MessageViewRecipientFormatter.kt
+@@ -86,7 +86,13 @@ internal fun createMessageViewRecipientFormatter(
+         contactNameProvider = contactNameProvider,
+         showCorrespondentNames = generalSettingsManager.getSettings().isShowCorrespondentNames,
+         showContactNames = generalSettingsManager.getSettings().isShowContactName,
+-        contactNameColor = if (K9.isChangeContactNameColor) K9.contactNameColor else null,
++        contactNameColor = if (
++            generalSettingsManager.getSettings().isChangeContactNameColor
++        ) {
++            K9.contactNameColor
++        } else {
++            null
++        },
+         meText = resources.getString(R.string.message_view_me_text),
+     )
+ }
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/general/GeneralSettingsDataStore.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/general/GeneralSettingsDataStore.kt
+index 114ba98a443..97157c8b722 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/general/GeneralSettingsDataStore.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/general/GeneralSettingsDataStore.kt
+@@ -32,7 +32,7 @@ class GeneralSettingsDataStore(
+             "messagelist_show_correspondent_names" -> generalSettingsManager.getSettings().isShowCorrespondentNames
+             "messagelist_sender_above_subject" -> generalSettingsManager.getSettings().isMessageListSenderAboveSubject
+             "messagelist_show_contact_name" -> generalSettingsManager.getSettings().isShowContactName
+-            "messagelist_change_contact_name_color" -> K9.isChangeContactNameColor
++            "messagelist_change_contact_name_color" -> generalSettingsManager.getSettings().isChangeContactNameColor
+             "messagelist_show_contact_picture" -> generalSettingsManager.getSettings().isShowContactPicture
+             "messagelist_colorize_missing_contact_pictures" -> K9.isColorizeMissingContactPictures
+             "messagelist_background_as_unread_indicator" -> K9.isUseBackgroundAsUnreadIndicator
+@@ -65,7 +65,7 @@ class GeneralSettingsDataStore(
+                 isMessageListSenderAboveSubject = value,
+             )
+             "messagelist_show_contact_name" -> setIsShowContactName(isShowContactName = value)
+-            "messagelist_change_contact_name_color" -> K9.isChangeContactNameColor = value
++            "messagelist_change_contact_name_color" -> setIsChangeContactNameColor(isChangeContactNameColor = value)
+             "messagelist_show_contact_picture" -> setIsShowContactPicture(isShowContactPicture = value)
+             "messagelist_colorize_missing_contact_pictures" -> K9.isColorizeMissingContactPictures = value
+             "messagelist_background_as_unread_indicator" -> K9.isUseBackgroundAsUnreadIndicator = value
+@@ -304,6 +304,11 @@ class GeneralSettingsDataStore(
+         generalSettingsManager.setIsShowContactPicture(isShowContactPicture)
+     }
+ 
++    private fun setIsChangeContactNameColor(isChangeContactNameColor: Boolean) {
++        skipSaveSettings = true
++        generalSettingsManager.setIsChangeContactNameColor(isChangeContactNameColor)
++    }
++
+     private fun appThemeToString(theme: AppTheme) = when (theme) {
+         AppTheme.LIGHT -> "light"
+         AppTheme.DARK -> "dark"

@@ -1,0 +1,156 @@
+diff --git a/partiql-ast/src/main/java/org/partiql/ast/DataType.java b/partiql-ast/src/main/java/org/partiql/ast/DataType.java
+index 47f8a83b7a..e34584f38d 100644
+--- a/partiql-ast/src/main/java/org/partiql/ast/DataType.java
++++ b/partiql-ast/src/main/java/org/partiql/ast/DataType.java
+@@ -128,7 +128,7 @@ public String getComment() {
+     public static final int INT2 = 24;
+     public static final int INTEGER2 = 25;
+     public static final int SMALLINT = 26;
+-    public static final int TINYINT = 27; // TODO not defined in parser yet
++    public static final int TINYINT = 27;
+     // <numeric type> - <approximate numeric type>
+     public static final int FLOAT = 28;
+     public static final int REAL = 29;
+diff --git a/partiql-parser/src/main/antlr/PartiQLParser.g4 b/partiql-parser/src/main/antlr/PartiQLParser.g4
+index a94349b443..429818f685 100644
+--- a/partiql-parser/src/main/antlr/PartiQLParser.g4
++++ b/partiql-parser/src/main/antlr/PartiQLParser.g4
+@@ -941,7 +941,7 @@ literal
+ 
+ type
+     : datatype=(
+-        BOOL | BOOLEAN | SMALLINT | INTEGER2 | INT2 | INTEGER | INT | INTEGER4 | INT4
++        BOOL | BOOLEAN | TINYINT | SMALLINT | INTEGER2 | INT2 | INTEGER | INT | INTEGER4 | INT4
+         | INTEGER8 | INT8 | BIGINT | REAL | CHAR | CHARACTER
+         | STRING | SYMBOL | BLOB | CLOB | DATE | ANY
+       )                                                                                                                # TypeAtomic
+diff --git a/partiql-parser/src/main/antlr/PartiQLTokens.g4 b/partiql-parser/src/main/antlr/PartiQLTokens.g4
+index c4c9f6a530..a4d69cd940 100644
+--- a/partiql-parser/src/main/antlr/PartiQLTokens.g4
++++ b/partiql-parser/src/main/antlr/PartiQLTokens.g4
+@@ -228,6 +228,7 @@ TEMPORARY: 'TEMPORARY';
+ THEN: 'THEN';
+ TIME: 'TIME';
+ TIMESTAMP: 'TIMESTAMP';
++TINYINT: 'TINYINT';
+ TO: 'TO';
+ TRANSACTION: 'TRANSACTION';
+ TRANSLATE: 'TRANSLATE';
+diff --git a/partiql-parser/src/main/kotlin/org/partiql/parser/internal/PartiQLParserDefault.kt b/partiql-parser/src/main/kotlin/org/partiql/parser/internal/PartiQLParserDefault.kt
+index 42ce7fdf07..a612c176fb 100644
+--- a/partiql-parser/src/main/kotlin/org/partiql/parser/internal/PartiQLParserDefault.kt
++++ b/partiql-parser/src/main/kotlin/org/partiql/parser/internal/PartiQLParserDefault.kt
+@@ -1998,6 +1998,7 @@ internal class PartiQLParserDefault : PartiQLParser {
+             when (ctx.datatype.type) {
+                 GeneratedParser.BOOL -> DataType.BOOLEAN()
+                 GeneratedParser.BOOLEAN -> DataType.BOOL()
++                GeneratedParser.TINYINT -> DataType.TINYINT()
+                 GeneratedParser.SMALLINT -> DataType.SMALLINT()
+                 GeneratedParser.INT2 -> DataType.INT2()
+                 GeneratedParser.INTEGER2 -> DataType.INTEGER2()
+diff --git a/partiql-planner/src/main/kotlin/org/partiql/planner/internal/transforms/RexConverter.kt b/partiql-planner/src/main/kotlin/org/partiql/planner/internal/transforms/RexConverter.kt
+index 2a2eb5c322..03bfbf22d7 100644
+--- a/partiql-planner/src/main/kotlin/org/partiql/planner/internal/transforms/RexConverter.kt
++++ b/partiql-planner/src/main/kotlin/org/partiql/planner/internal/transforms/RexConverter.kt
+@@ -861,7 +861,7 @@ internal object RexConverter {
+                 DataType.INT4, DataType.INTEGER4, DataType.INTEGER -> call(FunctionUtils.OP_IS_INT32, arg0)
+                 DataType.INT -> call(FunctionUtils.OP_IS_INT, arg0)
+                 DataType.INT2, DataType.SMALLINT -> call(FunctionUtils.OP_IS_INT16, arg0)
+-                DataType.TINYINT -> call(FunctionUtils.OP_IS_INT8, arg0) // TODO define in parser
++                DataType.TINYINT -> call(FunctionUtils.OP_IS_INT8, arg0)
+                 // <numeric type> - <approximate numeric type>
+                 DataType.FLOAT -> call(FunctionUtils.OP_IS_FLOAT32, arg0)
+                 DataType.REAL -> call(FunctionUtils.OP_IS_REAL, arg0)
+@@ -1088,7 +1088,7 @@ internal object RexConverter {
+                 DataType.BIGINT, DataType.INT8, DataType.INTEGER8 -> PType.bigint()
+                 DataType.INT4, DataType.INTEGER4, DataType.INTEGER, DataType.INT -> PType.integer()
+                 DataType.INT2, DataType.SMALLINT -> PType.smallint()
+-                DataType.TINYINT -> PType.tinyint() // TODO define in parser
++                DataType.TINYINT -> PType.tinyint()
+                 // <numeric type> - <approximate numeric type>
+                 DataType.FLOAT -> PType.real()
+                 DataType.REAL -> PType.real()
+diff --git a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnAbs.kt b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnAbs.kt
+index b54ec633dc..b379c89e48 100644
+--- a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnAbs.kt
++++ b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnAbs.kt
+@@ -3,21 +3,36 @@
+ 
+ package org.partiql.spi.function.builtins
+ 
++import org.partiql.spi.errors.DataException
+ import org.partiql.spi.function.Function
+ import org.partiql.spi.function.Parameter
+ import org.partiql.spi.types.PType
+ import org.partiql.spi.value.Datum
+ import kotlin.math.absoluteValue
+ 
+-// TODO: When negate a negative value, we need to consider overflow
++/*
++ABS overflow behavior is specified in SQL1999 section 6.17:
++    9) If <absolute value expression> is specified, then let N be the value of the immediately contained
++    <numeric value expression>.
++    Case:
++    a) If N is the null value, then the result is the null value.
++    b) If N >= 0, then the result is N.
++    c) Otherwise, the result is -1 * N. If -1 * N is not representable by the result data type, then
++    an exception condition is raised: data exception — numeric value out of range
++ */
++
+ internal val Fn_ABS__INT8__INT8 = Function.static(
+     name = "abs",
+     parameters = arrayOf(Parameter("value", PType.tinyint())),
+     returns = PType.tinyint(),
+ ) { args ->
+-    @Suppress("DEPRECATION")
+     val value = args[0].byte
+-    if (value < 0) Datum.tinyint(value.times(-1).toByte()) else Datum.tinyint(value)
++    if (value == Byte.MIN_VALUE) {
++        throw DataException("Resulting value out of range for TINYINT: ABS($value)")
++    } else {
++        val result = if (value < 0) (-value).toByte() else value
++        Datum.tinyint(result)
++    }
+ }
+ 
+ internal val Fn_ABS__INT16__INT16 = Function.static(
+@@ -26,7 +41,12 @@ internal val Fn_ABS__INT16__INT16 = Function.static(
+     parameters = arrayOf(Parameter("value", PType.smallint())),
+ ) { args ->
+     val value = args[0].short
+-    if (value < 0) Datum.smallint(value.times(-1).toShort()) else Datum.smallint(value)
++    if (value == Short.MIN_VALUE) {
++        throw DataException("Resulting value out of range for SMALLINT: ABS($value)")
++    } else {
++        val result = if (value < 0) (-value).toShort() else value
++        Datum.smallint(result)
++    }
+ }
+ 
+ internal val Fn_ABS__INT32__INT32 = Function.static(
+@@ -35,7 +55,11 @@ internal val Fn_ABS__INT32__INT32 = Function.static(
+     parameters = arrayOf(Parameter("value", PType.integer())),
+ ) { args ->
+     val value = args[0].int
+-    Datum.integer(value.absoluteValue)
++    if (value == Int.MIN_VALUE) {
++        throw DataException("Resulting value out of range for INT: ABS($value)")
++    } else {
++        Datum.integer(value.absoluteValue)
++    }
+ }
+ 
+ internal val Fn_ABS__INT64__INT64 = Function.static(
+@@ -44,7 +68,11 @@ internal val Fn_ABS__INT64__INT64 = Function.static(
+     parameters = arrayOf(Parameter("value", PType.bigint())),
+ ) { args ->
+     val value = args[0].long
+-    Datum.bigint(value.absoluteValue)
++    if (value == Long.MIN_VALUE) {
++        throw DataException("Resulting value out of range for BIGINT: ABS($value)")
++    } else {
++        Datum.bigint(value.absoluteValue)
++    }
+ }
+ 
+ internal val Fn_ABS__NUMERIC__NUMERIC = Function.static(

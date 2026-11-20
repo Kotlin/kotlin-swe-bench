@@ -1,0 +1,22 @@
+diff --git a/WordPress/src/test/java/org/wordpress/android/ui/mysite/cards/dashboard/todaysstats/TodaysStatsViewModelSliceTest.kt b/WordPress/src/test/java/org/wordpress/android/ui/mysite/cards/dashboard/todaysstats/TodaysStatsViewModelSliceTest.kt
+index 417d24ae3ef3..44cbebff3a7b 100644
+--- a/WordPress/src/test/java/org/wordpress/android/ui/mysite/cards/dashboard/todaysstats/TodaysStatsViewModelSliceTest.kt
++++ b/WordPress/src/test/java/org/wordpress/android/ui/mysite/cards/dashboard/todaysstats/TodaysStatsViewModelSliceTest.kt
+@@ -74,7 +74,7 @@ class TodaysStatsViewModelSliceTest : BaseUnitTest() {
+ 
+             params.onTodaysStatsCardClick()
+ 
+-            assertThat(navigationActions).containsOnly(SiteNavigationAction.OpenStatsInsights(site))
++            assertThat(navigationActions).containsOnly(SiteNavigationAction.OpenStatsByDay(site))
+             verify(cardsTracker).trackCardItemClicked(
+                 CardsTracker.Type.STATS.label,
+                 CardsTracker.StatsSubtype.TODAYS_STATS.label
+@@ -120,7 +120,7 @@ class TodaysStatsViewModelSliceTest : BaseUnitTest() {
+             CardsTracker.Type.STATS.label,
+             TodaysStatsMenuItemType.VIEW_STATS.label
+         )
+-        assertThat(navigationActions).containsOnly(SiteNavigationAction.OpenStatsInsights(site))
++        assertThat(navigationActions).containsOnly(SiteNavigationAction.OpenStatsByDay(site))
+     }
+ 
+ 

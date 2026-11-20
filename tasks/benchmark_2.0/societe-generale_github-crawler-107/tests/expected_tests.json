@@ -1,0 +1,60 @@
+{
+  "f2p_tests": [
+    "com.societegenerale.githubcrawler.ConfigValidatorTest",
+    "com.societegenerale.githubcrawler.RemoteGitHubImplTest",
+    "com.societegenerale.githubcrawler.RemoteGitLabImplTest"
+  ],
+  "p2p_tests": [
+    "com.societegenerale.githubcrawler.GitHubCrawlerTest",
+    "com.societegenerale.githubcrawler.RepositoryEnricherTest",
+    "com.societegenerale.githubcrawler.model.team.MembershipTest",
+    "com.societegenerale.githubcrawler.output.CIdroidReadyCsvFileOutputTest",
+    "com.societegenerale.githubcrawler.output.FileOutputTest",
+    "com.societegenerale.githubcrawler.output.HttpOutputTest",
+    "com.societegenerale.githubcrawler.output.SearchPatternInCodeCsvFileOutputTest",
+    "com.societegenerale.githubcrawler.parsers.CountXmlElementsParserTest",
+    "com.societegenerale.githubcrawler.parsers.JsonPathParserTest",
+    "com.societegenerale.githubcrawler.parsers.MembershipParserTest",
+    "com.societegenerale.githubcrawler.parsers.OwnershipParserImplTest",
+    "com.societegenerale.githubcrawler.parsers.SimpleFilePathParserTest",
+    "com.societegenerale.githubcrawler.parsers.FirstMatchingRegexpParserTest",
+    "com.societegenerale.githubcrawler.parsers.YamlParserForPropertyValueTest",
+    "com.societegenerale.githubcrawler.parsers.PomXmlParserForDependencyVersionTest",
+    "com.societegenerale.githubcrawler.repoTaskToPerform.PathsForHitsOnRepoSearchTest",
+    "com.societegenerale.githubcrawler.ConfigParserTest"
+  ],
+  "s2p_tests": [],
+  "n2p_tests": [],
+  "test_patch_result": {
+    "passed_tests": [
+      "com.societegenerale.githubcrawler.GitHubCrawlerTest",
+      "com.societegenerale.githubcrawler.RepositoryEnricherTest",
+      "com.societegenerale.githubcrawler.model.team.MembershipTest",
+      "com.societegenerale.githubcrawler.output.CIdroidReadyCsvFileOutputTest",
+      "com.societegenerale.githubcrawler.output.FileOutputTest",
+      "com.societegenerale.githubcrawler.output.HttpOutputTest",
+      "com.societegenerale.githubcrawler.output.SearchPatternInCodeCsvFileOutputTest",
+      "com.societegenerale.githubcrawler.parsers.CountXmlElementsParserTest",
+      "com.societegenerale.githubcrawler.parsers.JsonPathParserTest",
+      "com.societegenerale.githubcrawler.parsers.MembershipParserTest",
+      "com.societegenerale.githubcrawler.parsers.OwnershipParserImplTest",
+      "com.societegenerale.githubcrawler.parsers.SimpleFilePathParserTest",
+      "com.societegenerale.githubcrawler.parsers.FirstMatchingRegexpParserTest",
+      "com.societegenerale.githubcrawler.parsers.YamlParserForPropertyValueTest",
+      "com.societegenerale.githubcrawler.parsers.PomXmlParserForDependencyVersionTest",
+      "com.societegenerale.githubcrawler.repoTaskToPerform.PathsForHitsOnRepoSearchTest",
+      "com.societegenerale.githubcrawler.ConfigParserTest"
+    ],
+    "failed_tests": [
+      "com.societegenerale.githubcrawler.ConfigValidatorTest",
+      "com.societegenerale.githubcrawler.RemoteGitHubImplTest",
+      "com.societegenerale.githubcrawler.RemoteGitLabImplTest"
+    ],
+    "skipped_tests": []
+  },
+  "run_result": {
+    "passed_tests": [],
+    "failed_tests": [],
+    "skipped_tests": []
+  }
+}

@@ -1,0 +1,178 @@
+diff --git a/app/k9mail/src/test/java/com/fsck/k9/account/AccountUpdaterTest.kt b/app/k9mail/src/test/java/com/fsck/k9/account/AccountServerSettingsUpdaterTest.kt
+similarity index 87%
+rename from app/k9mail/src/test/java/com/fsck/k9/account/AccountUpdaterTest.kt
+rename to app/k9mail/src/test/java/com/fsck/k9/account/AccountServerSettingsUpdaterTest.kt
+index 3045b3c2d0d..861a64b214e 100644
+--- a/app/k9mail/src/test/java/com/fsck/k9/account/AccountUpdaterTest.kt
++++ b/app/k9mail/src/test/java/com/fsck/k9/account/AccountServerSettingsUpdaterTest.kt
+@@ -1,5 +1,6 @@
+ package com.fsck.k9.account
+ 
++import app.k9mail.feature.account.common.domain.entity.AuthorizationState
+ import app.k9mail.feature.account.edit.AccountEditExternalContract.AccountUpdaterFailure
+ import app.k9mail.feature.account.edit.AccountEditExternalContract.AccountUpdaterResult
+ import assertk.all
+@@ -15,7 +16,7 @@ import kotlinx.coroutines.test.runTest
+ import org.junit.Test
+ import com.fsck.k9.Account as K9Account
+ 
+-class AccountUpdaterTest {
++class AccountServerSettingsUpdaterTest {
+ 
+     @Test
+     fun `updateServerSettings() SHOULD return account not found exception WHEN none present with uuid`() = runTest {
+@@ -26,6 +27,7 @@ class AccountUpdaterTest {
+             accountUuid = ACCOUNT_UUID,
+             isIncoming = true,
+             serverSettings = INCOMING_SERVER_SETTINGS,
++            authorizationState = AUTHORIZATION_STATE,
+         )
+ 
+         assertThat(result).isEqualTo(AccountUpdaterResult.Failure(AccountUpdaterFailure.AccountNotFound(ACCOUNT_UUID)))
+@@ -35,12 +37,14 @@ class AccountUpdaterTest {
+     fun `updateServerSettings() SHOULD return success with updated incoming settings WHEN is incoming`() = runTest {
+         val accountManager = FakeAccountManager(accounts = mutableMapOf(ACCOUNT_UUID to createAccount(ACCOUNT_UUID)))
+         val updatedIncomingServerSettings = INCOMING_SERVER_SETTINGS.copy(port = 123)
++        val updatedAuthorizationState = AuthorizationState("new")
+         val testSubject = AccountServerSettingsUpdater(accountManager)
+ 
+         val result = testSubject.updateServerSettings(
+             accountUuid = ACCOUNT_UUID,
+             isIncoming = true,
+             serverSettings = updatedIncomingServerSettings,
++            authorizationState = updatedAuthorizationState,
+         )
+ 
+         assertThat(result).isEqualTo(AccountUpdaterResult.Success(ACCOUNT_UUID))
+@@ -49,6 +53,7 @@ class AccountUpdaterTest {
+         assertThat(k9Account).isNotNull().all {
+             prop(K9Account::incomingServerSettings).isEqualTo(updatedIncomingServerSettings)
+             prop(K9Account::outgoingServerSettings).isEqualTo(OUTGOING_SERVER_SETTINGS)
++            prop(K9Account::oAuthState).isEqualTo(updatedAuthorizationState.state)
+         }
+     }
+ 
+@@ -56,12 +61,14 @@ class AccountUpdaterTest {
+     fun `updateServerSettings() SHOULD return success with updated outgoing settings WHEN is not incoming`() = runTest {
+         val accountManager = FakeAccountManager(accounts = mutableMapOf(ACCOUNT_UUID to createAccount(ACCOUNT_UUID)))
+         val updatedOutgoingServerSettings = OUTGOING_SERVER_SETTINGS.copy(port = 123)
++        val updatedAuthorizationState = AuthorizationState("new")
+         val testSubject = AccountServerSettingsUpdater(accountManager)
+ 
+         val result = testSubject.updateServerSettings(
+             accountUuid = ACCOUNT_UUID,
+             isIncoming = false,
+             serverSettings = updatedOutgoingServerSettings,
++            authorizationState = updatedAuthorizationState,
+         )
+ 
+         assertThat(result).isEqualTo(AccountUpdaterResult.Success(ACCOUNT_UUID))
+@@ -70,6 +77,7 @@ class AccountUpdaterTest {
+         assertThat(k9Account).isNotNull().all {
+             prop(K9Account::incomingServerSettings).isEqualTo(INCOMING_SERVER_SETTINGS)
+             prop(K9Account::outgoingServerSettings).isEqualTo(updatedOutgoingServerSettings)
++            prop(K9Account::oAuthState).isEqualTo(updatedAuthorizationState.state)
+         }
+     }
+ 
+@@ -85,6 +93,7 @@ class AccountUpdaterTest {
+             accountUuid = ACCOUNT_UUID,
+             isIncoming = true,
+             serverSettings = INCOMING_SERVER_SETTINGS,
++            authorizationState = AUTHORIZATION_STATE,
+         )
+ 
+         assertThat(result).isInstanceOf<AccountUpdaterResult.Failure>()
+@@ -119,12 +128,15 @@ class AccountUpdaterTest {
+             extra = emptyMap(),
+         )
+ 
++        val AUTHORIZATION_STATE = AuthorizationState("auth state")
++
+         fun createAccount(accountUuid: String): K9Account {
+             return K9Account(
+                 uuid = accountUuid,
+             ).apply {
+                 incomingServerSettings = INCOMING_SERVER_SETTINGS
+                 outgoingServerSettings = OUTGOING_SERVER_SETTINGS
++                oAuthState = AUTHORIZATION_STATE.state
+             }
+         }
+     }
+diff --git a/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/domain/usecase/SaveServerSettingsTest.kt b/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/domain/usecase/SaveServerSettingsTest.kt
+index 0bf63263d9e..da6250c8c9e 100644
+--- a/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/domain/usecase/SaveServerSettingsTest.kt
++++ b/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/domain/usecase/SaveServerSettingsTest.kt
+@@ -23,12 +23,14 @@ class SaveServerSettingsTest {
+         var recordedAccountUuid: String? = null
+         var recordedIsIncoming: Boolean? = null
+         var recordedServerSettings: ServerSettings? = null
++        var recordedAuthorizationState: AuthorizationState? = null
+         val testSubject = SaveServerSettings(
+             getAccountState = { _ -> ACCOUNT_STATE },
+-            serverSettingsUpdater = { accountUuid, isIncoming, serverSettings ->
++            serverSettingsUpdater = { accountUuid, isIncoming, serverSettings, authorizationState ->
+                 recordedAccountUuid = accountUuid
+                 recordedIsIncoming = isIncoming
+                 recordedServerSettings = serverSettings
++                recordedAuthorizationState = authorizationState
+ 
+                 AccountUpdaterResult.Success(accountUuid)
+             },
+@@ -39,13 +41,14 @@ class SaveServerSettingsTest {
+         assertThat(recordedAccountUuid).isEqualTo(ACCOUNT_UUID)
+         assertThat(recordedIsIncoming).isEqualTo(true)
+         assertThat(recordedServerSettings).isEqualTo(INCOMING_SERVER_SETTINGS)
++        assertThat(recordedAuthorizationState).isEqualTo(AUTHORIZATION_STATE)
+     }
+ 
+     @Test
+     fun `should throw exception WHEN no incoming server settings present`() = runTest {
+         val testSubject = SaveServerSettings(
+             getAccountState = { _ -> ACCOUNT_STATE.copy(incomingServerSettings = null) },
+-            serverSettingsUpdater = { accountUuid, _, _ ->
++            serverSettingsUpdater = { accountUuid, _, _, _ ->
+                 AccountUpdaterResult.Success(accountUuid)
+             },
+         )
+@@ -61,12 +64,14 @@ class SaveServerSettingsTest {
+         var recordedAccountUuid: String? = null
+         var recordedIsIncoming: Boolean? = null
+         var recordedServerSettings: ServerSettings? = null
++        var recordedAuthorizationState: AuthorizationState? = null
+         val testSubject = SaveServerSettings(
+             getAccountState = { _ -> ACCOUNT_STATE },
+-            serverSettingsUpdater = { accountUuid, isIncoming, serverSettings ->
++            serverSettingsUpdater = { accountUuid, isIncoming, serverSettings, authorizationState ->
+                 recordedAccountUuid = accountUuid
+                 recordedIsIncoming = isIncoming
+                 recordedServerSettings = serverSettings
++                recordedAuthorizationState = authorizationState
+ 
+                 AccountUpdaterResult.Success(accountUuid)
+             },
+@@ -77,13 +82,14 @@ class SaveServerSettingsTest {
+         assertThat(recordedAccountUuid).isEqualTo(ACCOUNT_UUID)
+         assertThat(recordedIsIncoming).isEqualTo(false)
+         assertThat(recordedServerSettings).isEqualTo(OUTGOING_SERVER_SETTINGS)
++        assertThat(recordedAuthorizationState).isEqualTo(AUTHORIZATION_STATE)
+     }
+ 
+     @Test
+     fun `should throw exception WHEN no outgoing server settings present`() = runTest {
+         val testSubject = SaveServerSettings(
+             getAccountState = { _ -> ACCOUNT_STATE.copy(outgoingServerSettings = null) },
+-            serverSettingsUpdater = { accountUuid, _, _ ->
++            serverSettingsUpdater = { accountUuid, _, _, _ ->
+                 AccountUpdaterResult.Success(accountUuid)
+             },
+         )
+@@ -98,7 +104,7 @@ class SaveServerSettingsTest {
+     fun `should throw exception WHEN update failed`() = runTest {
+         val testSubject = SaveServerSettings(
+             getAccountState = { _ -> ACCOUNT_STATE },
+-            serverSettingsUpdater = { _, _, _ ->
++            serverSettingsUpdater = { _, _, _, _ ->
+                 AccountUpdaterResult.Failure(
+                     AccountUpdaterFailure.AccountNotFound(ACCOUNT_UUID),
+                 )

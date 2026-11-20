@@ -1,0 +1,373 @@
+diff --git a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptGossipHeaderParser.java b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptGossipHeaderParser.java
+deleted file mode 100644
+index dfbeb80e841..00000000000
+--- a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptGossipHeaderParser.java
++++ /dev/null
+@@ -1,95 +0,0 @@
+-package com.fsck.k9.autocrypt;
+-
+-
+-import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.List;
+-import java.util.Map;
+-
+-import androidx.annotation.NonNull;
+-import androidx.annotation.Nullable;
+-import androidx.annotation.VisibleForTesting;
+-
+-import com.fsck.k9.mail.Part;
+-import com.fsck.k9.mail.internet.MimeUtility;
+-import okio.ByteString;
+-import net.thunderbird.core.logging.legacy.Log;
+-
+-
+-class AutocryptGossipHeaderParser {
+-    private static final AutocryptGossipHeaderParser INSTANCE = new AutocryptGossipHeaderParser();
+-
+-
+-    public static AutocryptGossipHeaderParser getInstance() {
+-        return INSTANCE;
+-    }
+-
+-    private AutocryptGossipHeaderParser() { }
+-
+-
+-    List<AutocryptGossipHeader> getAllAutocryptGossipHeaders(Part part) {
+-        String[] headers = part.getHeader(AutocryptGossipHeader.AUTOCRYPT_GOSSIP_HEADER);
+-        List<AutocryptGossipHeader> autocryptHeaders = parseAllAutocryptGossipHeaders(headers);
+-
+-        return Collections.unmodifiableList(autocryptHeaders);
+-    }
+-
+-    @Nullable
+-    @VisibleForTesting
+-    AutocryptGossipHeader parseAutocryptGossipHeader(String headerValue) {
+-        Map<String,String> parameters = MimeUtility.getAllHeaderParameters(headerValue);
+-
+-        String type = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_TYPE);
+-        if (type != null && !type.equals(AutocryptHeader.AUTOCRYPT_TYPE_1)) {
+-            Log.e("autocrypt: unsupported type parameter %s", type);
+-            return null;
+-        }
+-
+-        String base64KeyData = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_KEY_DATA);
+-        if (base64KeyData == null) {
+-            Log.e("autocrypt: missing key parameter");
+-            return null;
+-        }
+-
+-        ByteString byteString = ByteString.decodeBase64(base64KeyData);
+-        if (byteString == null) {
+-            Log.e("autocrypt: error parsing base64 data");
+-            return null;
+-        }
+-
+-        String addr = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_ADDR);
+-        if (addr == null) {
+-            Log.e("autocrypt: no to header!");
+-            return null;
+-        }
+-
+-        if (hasCriticalParameters(parameters)) {
+-            return null;
+-        }
+-
+-        return new AutocryptGossipHeader(addr, byteString.toByteArray());
+-    }
+-
+-    private boolean hasCriticalParameters(Map<String, String> parameters) {
+-        for (String parameterName : parameters.keySet()) {
+-            if (parameterName != null && !parameterName.startsWith("_")) {
+-                return true;
+-            }
+-        }
+-        return false;
+-    }
+-
+-    @NonNull
+-    private List<AutocryptGossipHeader> parseAllAutocryptGossipHeaders(String[] headers) {
+-        ArrayList<AutocryptGossipHeader> autocryptHeaders = new ArrayList<>();
+-        for (String header : headers) {
+-            AutocryptGossipHeader autocryptHeader = parseAutocryptGossipHeader(header);
+-            if (autocryptHeader == null) {
+-                Log.e("Encountered malformed autocrypt-gossip header - skipping!");
+-                continue;
+-            }
+-            autocryptHeaders.add(autocryptHeader);
+-        }
+-        return autocryptHeaders;
+-    }
+-}
+diff --git a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptGossipHeaderParser.kt b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptGossipHeaderParser.kt
+new file mode 100644
+index 00000000000..bdf09edebbd
+--- /dev/null
++++ b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptGossipHeaderParser.kt
+@@ -0,0 +1,70 @@
++package com.fsck.k9.autocrypt
++
++import androidx.annotation.VisibleForTesting
++import com.fsck.k9.mail.Part
++import com.fsck.k9.mail.internet.MimeUtility
++import java.util.Collections
++import net.thunderbird.core.logging.legacy.Log
++import okio.ByteString.Companion.decodeBase64
++
++internal object AutocryptGossipHeaderParser {
++
++    fun getAllAutocryptGossipHeaders(part: Part): List<AutocryptGossipHeader> {
++        val headers = part.getHeader(AutocryptGossipHeader.AUTOCRYPT_GOSSIP_HEADER)
++        val autocryptHeaders = parseAllAutocryptGossipHeaders(headers)
++        return Collections.unmodifiableList(autocryptHeaders)
++    }
++
++    @VisibleForTesting
++    fun parseAutocryptGossipHeader(headerValue: String): AutocryptGossipHeader? {
++        val parameters = MimeUtility.getAllHeaderParameters(headerValue).toMutableMap()
++
++        val type = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_TYPE)
++        val base64KeyData = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_KEY_DATA)
++        val addr = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_ADDR)
++        val decodedKey = base64KeyData?.decodeBase64()
++
++        return when {
++            type != null && type != AutocryptHeader.AUTOCRYPT_TYPE_1 -> {
++                Log.e("autocrypt: unsupported type parameter %s", type)
++                null
++            }
++
++            base64KeyData == null -> {
++                Log.e("autocrypt: missing key parameter")
++                null
++            }
++
++            decodedKey == null -> {
++                Log.e("autocrypt: error parsing base64 data")
++                null
++            }
++
++            addr == null -> {
++                Log.e("autocrypt: no to header!")
++                null
++            }
++
++            hasCriticalParameters(parameters) -> {
++                null
++            }
++
++            else -> {
++                AutocryptGossipHeader(addr, decodedKey.toByteArray())
++            }
++        }
++    }
++
++    private fun hasCriticalParameters(parameters: Map<String, String>): Boolean {
++        return parameters.keys.any { !it.startsWith("_") }
++    }
++
++    private fun parseAllAutocryptGossipHeaders(headers: Array<String>): List<AutocryptGossipHeader> {
++        return headers.mapNotNull { header ->
++            parseAutocryptGossipHeader(header) ?: run {
++                Log.e("Encountered malformed autocrypt-gossip header - skipping!")
++                null
++            }
++        }
++    }
++}
+diff --git a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptHeaderParser.java b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptHeaderParser.java
+deleted file mode 100644
+index 4281fdd974c..00000000000
+--- a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptHeaderParser.java
++++ /dev/null
+@@ -1,99 +0,0 @@
+-package com.fsck.k9.autocrypt;
+-
+-
+-import java.util.ArrayList;
+-import java.util.Map;
+-
+-import androidx.annotation.NonNull;
+-import androidx.annotation.Nullable;
+-import androidx.annotation.VisibleForTesting;
+-
+-import com.fsck.k9.mail.Message;
+-import com.fsck.k9.mail.internet.MimeUtility;
+-import okio.ByteString;
+-import net.thunderbird.core.logging.legacy.Log;
+-
+-
+-class AutocryptHeaderParser {
+-    private static final AutocryptHeaderParser INSTANCE = new AutocryptHeaderParser();
+-
+-
+-    public static AutocryptHeaderParser getInstance() {
+-        return INSTANCE;
+-    }
+-
+-    private AutocryptHeaderParser() { }
+-
+-
+-    @Nullable
+-    AutocryptHeader getValidAutocryptHeader(Message currentMessage) {
+-        String[] headers = currentMessage.getHeader(AutocryptHeader.AUTOCRYPT_HEADER);
+-        ArrayList<AutocryptHeader> autocryptHeaders = parseAllAutocryptHeaders(headers);
+-
+-        boolean isSingleValidHeader = autocryptHeaders.size() == 1;
+-        return isSingleValidHeader ? autocryptHeaders.get(0) : null;
+-    }
+-
+-    @Nullable
+-    @VisibleForTesting
+-    AutocryptHeader parseAutocryptHeader(String headerValue) {
+-        Map<String,String> parameters = MimeUtility.getAllHeaderParameters(headerValue);
+-
+-        String type = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_TYPE);
+-        if (type != null && !type.equals(AutocryptHeader.AUTOCRYPT_TYPE_1)) {
+-            Log.e("autocrypt: unsupported type parameter %s", type);
+-            return null;
+-        }
+-
+-        String base64KeyData = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_KEY_DATA);
+-        if (base64KeyData == null) {
+-            Log.e("autocrypt: missing key parameter");
+-            return null;
+-        }
+-
+-        ByteString byteString = ByteString.decodeBase64(base64KeyData);
+-        if (byteString == null) {
+-            Log.e("autocrypt: error parsing base64 data");
+-            return null;
+-        }
+-
+-        String to = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_ADDR);
+-        if (to == null) {
+-            Log.e("autocrypt: no to header!");
+-            return null;
+-        }
+-
+-        boolean isPreferEncryptMutual = false;
+-        String preferEncrypt = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_PREFER_ENCRYPT);
+-        if (AutocryptHeader.AUTOCRYPT_PREFER_ENCRYPT_MUTUAL.equalsIgnoreCase(preferEncrypt)) {
+-            isPreferEncryptMutual = true;
+-        }
+-
+-        if (hasCriticalParameters(parameters)) {
+-            return null;
+-        }
+-
+-        return new AutocryptHeader(parameters, to, byteString.toByteArray(), isPreferEncryptMutual);
+-    }
+-
+-    private boolean hasCriticalParameters(Map<String, String> parameters) {
+-        for (String parameterName : parameters.keySet()) {
+-            if (parameterName != null && !parameterName.startsWith("_")) {
+-                return true;
+-            }
+-        }
+-        return false;
+-    }
+-
+-    @NonNull
+-    private ArrayList<AutocryptHeader> parseAllAutocryptHeaders(String[] headers) {
+-        ArrayList<AutocryptHeader> autocryptHeaders = new ArrayList<>();
+-        for (String header : headers) {
+-            AutocryptHeader autocryptHeader = parseAutocryptHeader(header);
+-            if (autocryptHeader != null) {
+-                autocryptHeaders.add(autocryptHeader);
+-            }
+-        }
+-        return autocryptHeaders;
+-    }
+-}
+diff --git a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptHeaderParser.kt b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptHeaderParser.kt
+new file mode 100644
+index 00000000000..f9cc1996d02
+--- /dev/null
++++ b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptHeaderParser.kt
+@@ -0,0 +1,70 @@
++package com.fsck.k9.autocrypt
++
++import androidx.annotation.VisibleForTesting
++import com.fsck.k9.mail.Message
++import com.fsck.k9.mail.internet.MimeUtility
++import net.thunderbird.core.logging.legacy.Log
++import okio.ByteString.Companion.decodeBase64
++
++internal object AutocryptHeaderParser {
++
++    private const val TAG = "AutocryptHeaderParser"
++    fun getValidAutocryptHeader(currentMessage: Message): AutocryptHeader? {
++        val headers = currentMessage.getHeader(AutocryptHeader.AUTOCRYPT_HEADER).orEmpty().asList()
++        return parseAllAutocryptHeaders(headers).singleOrNull()
++    }
++
++    @VisibleForTesting
++    fun parseAutocryptHeader(headerValue: String): AutocryptHeader? {
++        val parameters = MimeUtility.getAllHeaderParameters(headerValue).toMutableMap()
++
++        val type = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_TYPE)
++        val base64KeyData = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_KEY_DATA)
++        val to = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_ADDR)
++        val preferEncrypt = parameters.remove(AutocryptHeader.AUTOCRYPT_PARAM_PREFER_ENCRYPT)
++
++        val decodedKeyData = base64KeyData?.decodeBase64()
++
++        return when {
++            type != null && type != AutocryptHeader.AUTOCRYPT_TYPE_1 -> {
++                Log.e(TAG, "Unsupported type parameter: $type")
++                null
++            }
++
++            base64KeyData == null -> {
++                Log.e(TAG, "Missing key parameter")
++                null
++            }
++
++            decodedKeyData == null -> {
++                Log.e(TAG, "Error parsing base64 data")
++                null
++            }
++
++            to == null -> {
++                Log.e(TAG, "No 'to' header found")
++                null
++            }
++
++            hasCriticalParameters(parameters) -> null
++
++            else -> AutocryptHeader(
++                parameters = parameters,
++                addr = to,
++                keyData = decodedKeyData.toByteArray(),
++                isPreferEncryptMutual = AutocryptHeader.AUTOCRYPT_PREFER_ENCRYPT_MUTUAL.equals(
++                    preferEncrypt,
++                    ignoreCase = true,
++                ),
++            )
++        }
++    }
++
++    private fun hasCriticalParameters(parameters: Map<String, String>): Boolean {
++        return parameters.keys.any { !it.startsWith("_") }
++    }
++
++    private fun parseAllAutocryptHeaders(headers: Collection<String>): List<AutocryptHeader> {
++        return headers.mapNotNull(::parseAutocryptHeader)
++    }
++}
+diff --git a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptOperations.java b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptOperations.java
+index c8654d8e397..306e3c6c8d7 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptOperations.java
++++ b/legacy/core/src/main/java/com/fsck/k9/autocrypt/AutocryptOperations.java
+@@ -25,8 +25,8 @@ public class AutocryptOperations {
+ 
+ 
+     public static AutocryptOperations getInstance() {
+-        AutocryptHeaderParser autocryptHeaderParser = AutocryptHeaderParser.getInstance();
+-        AutocryptGossipHeaderParser autocryptGossipHeaderParser = AutocryptGossipHeaderParser.getInstance();
++        final AutocryptHeaderParser autocryptHeaderParser = AutocryptHeaderParser.INSTANCE;
++        final AutocryptGossipHeaderParser autocryptGossipHeaderParser = AutocryptGossipHeaderParser.INSTANCE;
+         return new AutocryptOperations(autocryptHeaderParser, autocryptGossipHeaderParser);
+     }
+ 

@@ -1,0 +1,339 @@
+diff --git a/core/src/test/kotlin/io/bkbn/kompendium/core/KompendiumTest.kt b/core/src/test/kotlin/io/bkbn/kompendium/core/KompendiumTest.kt
+index f88bc4c5e2..67de2b46d7 100644
+--- a/core/src/test/kotlin/io/bkbn/kompendium/core/KompendiumTest.kt
++++ b/core/src/test/kotlin/io/bkbn/kompendium/core/KompendiumTest.kt
+@@ -16,6 +16,8 @@ import io.bkbn.kompendium.core.util.TestModules.genericPolymorphicResponse
+ import io.bkbn.kompendium.core.util.TestModules.genericPolymorphicResponseMultipleImpls
+ import io.bkbn.kompendium.core.util.TestModules.headerParameter
+ import io.bkbn.kompendium.core.util.TestModules.multipleExceptions
++import io.bkbn.kompendium.core.util.TestModules.nestedGenericCollection
++import io.bkbn.kompendium.core.util.TestModules.nestedGenericMultipleParamsCollection
+ import io.bkbn.kompendium.core.util.TestModules.nestedGenericResponse
+ import io.bkbn.kompendium.core.util.TestModules.nonRequiredParam
+ import io.bkbn.kompendium.core.util.TestModules.polymorphicException
+@@ -157,6 +159,12 @@ class KompendiumTest : DescribeSpec({
+     it("Can handle an absolutely psycho inheritance test") {
+       openApiTestAllSerializers("T0033__crazy_polymorphic_example.json") { genericPolymorphicResponseMultipleImpls() }
+     }
++    it("Can support nested generic collections") {
++      openApiTestAllSerializers("T0039__nested_generic_collection.json") { nestedGenericCollection() }
++    }
++    it("Can support nested generics with multiple type parameters") {
++      openApiTestAllSerializers("T0040__nested_generic_multiple_type_params.json") { nestedGenericMultipleParamsCollection() }
++    }
+   }
+   describe("Miscellaneous") {
+     xit("Can generate the necessary ReDoc home page") {
+diff --git a/core/src/test/kotlin/io/bkbn/kompendium/core/util/TestModules.kt b/core/src/test/kotlin/io/bkbn/kompendium/core/util/TestModules.kt
+index 586187c22a..e6c44f41bd 100644
+--- a/core/src/test/kotlin/io/bkbn/kompendium/core/util/TestModules.kt
++++ b/core/src/test/kotlin/io/bkbn/kompendium/core/util/TestModules.kt
+@@ -8,8 +8,10 @@ import io.bkbn.kompendium.core.fixtures.ExceptionResponse
+ import io.bkbn.kompendium.core.fixtures.Flibbity
+ import io.bkbn.kompendium.core.fixtures.FlibbityGibbit
+ import io.bkbn.kompendium.core.fixtures.Gibbity
++import io.bkbn.kompendium.core.fixtures.MultiNestedGenerics
+ import io.bkbn.kompendium.core.fixtures.NullableEnum
+ import io.bkbn.kompendium.core.fixtures.NullableField
++import io.bkbn.kompendium.core.fixtures.Page
+ import io.bkbn.kompendium.core.fixtures.ProfileUpdateRequest
+ import io.bkbn.kompendium.core.fixtures.TestCreatedResponse
+ import io.bkbn.kompendium.core.fixtures.TestNested
+@@ -567,6 +569,10 @@ object TestModules {
+ 
+   fun Routing.genericPolymorphicResponseMultipleImpls() = basicGetGenerator<Flibbity<FlibbityGibbit>>()
+ 
++  fun Routing.nestedGenericCollection() = basicGetGenerator<Page<Int>>()
++
++  fun Routing.nestedGenericMultipleParamsCollection() = basicGetGenerator<MultiNestedGenerics<String, ComplexRequest>>()
++
+   fun Routing.withOperationId() = basicGetGenerator<TestResponse>(operationId = "getThisDude")
+ 
+   fun Routing.nullableNestedObject() = basicGetGenerator<ProfileUpdateRequest>()
+@@ -575,14 +581,16 @@ object TestModules {
+ 
+   fun Routing.dateTimeString() = basicGetGenerator<DateTimeString>()
+ 
+-  fun Routing.headerParameter() = basicGetGenerator<TestResponse>( params = listOf(
+-    Parameter(
+-      name = "X-User-Email",
+-      `in` = Parameter.Location.header,
+-      schema = TypeDefinition.STRING,
+-      required = true
++  fun Routing.headerParameter() = basicGetGenerator<TestResponse>(
++    params = listOf(
++      Parameter(
++        name = "X-User-Email",
++        `in` = Parameter.Location.header,
++        schema = TypeDefinition.STRING,
++        required = true
++      )
+     )
+-  ))
++  )
+ 
+   fun Routing.simpleRecursive() = basicGetGenerator<ColumnSchema>()
+ 
+diff --git a/core/src/test/resources/T0039__nested_generic_collection.json b/core/src/test/resources/T0039__nested_generic_collection.json
+new file mode 100644
+index 0000000000..da3ff6e12e
+--- /dev/null
++++ b/core/src/test/resources/T0039__nested_generic_collection.json
+@@ -0,0 +1,101 @@
++{
++  "openapi": "3.1.0",
++  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
++  "info": {
++    "title": "Test API",
++    "version": "1.33.7",
++    "description": "An amazing, fully-ish 😉 generated API spec",
++    "termsOfService": "https://example.com",
++    "contact": {
++      "name": "Homer Simpson",
++      "url": "https://gph.is/1NPUDiM",
++      "email": "chunkylover53@aol.com"
++    },
++    "license": {
++      "name": "MIT",
++      "url": "https://github.com/bkbnio/kompendium/blob/main/LICENSE"
++    }
++  },
++  "servers": [
++    {
++      "url": "https://myawesomeapi.com",
++      "description": "Production instance of my API"
++    },
++    {
++      "url": "https://staging.myawesomeapi.com",
++      "description": "Where the fun stuff happens"
++    }
++  ],
++  "paths": {
++    "/": {
++      "get": {
++        "tags": [],
++        "summary": "Great Summary!",
++        "description": "testing more",
++        "parameters": [],
++        "responses": {
++          "200": {
++            "description": "A Successful Endeavor",
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/Page-Int"
++                }
++              }
++            }
++          }
++        },
++        "deprecated": false
++      },
++      "parameters": []
++    }
++  },
++  "webhooks": {},
++  "components": {
++    "schemas": {
++      "Page-Int": {
++        "type": "object",
++        "properties": {
++          "content": {
++            "items": {
++              "type": "number",
++              "format": "int32"
++            },
++            "type": "array"
++          },
++          "number": {
++            "type": "number",
++            "format": "int32"
++          },
++          "numberOfElements": {
++            "type": "number",
++            "format": "int32"
++          },
++          "size": {
++            "type": "number",
++            "format": "int32"
++          },
++          "totalElements": {
++            "type": "number",
++            "format": "int64"
++          },
++          "totalPages": {
++            "type": "number",
++            "format": "int32"
++          }
++        },
++        "required": [
++          "content",
++          "number",
++          "numberOfElements",
++          "size",
++          "totalElements",
++          "totalPages"
++        ]
++      }
++    },
++    "securitySchemes": {}
++  },
++  "security": [],
++  "tags": []
++}
+diff --git a/core/src/test/resources/T0040__nested_generic_multiple_type_params.json b/core/src/test/resources/T0040__nested_generic_multiple_type_params.json
+new file mode 100644
+index 0000000000..ab4a72f562
+--- /dev/null
++++ b/core/src/test/resources/T0040__nested_generic_multiple_type_params.json
+@@ -0,0 +1,129 @@
++{
++  "openapi": "3.1.0",
++  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
++  "info": {
++    "title": "Test API",
++    "version": "1.33.7",
++    "description": "An amazing, fully-ish 😉 generated API spec",
++    "termsOfService": "https://example.com",
++    "contact": {
++      "name": "Homer Simpson",
++      "url": "https://gph.is/1NPUDiM",
++      "email": "chunkylover53@aol.com"
++    },
++    "license": {
++      "name": "MIT",
++      "url": "https://github.com/bkbnio/kompendium/blob/main/LICENSE"
++    }
++  },
++  "servers": [
++    {
++      "url": "https://myawesomeapi.com",
++      "description": "Production instance of my API"
++    },
++    {
++      "url": "https://staging.myawesomeapi.com",
++      "description": "Where the fun stuff happens"
++    }
++  ],
++  "paths": {
++    "/": {
++      "get": {
++        "tags": [],
++        "summary": "Great Summary!",
++        "description": "testing more",
++        "parameters": [],
++        "responses": {
++          "200": {
++            "description": "A Successful Endeavor",
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/MultiNestedGenerics-String-ComplexRequest"
++                }
++              }
++            }
++          }
++        },
++        "deprecated": false
++      },
++      "parameters": []
++    }
++  },
++  "webhooks": {},
++  "components": {
++    "schemas": {
++      "CrazyItem": {
++        "type": "object",
++        "properties": {
++          "enumeration": {
++            "enum": [
++              "ONE",
++              "TWO"
++            ]
++          }
++        },
++        "required": [
++          "enumeration"
++        ]
++      },
++      "NestedComplexItem": {
++        "type": "object",
++        "properties": {
++          "alias": {
++            "additionalProperties": {
++              "$ref": "#/components/schemas/CrazyItem"
++            },
++            "type": "object"
++          },
++          "name": {
++            "type": "string"
++          }
++        },
++        "required": [
++          "alias",
++          "name"
++        ]
++      },
++      "ComplexRequest": {
++        "type": "object",
++        "properties": {
++          "amazingField": {
++            "type": "string"
++          },
++          "org": {
++            "type": "string"
++          },
++          "tables": {
++            "items": {
++              "$ref": "#/components/schemas/NestedComplexItem"
++            },
++            "type": "array"
++          }
++        },
++        "required": [
++          "amazingField",
++          "org",
++          "tables"
++        ]
++      },
++      "MultiNestedGenerics-String-ComplexRequest": {
++        "type": "object",
++        "properties": {
++          "content": {
++            "additionalProperties": {
++              "$ref": "#/components/schemas/ComplexRequest"
++            },
++            "type": "object"
++          }
++        },
++        "required": [
++          "content"
++        ]
++      }
++    },
++    "securitySchemes": {}
++  },
++  "security": [],
++  "tags": []
++}
+diff --git a/core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModels.kt b/core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModels.kt
+index 754bc7c85a..4e8ce5d1da 100644
+--- a/core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModels.kt
++++ b/core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModels.kt
+@@ -118,3 +118,16 @@ public data class ProfileMetadataUpdateRequest(
+   public val isPrivate: Boolean?,
+   public val otherThing: String?
+ )
++
++data class Page<T>(
++  val content: List<T>,
++  val totalElements: Long,
++  val totalPages: Int,
++  val numberOfElements: Int,
++  val number: Int,
++  val size: Int
++)
++
++data class MultiNestedGenerics<T, E>(
++  val content: Map<T, E>
++)

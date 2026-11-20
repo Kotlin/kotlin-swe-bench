@@ -1,0 +1,497 @@
+diff --git a/app-thunderbird/src/test/kotlin/net/thunderbird/android/DependencyInjectionTest.kt b/app-thunderbird/src/test/kotlin/net/thunderbird/android/DependencyInjectionTest.kt
+index 41316368273..1c6b32e73e4 100644
+--- a/app-thunderbird/src/test/kotlin/net/thunderbird/android/DependencyInjectionTest.kt
++++ b/app-thunderbird/src/test/kotlin/net/thunderbird/android/DependencyInjectionTest.kt
+@@ -24,10 +24,8 @@ import org.mockito.kotlin.doReturn
+ import org.mockito.kotlin.mock
+ import org.robolectric.RobolectricTestRunner
+ import org.robolectric.RuntimeEnvironment
+-import org.robolectric.annotation.Config
+ 
+ @RunWith(RobolectricTestRunner::class)
+-@Config(application = TestApp::class)
+ class DependencyInjectionTest : AutoCloseKoinTest() {
+     private val lifecycleOwner = mock<LifecycleOwner> {
+         on { lifecycle } doReturn mock()
+diff --git a/app-thunderbird/src/test/kotlin/net/thunderbird/android/TestApp.kt b/app-thunderbird/src/test/kotlin/net/thunderbird/android/TestApp.kt
+deleted file mode 100644
+index fdc53c88742..00000000000
+--- a/app-thunderbird/src/test/kotlin/net/thunderbird/android/TestApp.kt
++++ /dev/null
+@@ -1,9 +0,0 @@
+-package net.thunderbird.android
+-
+-import com.fsck.k9.CommonApp
+-import org.koin.core.module.Module
+-
+-// Custom Application class so Glean isn't initialized in tests.
+-class TestApp : CommonApp() {
+-    override fun provideAppModule(): Module = appModule
+-}
+diff --git a/core/android/common/src/test/kotlin/app/k9mail/core/android/common/CoreCommonAndroidModuleKtTest.kt b/core/android/common/src/test/kotlin/app/k9mail/core/android/common/CoreCommonAndroidModuleKtTest.kt
+index a300b5e5f35..97a34d12222 100644
+--- a/core/android/common/src/test/kotlin/app/k9mail/core/android/common/CoreCommonAndroidModuleKtTest.kt
++++ b/core/android/common/src/test/kotlin/app/k9mail/core/android/common/CoreCommonAndroidModuleKtTest.kt
+@@ -1,26 +1,17 @@
+ package app.k9mail.core.android.common
+ 
+-import app.k9mail.core.android.common.test.externalModule
++import android.content.Context
+ import org.junit.Test
+-import org.junit.runner.RunWith
+-import org.koin.android.ext.koin.androidContext
+-import org.koin.dsl.koinApplication
+-import org.koin.test.check.checkModules
+-import org.robolectric.RobolectricTestRunner
+-import org.robolectric.RuntimeEnvironment
++import org.koin.test.verify.verify
+ 
+-@RunWith(RobolectricTestRunner::class)
+ internal class CoreCommonAndroidModuleKtTest {
+ 
+     @Test
+     fun `should have a valid di module`() {
+-        koinApplication {
+-            modules(
+-                externalModule,
+-                coreCommonAndroidModule,
+-            )
+-            androidContext(RuntimeEnvironment.getApplication())
+-            checkModules()
+-        }
++        coreCommonAndroidModule.verify(
++            extraTypes = listOf(
++                Context::class,
++            ),
++        )
+     }
+ }
+diff --git a/core/android/common/src/test/kotlin/app/k9mail/core/android/common/contact/ContactKoinModuleKtTest.kt b/core/android/common/src/test/kotlin/app/k9mail/core/android/common/contact/ContactKoinModuleKtTest.kt
+index 746d42bc6ff..8b9442979bf 100644
+--- a/core/android/common/src/test/kotlin/app/k9mail/core/android/common/contact/ContactKoinModuleKtTest.kt
++++ b/core/android/common/src/test/kotlin/app/k9mail/core/android/common/contact/ContactKoinModuleKtTest.kt
+@@ -1,28 +1,12 @@
+ package app.k9mail.core.android.common.contact
+ 
+-import app.k9mail.core.android.common.coreCommonAndroidModule
+-import app.k9mail.core.android.common.test.externalModule
+ import org.junit.Test
+-import org.junit.runner.RunWith
+-import org.koin.android.ext.koin.androidContext
+-import org.koin.dsl.koinApplication
+-import org.koin.test.check.checkModules
+-import org.robolectric.RobolectricTestRunner
+-import org.robolectric.RuntimeEnvironment
++import org.koin.test.verify.verify
+ 
+-@RunWith(RobolectricTestRunner::class)
+ internal class ContactKoinModuleKtTest {
+ 
+     @Test
+     fun `should have a valid di module`() {
+-        koinApplication {
+-            modules(
+-                externalModule,
+-                coreCommonAndroidModule,
+-                contactModule,
+-            )
+-            androidContext(RuntimeEnvironment.getApplication())
+-            checkModules()
+-        }
++        contactModule.verify()
+     }
+ }
+diff --git a/core/common/src/test/kotlin/app/k9mail/core/common/CoreCommonModuleKtTest.kt b/core/common/src/test/kotlin/app/k9mail/core/common/CoreCommonModuleKtTest.kt
+index 79084e6fda4..d490bb6ffcd 100644
+--- a/core/common/src/test/kotlin/app/k9mail/core/common/CoreCommonModuleKtTest.kt
++++ b/core/common/src/test/kotlin/app/k9mail/core/common/CoreCommonModuleKtTest.kt
+@@ -2,21 +2,10 @@ package app.k9mail.core.common
+ 
+ import app.k9mail.core.common.oauth.OAuthConfigurationFactory
+ import org.junit.Test
+-import org.koin.core.annotation.KoinExperimentalAPI
+-import org.koin.dsl.koinApplication
+-import org.koin.dsl.module
+-import org.koin.test.check.checkModules
+ import org.koin.test.verify.verify
+ 
+-@OptIn(KoinExperimentalAPI::class)
+ internal class CoreCommonModuleKtTest {
+ 
+-    private val externalModule = module {
+-        single<OAuthConfigurationFactory> {
+-            OAuthConfigurationFactory { emptyMap() }
+-        }
+-    }
+-
+     @Test
+     fun `should have a valid di module`() {
+         coreCommonModule.verify(
+@@ -24,10 +13,5 @@ internal class CoreCommonModuleKtTest {
+                 OAuthConfigurationFactory::class,
+             ),
+         )
+-
+-        koinApplication {
+-            modules(externalModule, coreCommonModule)
+-            checkModules()
+-        }
+     }
+ }
+diff --git a/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/AccountEditModuleKtTest.kt b/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/AccountEditModuleKtTest.kt
+index 37061692674..9ca68ddf7a3 100644
+--- a/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/AccountEditModuleKtTest.kt
++++ b/feature/account/edit/src/test/kotlin/app/k9mail/feature/account/edit/AccountEditModuleKtTest.kt
+@@ -1,8 +1,6 @@
+ package app.k9mail.feature.account.edit
+ 
+ import android.content.Context
+-import app.k9mail.core.common.oauth.OAuthConfigurationFactory
+-import app.k9mail.feature.account.common.AccountCommonExternalContract
+ import app.k9mail.feature.account.common.domain.entity.AccountState
+ import app.k9mail.feature.account.common.domain.entity.InteractionMode
+ import app.k9mail.feature.account.edit.ui.server.settings.save.SaveServerSettingsContract
+@@ -10,57 +8,12 @@ import app.k9mail.feature.account.server.certificate.ui.ServerCertificateErrorCo
+ import app.k9mail.feature.account.server.settings.ui.incoming.IncomingServerSettingsContract
+ import app.k9mail.feature.account.server.settings.ui.outgoing.OutgoingServerSettingsContract
+ import app.k9mail.feature.account.server.validation.ui.ServerValidationContract
+-import com.fsck.k9.mail.oauth.OAuth2TokenProvider
+-import com.fsck.k9.mail.oauth.OAuth2TokenProviderFactory
+-import com.fsck.k9.mail.ssl.LocalKeyStore
+-import com.fsck.k9.mail.ssl.TrustedSocketFactory
+-import java.net.Socket
+ import org.junit.Test
+-import org.junit.runner.RunWith
+-import org.koin.android.ext.koin.androidContext
+-import org.koin.core.annotation.KoinExperimentalAPI
+-import org.koin.core.module.Module
+-import org.koin.dsl.koinApplication
+-import org.koin.dsl.module
+ import org.koin.test.KoinTest
+-import org.koin.test.check.checkModules
+ import org.koin.test.verify.verify
+-import org.mockito.Mockito
+-import org.robolectric.RobolectricTestRunner
+-import org.robolectric.RuntimeEnvironment
+ 
+-@OptIn(KoinExperimentalAPI::class)
+-@RunWith(RobolectricTestRunner::class)
+ class AccountEditModuleKtTest : KoinTest {
+ 
+-    private val externalModule: Module = module {
+-        single<AccountCommonExternalContract.AccountStateLoader> { Mockito.mock() }
+-        single<LocalKeyStore> { Mockito.mock() }
+-        single<TrustedSocketFactory> {
+-            object : TrustedSocketFactory {
+-                override fun createSocket(
+-                    socket: Socket?,
+-                    host: String,
+-                    port: Int,
+-                    clientCertificateAlias: String?,
+-                ): Socket {
+-                    return Mockito.mock()
+-                }
+-            }
+-        }
+-        single<OAuthConfigurationFactory> { OAuthConfigurationFactory { emptyMap() } }
+-        single<OAuth2TokenProviderFactory> {
+-            OAuth2TokenProviderFactory { _ ->
+-                object : OAuth2TokenProvider {
+-                    override val primaryEmail: String? get() = TODO()
+-                    override fun getToken(timeoutMillis: Long) = TODO()
+-                    override fun invalidateToken() = TODO()
+-                }
+-            }
+-        }
+-        single<AccountEditExternalContract.AccountServerSettingsUpdater> { Mockito.mock() }
+-    }
+-
+     @Test
+     fun `should have a valid di module`() {
+         featureAccountEditModule.verify(
+@@ -77,11 +30,5 @@ class AccountEditModuleKtTest : KoinTest {
+                 InteractionMode::class,
+             ),
+         )
+-
+-        koinApplication {
+-            modules(externalModule, featureAccountEditModule)
+-            androidContext(RuntimeEnvironment.getApplication())
+-            checkModules()
+-        }
+     }
+ }
+diff --git a/feature/account/server/certificate/src/test/kotlin/app/k9mail/feature/account/server/certificate/ServerCertificateModuleKtTest.kt b/feature/account/server/certificate/src/test/kotlin/app/k9mail/feature/account/server/certificate/ServerCertificateModuleKtTest.kt
+index 0247bd8b3e8..e84550d1aa6 100644
+--- a/feature/account/server/certificate/src/test/kotlin/app/k9mail/feature/account/server/certificate/ServerCertificateModuleKtTest.kt
++++ b/feature/account/server/certificate/src/test/kotlin/app/k9mail/feature/account/server/certificate/ServerCertificateModuleKtTest.kt
+@@ -1,24 +1,12 @@
+ package app.k9mail.feature.account.server.certificate
+ 
+ import app.k9mail.feature.account.server.certificate.ui.ServerCertificateErrorContract
+-import com.fsck.k9.mail.ssl.LocalKeyStore
+ import org.junit.Test
+-import org.koin.core.annotation.KoinExperimentalAPI
+-import org.koin.core.module.Module
+-import org.koin.dsl.koinApplication
+-import org.koin.dsl.module
+ import org.koin.test.KoinTest
+-import org.koin.test.check.checkModules
+ import org.koin.test.verify.verify
+-import org.mockito.Mockito
+ 
+ class ServerCertificateModuleKtTest : KoinTest {
+ 
+-    private val externalModule: Module = module {
+-        single<LocalKeyStore> { Mockito.mock() }
+-    }
+-
+-    @OptIn(KoinExperimentalAPI::class)
+     @Test
+     fun `should have a valid di module`() {
+         featureAccountServerCertificateModule.verify(
+@@ -26,10 +14,5 @@ class ServerCertificateModuleKtTest : KoinTest {
+                 ServerCertificateErrorContract.State::class,
+             ),
+         )
+-
+-        koinApplication {
+-            modules(externalModule, featureAccountServerCertificateModule)
+-            checkModules()
+-        }
+     }
+ }
+diff --git a/feature/account/server/validation/src/test/kotlin/app/k9mail/feature/account/server/validation/ServerValidationModuleKtTest.kt b/feature/account/server/validation/src/test/kotlin/app/k9mail/feature/account/server/validation/ServerValidationModuleKtTest.kt
+index ffc07afe194..d99ca2dd836 100644
+--- a/feature/account/server/validation/src/test/kotlin/app/k9mail/feature/account/server/validation/ServerValidationModuleKtTest.kt
++++ b/feature/account/server/validation/src/test/kotlin/app/k9mail/feature/account/server/validation/ServerValidationModuleKtTest.kt
+@@ -1,67 +1,18 @@
+ package app.k9mail.feature.account.server.validation
+ 
+ import android.content.Context
+-import app.k9mail.core.common.oauth.OAuthConfigurationFactory
+ import app.k9mail.feature.account.common.AccountCommonExternalContract
+ import app.k9mail.feature.account.common.domain.AccountDomainContract
+ import app.k9mail.feature.account.common.domain.entity.AccountState
+ import app.k9mail.feature.account.server.certificate.domain.ServerCertificateDomainContract
+ import app.k9mail.feature.account.server.certificate.ui.ServerCertificateErrorContract
+ import app.k9mail.feature.account.server.validation.ui.ServerValidationContract
+-import com.fsck.k9.mail.oauth.OAuth2TokenProvider
+-import com.fsck.k9.mail.oauth.OAuth2TokenProviderFactory
+-import com.fsck.k9.mail.ssl.LocalKeyStore
+-import com.fsck.k9.mail.ssl.TrustedSocketFactory
+-import java.net.Socket
+ import org.junit.Test
+-import org.junit.runner.RunWith
+-import org.koin.android.ext.koin.androidContext
+-import org.koin.core.annotation.KoinExperimentalAPI
+-import org.koin.core.module.Module
+-import org.koin.core.qualifier.named
+-import org.koin.dsl.koinApplication
+-import org.koin.dsl.module
+ import org.koin.test.KoinTest
+-import org.koin.test.check.checkModules
+ import org.koin.test.verify.verify
+-import org.mockito.Mockito
+-import org.mockito.Mockito.mock
+-import org.robolectric.RobolectricTestRunner
+-import org.robolectric.RuntimeEnvironment
+ 
+-@RunWith(RobolectricTestRunner::class)
+ class ServerValidationModuleKtTest : KoinTest {
+ 
+-    private val externalModule: Module = module {
+-        single<TrustedSocketFactory> {
+-            object : TrustedSocketFactory {
+-                override fun createSocket(
+-                    socket: Socket?,
+-                    host: String,
+-                    port: Int,
+-                    clientCertificateAlias: String?,
+-                ): Socket {
+-                    return Mockito.mock()
+-                }
+-            }
+-        }
+-        single<OAuthConfigurationFactory> { OAuthConfigurationFactory { emptyMap() } }
+-        single<OAuth2TokenProviderFactory> {
+-            OAuth2TokenProviderFactory { _ ->
+-                object : OAuth2TokenProvider {
+-                    override val primaryEmail: String? get() = TODO()
+-                    override fun getToken(timeoutMillis: Long) = TODO()
+-                    override fun invalidateToken() = TODO()
+-                }
+-            }
+-        }
+-        single<LocalKeyStore> { mock() }
+-        factory<AccountCommonExternalContract.AccountStateLoader> { mock() }
+-        single(named("ClientInfoAppName")) { "App Name" }
+-        single(named("ClientInfoAppVersion")) { "App Version" }
+-    }
+-
+-    @OptIn(KoinExperimentalAPI::class)
+     @Test
+     fun `should have a valid di module`() {
+         featureAccountServerValidationModule.verify(
+@@ -77,11 +28,5 @@ class ServerValidationModuleKtTest : KoinTest {
+                 Class.forName("net.openid.appauth.AppAuthConfiguration").kotlin,
+             ),
+         )
+-
+-        koinApplication {
+-            modules(externalModule, featureAccountServerValidationModule)
+-            androidContext(RuntimeEnvironment.getApplication())
+-            checkModules()
+-        }
+     }
+ }
+diff --git a/feature/account/setup/src/test/kotlin/app/k9mail/feature/account/setup/AccountSetupModuleKtTest.kt b/feature/account/setup/src/test/kotlin/app/k9mail/feature/account/setup/AccountSetupModuleKtTest.kt
+index d61a66930fb..c3e4981e008 100644
+--- a/feature/account/setup/src/test/kotlin/app/k9mail/feature/account/setup/AccountSetupModuleKtTest.kt
++++ b/feature/account/setup/src/test/kotlin/app/k9mail/feature/account/setup/AccountSetupModuleKtTest.kt
+@@ -1,9 +1,6 @@
+ package app.k9mail.feature.account.setup
+ 
+ import android.content.Context
+-import app.k9mail.autodiscovery.api.AutoDiscovery
+-import app.k9mail.core.common.oauth.OAuthConfigurationFactory
+-import app.k9mail.core.common.provider.BrandNameProvider
+ import app.k9mail.feature.account.common.AccountCommonExternalContract
+ import app.k9mail.feature.account.common.domain.entity.AccountState
+ import app.k9mail.feature.account.common.domain.entity.InteractionMode
+@@ -12,74 +9,18 @@ import app.k9mail.feature.account.server.certificate.ui.ServerCertificateErrorCo
+ import app.k9mail.feature.account.server.settings.ui.incoming.IncomingServerSettingsContract
+ import app.k9mail.feature.account.server.settings.ui.outgoing.OutgoingServerSettingsContract
+ import app.k9mail.feature.account.server.validation.ui.ServerValidationContract
+-import app.k9mail.feature.account.setup.AccountSetupExternalContract.AccountCreator
+-import app.k9mail.feature.account.setup.AccountSetupExternalContract.AccountCreator.AccountCreatorResult
+-import app.k9mail.feature.account.setup.ui.FakeBrandNameProvider
+ import app.k9mail.feature.account.setup.ui.autodiscovery.AccountAutoDiscoveryContract
+ import app.k9mail.feature.account.setup.ui.createaccount.CreateAccountContract
+ import app.k9mail.feature.account.setup.ui.options.display.DisplayOptionsContract
+ import app.k9mail.feature.account.setup.ui.options.sync.SyncOptionsContract
+ import app.k9mail.feature.account.setup.ui.specialfolders.SpecialFoldersContract
+ import com.fsck.k9.mail.oauth.AuthStateStorage
+-import com.fsck.k9.mail.oauth.OAuth2TokenProvider
+-import com.fsck.k9.mail.oauth.OAuth2TokenProviderFactory
+-import com.fsck.k9.mail.ssl.LocalKeyStore
+-import com.fsck.k9.mail.ssl.TrustedSocketFactory
+-import java.net.Socket
+-import okhttp3.OkHttpClient
+ import org.junit.Test
+-import org.junit.runner.RunWith
+-import org.koin.android.ext.koin.androidContext
+-import org.koin.core.annotation.KoinExperimentalAPI
+-import org.koin.core.module.Module
+-import org.koin.core.qualifier.named
+-import org.koin.dsl.koinApplication
+-import org.koin.dsl.module
+ import org.koin.test.KoinTest
+-import org.koin.test.check.checkModules
+ import org.koin.test.verify.verify
+-import org.mockito.Mockito.mock
+-import org.robolectric.RobolectricTestRunner
+-import org.robolectric.RuntimeEnvironment
+ 
+-@OptIn(KoinExperimentalAPI::class)
+-@RunWith(RobolectricTestRunner::class)
+ class AccountSetupModuleKtTest : KoinTest {
+ 
+-    private val externalModule: Module = module {
+-        single<OkHttpClient> { OkHttpClient() }
+-        single<TrustedSocketFactory> {
+-            object : TrustedSocketFactory {
+-                override fun createSocket(
+-                    socket: Socket?,
+-                    host: String,
+-                    port: Int,
+-                    clientCertificateAlias: String?,
+-                ): Socket {
+-                    return mock()
+-                }
+-            }
+-        }
+-        single<AccountCreator> {
+-            AccountCreator { _ -> AccountCreatorResult.Success("accountUuid") }
+-        }
+-        single<OAuthConfigurationFactory> { OAuthConfigurationFactory { emptyMap() } }
+-        single<OAuth2TokenProviderFactory> {
+-            OAuth2TokenProviderFactory { _ ->
+-                object : OAuth2TokenProvider {
+-                    override val primaryEmail: String? get() = TODO()
+-                    override fun getToken(timeoutMillis: Long) = TODO()
+-                    override fun invalidateToken() = TODO()
+-                }
+-            }
+-        }
+-        single<LocalKeyStore> { mock() }
+-        single<AccountCommonExternalContract.AccountStateLoader> { mock() }
+-        factory<AccountSetupExternalContract.AccountOwnerNameProvider> { mock() }
+-        single<List<AutoDiscovery>>(named("extraAutoDiscoveries")) { emptyList() }
+-        single<BrandNameProvider> { FakeBrandNameProvider }
+-    }
+-
+     @Test
+     fun `should have a valid di module`() {
+         featureAccountSetupModule.verify(
+@@ -104,11 +45,5 @@ class AccountSetupModuleKtTest : KoinTest {
+                 AccountSetupExternalContract.AccountOwnerNameProvider::class,
+             ),
+         )
+-
+-        koinApplication {
+-            modules(externalModule, featureAccountSetupModule)
+-            androidContext(RuntimeEnvironment.getApplication())
+-            checkModules()
+-        }
+     }
+ }
+diff --git a/legacy/core/src/test/java/com/fsck/k9/TestApp.kt b/legacy/core/src/test/java/com/fsck/k9/TestApp.kt
+index e01b3204f3e..fe421997935 100644
+--- a/legacy/core/src/test/java/com/fsck/k9/TestApp.kt
++++ b/legacy/core/src/test/java/com/fsck/k9/TestApp.kt
+@@ -29,7 +29,7 @@ class TestApp : Application() {
+         super.onCreate()
+         DI.start(
+             application = this,
+-            modules = coreModules + storageModule + telemetryModule + testModule,
++            modules = legacyCoreModules + storageModule + telemetryModule + testModule,
+             allowOverride = true,
+         )
+ 
+diff --git a/legacy/storage/src/test/java/com/fsck/k9/storage/TestApp.kt b/legacy/storage/src/test/java/com/fsck/k9/storage/TestApp.kt
+index 96e778f7fb2..d00663fb189 100644
+--- a/legacy/storage/src/test/java/com/fsck/k9/storage/TestApp.kt
++++ b/legacy/storage/src/test/java/com/fsck/k9/storage/TestApp.kt
+@@ -12,8 +12,8 @@ import com.fsck.k9.Core
+ import com.fsck.k9.CoreResourceProvider
+ import com.fsck.k9.K9
+ import com.fsck.k9.backend.BackendManager
+-import com.fsck.k9.coreModules
+ import com.fsck.k9.crypto.EncryptionExtractor
++import com.fsck.k9.legacyCoreModules
+ import com.fsck.k9.preferences.K9StoragePersister
+ import com.fsck.k9.preferences.StoragePersister
+ import org.koin.dsl.module
+@@ -24,7 +24,7 @@ class TestApp : Application() {
+         Core.earlyInit()
+ 
+         super.onCreate()
+-        DI.start(this, coreModules + storageModule + telemetryModule + testModule)
++        DI.start(this, legacyCoreModules + storageModule + telemetryModule + testModule)
+ 
+         K9.init(this)
+         Core.init(this)
+diff --git a/legacy/ui/legacy/src/test/java/com/fsck/k9/TestApp.kt b/legacy/ui/legacy/src/test/java/com/fsck/k9/TestApp.kt
+index 26ae584cb06..497fa1653f6 100644
+--- a/legacy/ui/legacy/src/test/java/com/fsck/k9/TestApp.kt
++++ b/legacy/ui/legacy/src/test/java/com/fsck/k9/TestApp.kt
+@@ -19,7 +19,7 @@ class TestApp : Application() {
+         super.onCreate()
+         DI.start(
+             application = this,
+-            modules = coreModules + commonAppModules + uiModules + telemetryModule + testModule,
++            modules = legacyCoreModules + legacyCommonAppModules + legacyUiModules + telemetryModule + testModule,
+             allowOverride = true,
+         )
+ 
