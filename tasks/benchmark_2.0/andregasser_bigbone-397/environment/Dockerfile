@@ -1,0 +1,24 @@
+FROM docker.io/swerebenchv2/andregasser-bigbone:397-8005e69
+ENV _JAVA_OPTIONS=-Djava.net.preferIPv4Stack=true
+RUN apt-get update -qq && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
+COPY seal_git_history.sh /tmp/seal_git_history.sh
+RUN bash /tmp/seal_git_history.sh /bigbone
+WORKDIR /bigbone
+
+# The agent sandbox has no network, so everything it needs to build and test
+# against must already be in this image's Gradle cache (GRADLE_USER_HOME, set
+# by the base image). The base image's cache is incomplete for this revision,
+# which left both agents blocked on resolution before they could run anything.
+# Warm with the verifier's own lifecycle -- check -- while the build still has
+# network; test failures are expected on the unfixed code, so the warm
+# tolerates them. The offline check then proves the cache suffices for the
+# test tasks themselves (the rest of `check` -- style and static analysis --
+# can fail on unfixed code without the cache being incomplete, so a failed
+# check there would say nothing): --rerun-tasks forces the re-resolution that
+# up-to-date checks would otherwise skip, and the init script makes
+# verification failures non-fatal, so a failed check means exactly one thing
+# -- the cache is incomplete -- and fails this image build instead of
+# surfacing as an agent failure hours later.
+RUN ./gradlew --no-daemon --console=plain --continue check || true
+RUN printf '%s\n' 'allprojects { tasks.withType(VerificationTask).configureEach { ignoreFailures = true } }' > /tmp/smoke.init.gradle \
+    && ./gradlew --no-daemon --console=plain --continue --offline -I /tmp/smoke.init.gradle --rerun-tasks test

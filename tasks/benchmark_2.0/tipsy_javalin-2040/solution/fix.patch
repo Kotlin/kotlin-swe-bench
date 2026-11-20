@@ -1,0 +1,190 @@
+diff --git a/javalin/src/main/java/io/javalin/config/JettyConfig.kt b/javalin/src/main/java/io/javalin/config/JettyConfig.kt
+index 545235574..cc0cbba5a 100644
+--- a/javalin/src/main/java/io/javalin/config/JettyConfig.kt
++++ b/javalin/src/main/java/io/javalin/config/JettyConfig.kt
+@@ -20,42 +20,35 @@ class JettyConfig(private val cfg: JavalinConfig) {
+     @JvmField var threadPool: ThreadPool = JettyServer.defaultThreadPool(cfg.useVirtualThreads)
+     //@formatter:on
+ 
+-    var serverConsumers: MutableList<Consumer<Server>> = mutableListOf()
+-    var httpConfigurationConfigs: MutableList<Consumer<HttpConfiguration>> = mutableListOf()
+-    var servletContextHandlerConsumers: MutableList<Consumer<ServletContextHandler>> = mutableListOf()
+-    var wsFactoryConfigs: MutableList<Consumer<JettyWebSocketServletFactory>> = mutableListOf()
+-    var connectors: MutableList<BiFunction<Server, HttpConfiguration, Connector>> = mutableListOf()
+-
+-
+     /** Configure the jetty [Server]. This is useful if you want to configure Jetty features that are not exposed by Javalin.
+      * Consider using the other methods in this class before resorting to this one.
+      * It can be called multiple times, and the supplied consumers will be called in order. */
+     fun modifyServer(server: Consumer<Server>) {
+-        serverConsumers.add(server)
++        cfg.pvt.jetty.serverConsumers.add(server)
+     }
+ 
+     /** Configure the jetty [ServletContextHandler]. The [SessionHandler] can be set here.
+      * It can be called multiple times, and the supplied consumers will be called in order. */
+     fun modifyServletContextHandler(consumer: Consumer<ServletContextHandler>) {
+-        servletContextHandlerConsumers.add(consumer)
++        cfg.pvt.jetty.servletContextHandlerConsumers.add(consumer)
+     }
+ 
+     /** Configure the jetty [JettyWebSocketServletFactory].
+      * It can be called multiple times, and the supplied consumers will be called in order. */
+     fun modifyJettyWebSocketServletFactory(wsFactoryConfig: Consumer<JettyWebSocketServletFactory>) {
+-        wsFactoryConfigs.add(wsFactoryConfig)
++        cfg.pvt.jetty.wsFactoryConfigs.add(wsFactoryConfig)
+     }
+ 
+     /** Configure the [HttpConfiguration] to be used by the jetty [Server].
+      * It can be called multiple times, and the supplied consumers will be called in order. */
+     fun modifyHttpConfiguration(httpConfigurationConfig: Consumer<HttpConfiguration>) {
+-        httpConfigurationConfigs.add(httpConfigurationConfig)
++        cfg.pvt.jetty.httpConfigurationConfigs.add(httpConfigurationConfig)
+     }
+ 
+     /** Add a [Connector] to the jetty [Server].
+      * It can be called multiple times, and the supplied connectors will be added in order. */
+     fun addConnector(connector : BiFunction<Server, HttpConfiguration, Connector>){
+-        connectors.add(connector)
++        cfg.pvt.jetty.connectors.add(connector)
+     }
+ 
+ }
+diff --git a/javalin/src/main/java/io/javalin/config/JettyInternalConfig.kt b/javalin/src/main/java/io/javalin/config/JettyInternalConfig.kt
+new file mode 100644
+index 000000000..a556c0522
+--- /dev/null
++++ b/javalin/src/main/java/io/javalin/config/JettyInternalConfig.kt
+@@ -0,0 +1,20 @@
++package io.javalin.config
++
++import org.eclipse.jetty.server.Connector
++import org.eclipse.jetty.server.HttpConfiguration
++import org.eclipse.jetty.server.Server
++import org.eclipse.jetty.servlet.ServletContextHandler
++import org.eclipse.jetty.websocket.server.JettyWebSocketServletFactory
++import java.util.function.BiFunction
++import java.util.function.Consumer
++
++class JettyInternalConfig {
++    // @formatter:off
++    @JvmField var server: Server? = null
++    @JvmField var serverConsumers: MutableList<Consumer<Server>> = mutableListOf()
++    @JvmField var httpConfigurationConfigs: MutableList<Consumer<HttpConfiguration>> = mutableListOf()
++    @JvmField var servletContextHandlerConsumers: MutableList<Consumer<ServletContextHandler>> = mutableListOf()
++    @JvmField var wsFactoryConfigs: MutableList<Consumer<JettyWebSocketServletFactory>> = mutableListOf()
++    @JvmField var connectors: MutableList<BiFunction<Server, HttpConfiguration, Connector>> = mutableListOf()
++    // @formatter:on
++}
+diff --git a/javalin/src/main/java/io/javalin/config/PrivateConfig.kt b/javalin/src/main/java/io/javalin/config/PrivateConfig.kt
+index 52e1ab963..d939d907d 100644
+--- a/javalin/src/main/java/io/javalin/config/PrivateConfig.kt
++++ b/javalin/src/main/java/io/javalin/config/PrivateConfig.kt
+@@ -15,7 +15,6 @@ import io.javalin.plugin.PluginManager
+ import io.javalin.util.javalinLazy
+ import io.javalin.websocket.WsConfig
+ import io.javalin.websocket.WsRouter
+-import org.eclipse.jetty.server.Server
+ 
+ // @formatter:off
+ class PrivateConfig(val cfg: JavalinConfig) {
+@@ -33,7 +32,7 @@ class PrivateConfig(val cfg: JavalinConfig) {
+     @JvmField var servletRequestLifecycle = listOf(DefaultTasks.BEFORE, DefaultTasks.BEFORE_MATCHED, DefaultTasks.HTTP, DefaultTasks.AFTER_MATCHED, DefaultTasks.ERROR, DefaultTasks.AFTER)
+     @JvmField var servlet: Lazy<ServletEntry> = javalinLazy { createJettyServletWithWebsocketsIfAvailable(cfg) ?: ServletEntry(servlet = JavalinServlet(cfg)) }
+     // Jetty
+-    @JvmField var server: Server? = null
++    @JvmField var jetty = JettyInternalConfig()
+ 
+     fun javaLangErrorHandler(handler: JavaLangErrorHandler): PrivateConfig = also {
+         this.cfg.router.javaLangErrorHandler = handler
+diff --git a/javalin/src/main/java/io/javalin/jetty/JavalinJettyServlet.kt b/javalin/src/main/java/io/javalin/jetty/JavalinJettyServlet.kt
+index f8f7c53c7..8bc467748 100644
+--- a/javalin/src/main/java/io/javalin/jetty/JavalinJettyServlet.kt
++++ b/javalin/src/main/java/io/javalin/jetty/JavalinJettyServlet.kt
+@@ -44,7 +44,7 @@ class JavalinJettyServlet(val cfg: JavalinConfig) : JettyWebSocketServlet() {
+     }
+ 
+     override fun configure(factory: JettyWebSocketServletFactory) { // this is called once, before everything
+-        cfg.jetty.wsFactoryConfigs.forEach{ it.accept(factory) }
++        cfg.pvt.jetty.wsFactoryConfigs.forEach{ it.accept(factory) }
+         factory.setCreator(JettyWebSocketCreator { req, _ -> // this is called when a websocket is created (after [service])
+             val preUpgradeContext = req.httpServletRequest.getAttribute(upgradeContextKey) as JavalinServletContext
+             req.httpServletRequest.setAttribute(upgradeContextKey, preUpgradeContext.changeBaseRequest(req.httpServletRequest))
+diff --git a/javalin/src/main/java/io/javalin/jetty/JettyResourceHandler.kt b/javalin/src/main/java/io/javalin/jetty/JettyResourceHandler.kt
+index 1c54982ee..55e52d1a7 100644
+--- a/javalin/src/main/java/io/javalin/jetty/JettyResourceHandler.kt
++++ b/javalin/src/main/java/io/javalin/jetty/JettyResourceHandler.kt
+@@ -31,14 +31,14 @@ import io.javalin.http.staticfiles.ResourceHandler as JavalinResourceHandler
+ class JettyResourceHandler(val pvt: PrivateConfig) : JavalinResourceHandler {
+ 
+     fun init() { // we delay the creation of ConfigurableHandler objects to get our logs in order during startup
+-        handlers.addAll(lateInitConfigs.map { ConfigurableHandler(it, pvt.server!!) })
++        handlers.addAll(lateInitConfigs.map { ConfigurableHandler(it, pvt.jetty.server!!) })
+     }
+ 
+     private val lateInitConfigs = mutableListOf<StaticFileConfig>()
+     private val handlers = mutableListOf<ConfigurableHandler>()
+ 
+     override fun addStaticFileConfig(config: StaticFileConfig): Boolean =
+-        if (pvt.server?.isStarted == true) handlers.add(ConfigurableHandler(config, pvt.server!!)) else lateInitConfigs.add(config)
++        if (pvt.jetty.server?.isStarted == true) handlers.add(ConfigurableHandler(config, pvt.jetty.server!!)) else lateInitConfigs.add(config)
+ 
+     override fun canHandle(ctx: Context) = nonSkippedHandlers().any { handler ->
+         return try {
+diff --git a/javalin/src/main/java/io/javalin/jetty/JettyServer.kt b/javalin/src/main/java/io/javalin/jetty/JettyServer.kt
+index 62c38f86e..1af54a06e 100644
+--- a/javalin/src/main/java/io/javalin/jetty/JettyServer.kt
++++ b/javalin/src/main/java/io/javalin/jetty/JettyServer.kt
+@@ -48,7 +48,7 @@ class JettyServer(private val cfg: JavalinConfig) {
+         }.start()
+     }
+ 
+-    fun server() = cfg.pvt.server ?: defaultServer(cfg.jetty.threadPool).also { cfg.pvt.server = it } // make sure config has access to the update server instance
++    fun server() = cfg.pvt.jetty.server ?: defaultServer(cfg.jetty.threadPool).also { cfg.pvt.jetty.server = it } // make sure config has access to the update server instance
+     fun port() = (server().connectors[0] as ServerConnector).localPort
+ 
+     private var started = false
+@@ -65,18 +65,18 @@ class JettyServer(private val cfg: JavalinConfig) {
+         started = true
+         val startupTimer = System.currentTimeMillis()
+         server().apply {
+-            cfg.jetty.serverConsumers.forEach{ it.accept(this) } // apply user config
++            cfg.pvt.jetty.serverConsumers.forEach { it.accept(this) } // apply user config
+             handler = handler.attachHandler(ServletContextHandler(SESSIONS).apply {
+                 val (initializer, servlet) = cfg.pvt.servlet.value
+                 if (initializer != null) this.addServletContainerInitializer(initializer)
+                 contextPath = Util.normalizeContextPath(cfg.router.contextPath)
+                 sessionHandler = defaultSessionHandler()
+                 addServlet(ServletHolder(servlet), "/*")
+-                cfg.jetty.servletContextHandlerConsumers.forEach{ it.accept(this) } // apply user config
++                cfg.pvt.jetty.servletContextHandlerConsumers.forEach { it.accept(this) } // apply user config
+             })
+             val httpConfiguration = defaultHttpConfiguration()
+-            cfg.jetty.httpConfigurationConfigs.forEach{ it.accept(httpConfiguration) } // apply user config (before connectors)
+-            cfg.jetty.connectors.map{ it.apply(this, httpConfiguration) }.forEach(this::addConnector) // add user connectors
++            cfg.pvt.jetty.httpConfigurationConfigs.forEach { it.accept(httpConfiguration) } // apply user config (before connectors)
++            cfg.pvt.jetty.connectors.map { it.apply(this, httpConfiguration) }.forEach(this::addConnector) // add user connectors
+             if (connectors.isEmpty()) { // add default connector if no connectors are specified
+                 connectors = arrayOf(ServerConnector(server, HttpConnectionFactory(httpConfiguration)).apply {
+                     this.host = host ?: cfg.jetty.defaultHost
+diff --git a/javalin/src/main/java/io/javalin/plugin/bundled/SslRedirectPlugin.kt b/javalin/src/main/java/io/javalin/plugin/bundled/SslRedirectPlugin.kt
+index b0eb436c4..61d95627a 100644
+--- a/javalin/src/main/java/io/javalin/plugin/bundled/SslRedirectPlugin.kt
++++ b/javalin/src/main/java/io/javalin/plugin/bundled/SslRedirectPlugin.kt
+@@ -5,7 +5,6 @@ import io.javalin.http.Header.X_FORWARDED_PROTO
+ import io.javalin.http.HttpStatus.MOVED_PERMANENTLY
+ import io.javalin.http.servlet.isLocalhost
+ import io.javalin.plugin.Plugin
+-import io.javalin.router.JavalinDefaultRouting.Companion.Default
+ import org.eclipse.jetty.server.ServerConnector
+ import java.util.function.Consumer
+ 
+@@ -31,7 +30,7 @@ class SslRedirectPlugin(userConfig: Consumer<SslRedirectPluginConfig>? = null) :
+                 if (xForwardedProto == "http" || (xForwardedProto == null && ctx.scheme() == "http")) {
+                     val urlWithHttps = ctx.fullUrl().replace("http", "https")
+ 
+-                    val urlWithHttpsAndPort = config.pvt.server
++                    val urlWithHttpsAndPort = config.pvt.jetty.server
+                         ?.takeIf { pluginConfig.sslPort != null }
+                         ?.connectors
+                         ?.filterIsInstance<ServerConnector>()

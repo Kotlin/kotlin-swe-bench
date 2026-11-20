@@ -1,0 +1,52 @@
+diff --git a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/JpaPolyflowViewServiceDataEntryITest.kt b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/JpaPolyflowViewServiceDataEntryITest.kt
+index 5c43829a4..525c80690 100644
+--- a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/JpaPolyflowViewServiceDataEntryITest.kt
++++ b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/JpaPolyflowViewServiceDataEntryITest.kt
+@@ -265,7 +265,7 @@ internal class JpaPolyflowViewServiceDataEntryITest {
+   fun `should find the entry by filter`() {
+     assertResultIsTestEntry1And2(
+       jpaPolyflowViewService.query(
+-        DataEntriesQuery(filters = listOf("key=value"))
++        DataEntriesQuery(filters = listOf("key=value", "key=value2", "key=value3"))
+       )
+     )
+   }
+diff --git a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/data/DataEntryRepositoryITest.kt b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/data/DataEntryRepositoryITest.kt
+index 1643a2859..e501ebd7f 100644
+--- a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/data/DataEntryRepositoryITest.kt
++++ b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/data/DataEntryRepositoryITest.kt
+@@ -242,13 +242,13 @@ internal class DataEntryRepositoryITest {
+   @Test
+   fun `should find by filter payload attribute`() {
+ 
+-    val byPayloadFilterByChildKeyNumberValue = dataEntryRepository.findAll(where(hasDataEntryPayloadAttribute("child.key-number", "42")))
++    val byPayloadFilterByChildKeyNumberValue = dataEntryRepository.findAll(where(hasDataEntryPayloadAttribute("child.key-number", listOf("42"))))
+     assertThat(byPayloadFilterByChildKeyNumberValue).containsExactlyInAnyOrderElementsOf(listOf(dataEntry, dataEntry2))
+ 
+     val byPayloadFilterByChildKeyValue =
+       dataEntryRepository.findAll(
+-        where(hasDataEntryPayloadAttribute("child.key", "value"))
+-          .and(hasDataEntryPayloadAttribute("id", dataEntry.dataEntryId.entryId))
++        where(hasDataEntryPayloadAttribute("child.key", listOf("value")))
++          .and(hasDataEntryPayloadAttribute("id", listOf(dataEntry.dataEntryId.entryId)))
+       )
+     assertThat(byPayloadFilterByChildKeyValue).containsExactlyInAnyOrderElementsOf(listOf(dataEntry))
+   }
+diff --git a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/task/TaskRepositoryITest.kt b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/task/TaskRepositoryITest.kt
+index 276bca861..272f32f52 100644
+--- a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/task/TaskRepositoryITest.kt
++++ b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/task/TaskRepositoryITest.kt
+@@ -195,11 +195,11 @@ class TaskRepositoryITest {
+ 
+   @Test
+   fun `should find by payload attribute`() {
+-    val result = taskRepository.findAll(hasTaskPayloadAttribute("complex.child2", "small"))
++    val result = taskRepository.findAll(hasTaskPayloadAttribute("complex.child2", listOf("small")))
+     assertThat(result).hasSize(1)
+     assertThat(result).containsExactlyInAnyOrder(task1)
+ 
+-    val notfound = taskRepository.findAll(hasTaskPayloadAttribute("complex.child1", "13"))
++    val notfound = taskRepository.findAll(hasTaskPayloadAttribute("complex.child1", listOf("13")))
+     assertThat(notfound).isEmpty()
+   }
+ 

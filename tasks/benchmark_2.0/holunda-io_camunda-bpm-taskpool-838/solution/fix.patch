@@ -1,0 +1,176 @@
+diff --git a/docs/developer-guide/project-setup.md b/docs/developer-guide/project-setup.md
+index 5f45badfa..42e36d70c 100644
+--- a/docs/developer-guide/project-setup.md
++++ b/docs/developer-guide/project-setup.md
+@@ -60,7 +60,7 @@ You can generate this by executing the following build command:
+ ### Build Documentation
+ 
+ We are using MkDocs for generation of a static site documentation and rely on Markdown as much as possible.
+-MkDocs is a written in Python 3 and needs to be installed on your machine. For the installation please run the following
++MkDocs is written in Python 3 and needs to be installed on your machine. For the installation please run the following
+ command from your command line:
+ 
+ ```bash
+diff --git a/docs/reference-guide/components/view-api.md b/docs/reference-guide/components/view-api.md
+index e577788ac..c3b1b7106 100644
+--- a/docs/reference-guide/components/view-api.md
++++ b/docs/reference-guide/components/view-api.md
+@@ -113,9 +113,9 @@ An optional `sort` parameter allows to sort the results by a field attribute. Th
+ * java.util.Date
+ * java.time.Instant
+ 
+-To filter the results, you might supply a list of filters. A filter is an expression in format `fieldName<op>value`, where `fieldName` is addressing the attribute of the search result,
++To filter the results, you can supply a list of filters. A filter is an expression in format `fieldName<op>value`, where `fieldName` is addressing the attribute of the search result,
+ `<op>` is one of `<`, `=`, `%` and `>` and `value` is a string representation of the values. The `fieldName` can point to an attribute of the result entity itself (`Task`, `TaskWithDataEntries` 
+-or `DataEntry`) or point to the attribute inside the payload. To avoid a possible name clash, you must prefix the field name with `task.` if you want to filter on direct attributes of a task,
++or `DataEntry`) or point to the attribute inside the payload. To avoid name clashes, you must prefix the field name with `task` if you want to filter on direct attributes of a task,
+ and you must prefix the field name with `data` if you want to filter on direct attributes of a data entry. For example, `task.priority=50` would deliver tasks with priority set to 50,
+ and `data.entryType=info.polyflow.Order` will deliver data entries of type `info.polyflow.Order` only.
+ 
+@@ -129,8 +129,17 @@ Following operations are supported:
+ | `%`    | Like         | all, payload | `businessKey`, `name`, `description`, `processName`, `textSearch` | none                                                                     | none                       | none                               |
+ 
+ !!! info
+-    There are several special reserved filters which can be passed to the task query: `task.processName=<value>` check equality of the process name, `task.processName%<value>` makes a like-search on
+-process name, `task.textSearch%some-substring` makes a special OR-combined like-search on task name, task description and task process name. 
++    There are several special reserved filters which can be passed to the task query: `task.processName=<value>` checks equality of the process name, `task.processName%<value>` makes a like-search on
++    process name, `task.textSearch%some-substring` makes a special OR-combined like-search on task name, task description and task process name. 
+ 
+-If the field name has no prefix of above, it is considered as an attribute inside the payload of data entry or enriched variables of a user task. For example, imagine
+-you have a data entry with payload attributes `{ "attribute": "value", "another": 45 }`. In order to search for those, just specify `attribute=value` in your filter criteria. 
++If the field name does not have one of the above prefixes, it is considered as an attribute inside the payload of data entry or enriched variables of a user task. For example, imagine
++you have a data entry with payload attributes `{ "attribute": "value", "another": 45 }`. In order to search for those, just specify `attribute=value` in your filter criteria.
++
++Filters are composed with logical AND, meaning that all given filters have to match in order for a task to be included in the result of the query. For example, given the filters
++`task.priority=50` and `foo=bar`, the query result would only contain tasks that have a priority of 50 **and** a payload attribute named foo with the value bar.
++
++!!! warning
++    The [JPA View](view-jpa.md) has a different implementation when applying filters. Filters that target the same attribute are OR-composed before being AND-composed
++    with filters that target other attributes. For example, given the filters `customerName=ABC`, `customerName=DEF` and `task.priority=50`, the filters for the
++    customer name would first get OR-composed before being AND-composed with the task priority filter, resulting in a filtering expression logically equivalent to
++    `(customerName=ABC OR customerName=DEF) AND task.priority=50`.
+diff --git a/docs/reference-guide/components/view-jpa.md b/docs/reference-guide/components/view-jpa.md
+index 0e38a3015..1df9bf250 100644
+--- a/docs/reference-guide/components/view-jpa.md
++++ b/docs/reference-guide/components/view-jpa.md
+@@ -5,7 +5,7 @@ pageId: view-jpa
+ ### Purpose
+ 
+ The JPA View is component responsible for creating read-projections of tasks and business data entries. It currently implements
+-Datapool View API and Taskpool API and persists the projection as entities and relations in a RDBMS using JPA. It is a useful
++Datapool View API and Taskpool API and persists the projection as entities and relations in a RDBMS using JPA. It is useful
+ if the JPA persistence is already used in the project setup.
+ 
+ ### Features
+diff --git a/view/jpa/src/main/kotlin/io/holunda/polyflow/view/jpa/SpecificationExt.kt b/view/jpa/src/main/kotlin/io/holunda/polyflow/view/jpa/SpecificationExt.kt
+index 4a9fa136c..4ce9f227f 100644
+--- a/view/jpa/src/main/kotlin/io/holunda/polyflow/view/jpa/SpecificationExt.kt
++++ b/view/jpa/src/main/kotlin/io/holunda/polyflow/view/jpa/SpecificationExt.kt
+@@ -20,6 +20,7 @@ import io.holunda.polyflow.view.jpa.task.TaskRepository.Companion.hasDueDateBefo
+ import io.holunda.polyflow.view.jpa.task.TaskRepository.Companion.hasFollowUpDate
+ import io.holunda.polyflow.view.jpa.task.TaskRepository.Companion.hasFollowUpDateAfter
+ import io.holunda.polyflow.view.jpa.task.TaskRepository.Companion.hasFollowUpDateBefore
++import io.holunda.polyflow.view.jpa.task.TaskRepository.Companion.hasPriority
+ import io.holunda.polyflow.view.jpa.task.TaskRepository.Companion.hasProcessName
+ import io.holunda.polyflow.view.jpa.task.TaskRepository.Companion.hasTaskPayloadAttribute
+ import io.holunda.polyflow.view.jpa.task.TaskRepository.Companion.likeBusinessKey
+@@ -124,32 +125,48 @@ fun PageableSortableQuery.mapTaskSort(): String {
+  * Specification for query on task attributes.
+  */
+ internal fun List<Criterion>.toTaskAttributeSpecification(): Specification<TaskEntity>? {
+-  val relevant = this.filterIsInstance<Criterion.TaskCriterion>().map { it.toTaskSpecification() }
+-  return composeAnd(relevant)
++  val relevant = this.filterIsInstance<Criterion.TaskCriterion>()
++  // compose criteria with same name with OR and criteria with different names with AND
++  val relevantByName = relevant.groupBy { it.name }
++  val orComposedByName = relevantByName.map { (_, criteria) -> composeOr(criteria.map { it.toTaskSpecification() }) }
++
++  return composeAnd(orComposedByName)
+ }
+ 
+ /**
+  * Specification for query on data entry attributes.
+  */
+ internal fun List<Criterion>.toDataEntryAttributeSpecification(): Specification<DataEntryEntity>? {
+-  val relevant = this.filterIsInstance<Criterion.DataEntryCriterion>().map { it.toDataEntrySpecification() }
+-  return composeAnd(relevant)
++  val relevant = this.filterIsInstance<Criterion.DataEntryCriterion>()
++  // compose criteria with same name with OR and criteria with different names with AND
++  val relevantByName = relevant.groupBy { it.name }
++  val orComposedByName = relevantByName.map { (_, criteria) -> composeOr(criteria.map { it.toDataEntrySpecification() }) }
++
++  return composeAnd(orComposedByName)
+ }
+ 
+ /**
+  * Specification on payload.
+  */
+ internal fun List<Criterion>.toDataEntryPayloadSpecification(): Specification<DataEntryEntity>? {
+-  val relevant = this.filterIsInstance<Criterion.PayloadEntryCriterion>().map { it.toDataEntrySpecification() }
+-  return composeAnd(relevant)
++  val relevant = this.filterIsInstance<Criterion.PayloadEntryCriterion>()
++  // compose criteria with same name with OR and criteria with different names with AND
++  val relevantByName = relevant.groupBy { it.name }
++  val orComposedByName = relevantByName.map { (_, criteria) -> composeOr(criteria.map { it.toDataEntrySpecification() }) }
++
++  return composeAnd(orComposedByName)
+ }
+ 
+ /**
+  * Specification on payload.
+  */
+ internal fun List<Criterion>.toTaskPayloadSpecification(): Specification<TaskEntity>? {
+-  val relevant = this.filterIsInstance<Criterion.PayloadEntryCriterion>().map { it.toTaskSpecification() }
+-  return composeAnd(relevant)
++  val relevant = this.filterIsInstance<Criterion.PayloadEntryCriterion>()
++  // compose criteria with same name with OR and criteria with different names with AND
++  val relevantByName = relevant.groupBy { it.name }
++  val orComposedByName = relevantByName.map { (_, criteria) -> composeOr(criteria.map { it.toTaskSpecification() }) }
++
++  return composeAnd(orComposedByName)
+ }
+ 
+ 
+@@ -164,6 +181,7 @@ internal fun Criterion.TaskCriterion.toTaskSpecification(): Specification<TaskEn
+         Task::businessKey.name -> hasBusinessKey(this.value)
+         Task::dueDate.name -> hasDueDate(Instant.parse(this.value))
+         Task::followUpDate.name -> hasFollowUpDate(Instant.parse(this.value))
++        Task::priority.name -> hasPriority(this.value.toInt())
+         else -> throw IllegalArgumentException("JPA View found unsupported task attribute for equals comparison: ${this.name}.")
+       }
+     }
+diff --git a/view/jpa/src/main/kotlin/io/holunda/polyflow/view/jpa/task/TaskRepository.kt b/view/jpa/src/main/kotlin/io/holunda/polyflow/view/jpa/task/TaskRepository.kt
+index 3e347c58f..8ed1690a8 100644
+--- a/view/jpa/src/main/kotlin/io/holunda/polyflow/view/jpa/task/TaskRepository.kt
++++ b/view/jpa/src/main/kotlin/io/holunda/polyflow/view/jpa/task/TaskRepository.kt
+@@ -86,6 +86,17 @@ interface TaskRepository : CrudRepository<TaskEntity, String>, JpaSpecificationE
+         )
+       }
+ 
++    /**
++     * Specification for checking the priority.
++     */
++    fun hasPriority(priority: Int): Specification<TaskEntity> =
++      Specification { task, _, builder ->
++        builder.equal(
++          task.get<Int>(TaskEntity::priority.name),
++          priority
++        )
++      }
++
+     /**
+      * Specification for checking the due date.
+      */
+diff --git a/view/view-api/src/main/kotlin/filter/Filter.kt b/view/view-api/src/main/kotlin/filter/Filter.kt
+index eab6dd3e0..2d2cebe9a 100755
+--- a/view/view-api/src/main/kotlin/filter/Filter.kt
++++ b/view/view-api/src/main/kotlin/filter/Filter.kt
+@@ -248,7 +248,7 @@ internal fun toCriterion(filter: String): Criterion {
+   }.map { it.trim() }
+ 
+   // special handling for simple infix operators of form <field><op><value>
+-  require(segments.size == 3 && segments[0].isNotBlank() && segments[0].isNotBlank()) { "Failed to create criteria from $filter." }
++  require(segments.size == 3 && segments[0].isNotBlank() && segments[1].isNotBlank()) { "Failed to create criteria from $filter." }
+ 
+   return when {
+     isTaskAttribute(segments[0]) -> {

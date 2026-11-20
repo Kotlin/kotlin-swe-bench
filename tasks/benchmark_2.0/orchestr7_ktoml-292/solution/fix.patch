@@ -1,0 +1,198 @@
+diff --git a/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/parsers/StringUtils.kt b/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/parsers/StringUtils.kt
+index 3425747c..2e20e130 100644
+--- a/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/parsers/StringUtils.kt
++++ b/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/parsers/StringUtils.kt
+@@ -35,7 +35,7 @@ internal fun String.splitKeyToTokens(lineNo: Int): List<String> {
+                 currentPart.append(ch)
+             }
+             '.' -> if (singleQuoteIsClosed && doubleQuoteIsClosed) {
+-                dotSeparatedParts.add(currentPart.toString())
++                dotSeparatedParts.add(currentPart.toString().trim())
+                 currentPart = StringBuilder()
+             } else {
+                 currentPart.append(ch)
+@@ -95,6 +95,25 @@ internal fun String.convertLineEndingBackslash(): String {
+  */
+ internal fun String.trimQuotes(): String = trimSymbols(this, "\"", "\"")
+ 
++/**
++ * If this string starts and end with quotes("" or '') - will return the string with quotes removed
++ * Otherwise, returns this string.
++ *
++ * @return string with the result
++ */
++internal fun String.trimAllQuotes(): String {
++    val doubleQuote = "\""
++    val singleQuote = "'"
++
++    return if (this.startsWith(doubleQuote) && this.endsWith(doubleQuote)) {
++        this.removePrefix(doubleQuote).removeSuffix(doubleQuote)
++    } else if (this.startsWith(singleQuote) && this.endsWith(singleQuote)) {
++        this.removePrefix(singleQuote).removeSuffix(singleQuote)
++    } else {
++        this
++    }
++}
++
+ /**
+  * If this multiline string starts and end with triple quotes(""") - will return the string with
+  * quotes and newline removed.
+@@ -147,7 +166,7 @@ internal fun String.trimDoubleBrackets(): String = trimSymbols(this, "[[", "]]")
+  * ```
+  */
+ internal fun String.takeBeforeComment(allowEscapedQuotesInLiteralStrings: Boolean): String {
+-    val commentStartIndex = getCommentStartIndex(allowEscapedQuotesInLiteralStrings)
++    val commentStartIndex = indexOfFirstOutsideQuotes(allowEscapedQuotesInLiteralStrings, '#')
+ 
+     return if (commentStartIndex == -1) {
+         this
+@@ -166,7 +185,7 @@ internal fun String.takeBeforeComment(allowEscapedQuotesInLiteralStrings: Boolea
+  * ```
+  */
+ internal fun String.trimComment(allowEscapedQuotesInLiteralStrings: Boolean): String {
+-    val commentStartIndex = getCommentStartIndex(allowEscapedQuotesInLiteralStrings)
++    val commentStartIndex = indexOfFirstOutsideQuotes(allowEscapedQuotesInLiteralStrings, '#')
+ 
+     return if (commentStartIndex == -1) {
+         ""
+@@ -181,6 +200,46 @@ internal fun String.trimComment(allowEscapedQuotesInLiteralStrings: Boolean): St
+  */
+ internal fun String.getCountOfOccurrencesOfSubstring(substring: String): Int = this.split(substring).size - 1
+ 
++/**
++ * @param allowEscapedQuotesInLiteralStrings value from TomlInputConfig
++ * @param searchChar - the character to search for
++ * @return the index of the first occurrence of the searchChar that is not enclosed in quotation marks
++ */
++internal fun String.indexOfFirstOutsideQuotes(allowEscapedQuotesInLiteralStrings: Boolean, searchChar: Char): Int {
++    val isEscapingDisabled = if (allowEscapedQuotesInLiteralStrings) {
++        // escaping is disabled when the config option is true AND we have a literal string
++        val firstQuoteLetter = this.firstOrNull { it == '\"' || it == '\'' }
++        firstQuoteLetter == '\''
++    } else {
++        false
++    }
++
++    val chars = if (!isEscapingDisabled) {
++        this.replace("\\\"", "__")
++            .replace("\\\'", "__")
++    } else {
++        this
++    }.toCharArray()
++    var currentQuoteChar: Char? = null
++
++    chars.forEachIndexed { idx, symbol ->
++        // take searchChar index if it's not enclosed in quotation marks
++        if (symbol == searchChar && currentQuoteChar == null) {
++            return idx
++        }
++
++        if (symbol == '\"' || symbol == '\'') {
++            if (currentQuoteChar == null) {
++                currentQuoteChar = symbol
++            } else if (currentQuoteChar == symbol) {
++                currentQuoteChar = null
++            }
++        }
++    }
++
++    return -1
++}
++
+ private fun String.validateSpaces(lineNo: Int, fullKey: String) {
+     if (this.trim().count { it == ' ' } > 0 && this.isNotQuoted()) {
+         throw ParseException(
+@@ -209,7 +268,7 @@ private fun String.validateQuotes(lineNo: Int) {
+ private fun String.validateSymbols(lineNo: Int) {
+     var singleQuoteIsClosed = true
+     var doubleQuoteIsClosed = true
+-    this.trim().trimQuotes().forEach { ch ->
++    this.trim().forEach { ch ->
+         when (ch) {
+             '\'' -> singleQuoteIsClosed = !singleQuoteIsClosed
+             '\"' -> doubleQuoteIsClosed = !doubleQuoteIsClosed
+@@ -228,41 +287,6 @@ private fun String.validateSymbols(lineNo: Int) {
+     }
+ }
+ 
+-private fun String.getCommentStartIndex(allowEscapedQuotesInLiteralStrings: Boolean): Int {
+-    val isEscapingDisabled = if (allowEscapedQuotesInLiteralStrings) {
+-        // escaping is disabled when the config option is true AND we have a literal string
+-        val firstQuoteLetter = this.firstOrNull { it == '\"' || it == '\'' }
+-        firstQuoteLetter == '\''
+-    } else {
+-        false
+-    }
+-
+-    val chars = if (!isEscapingDisabled) {
+-        this.replace("\\\"", "__")
+-            .replace("\\\'", "__")
+-    } else {
+-        this
+-    }.toCharArray()
+-    var currentQuoteChar: Char? = null
+-
+-    chars.forEachIndexed { idx, symbol ->
+-        // take hash index if it's not enclosed in quotation marks
+-        if (symbol == '#' && currentQuoteChar == null) {
+-            return idx
+-        }
+-
+-        if (symbol == '\"' || symbol == '\'') {
+-            if (currentQuoteChar == null) {
+-                currentQuoteChar = symbol
+-            } else if (currentQuoteChar == symbol) {
+-                currentQuoteChar = null
+-            }
+-        }
+-    }
+-
+-    return -1
+-}
+-
+ private fun Char.isLetterOrDigit() = CharRange('A', 'Z').contains(this) ||
+         CharRange('a', 'z').contains(this) ||
+         CharRange('0', '9').contains(this)
+diff --git a/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/tree/nodes/pairs/TomlKeyValue.kt b/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/tree/nodes/pairs/TomlKeyValue.kt
+index 5ac33471..27e19f43 100644
+--- a/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/tree/nodes/pairs/TomlKeyValue.kt
++++ b/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/tree/nodes/pairs/TomlKeyValue.kt
+@@ -3,6 +3,7 @@ package com.akuleshov7.ktoml.tree.nodes
+ import com.akuleshov7.ktoml.TomlInputConfig
+ import com.akuleshov7.ktoml.TomlOutputConfig
+ import com.akuleshov7.ktoml.exceptions.ParseException
++import com.akuleshov7.ktoml.parsers.indexOfFirstOutsideQuotes
+ import com.akuleshov7.ktoml.parsers.takeBeforeComment
+ import com.akuleshov7.ktoml.tree.nodes.pairs.keys.TomlKey
+ import com.akuleshov7.ktoml.tree.nodes.pairs.values.*
+@@ -95,7 +96,7 @@ public fun String.splitKeyValue(lineNo: Int, config: TomlInputConfig = TomlInput
+     val pair = takeBeforeComment(config.allowEscapedQuotesInLiteralStrings)
+ 
+     // searching for an equals sign that should be placed main part of the string (not in the comment)
+-    val firstEqualsSign = pair.indexOfFirst { it == '=' }
++    val firstEqualsSign = pair.indexOfFirstOutsideQuotes(config.allowEscapedQuotesInLiteralStrings, '=')
+ 
+     // equals sign not found in the string
+     if (firstEqualsSign == -1) {
+diff --git a/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/tree/nodes/pairs/keys/TomlKey.kt b/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/tree/nodes/pairs/keys/TomlKey.kt
+index 172c56bc..0d5570d8 100644
+--- a/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/tree/nodes/pairs/keys/TomlKey.kt
++++ b/ktoml-core/src/commonMain/kotlin/com/akuleshov7/ktoml/tree/nodes/pairs/keys/TomlKey.kt
+@@ -4,7 +4,7 @@ import com.akuleshov7.ktoml.TomlConfig
+ import com.akuleshov7.ktoml.TomlOutputConfig
+ import com.akuleshov7.ktoml.exceptions.TomlWritingException
+ import com.akuleshov7.ktoml.parsers.splitKeyToTokens
+-import com.akuleshov7.ktoml.parsers.trimQuotes
++import com.akuleshov7.ktoml.parsers.trimAllQuotes
+ import com.akuleshov7.ktoml.writers.TomlEmitter
+ import com.akuleshov7.ktoml.writers.TomlStringEmitter
+ 
+@@ -49,7 +49,7 @@ public class TomlKey internal constructor(
+      * Gets the last key part, with all whitespace and quotes trimmed, i.e. `c` in
+      * `a.b.' c '`
+      */
+-    public fun last(): String = keyParts.last().trimQuotes().trim()
++    public fun last(): String = keyParts.last().trimAllQuotes().trim()
+ 
+     @Deprecated(
+         message = "TomlConfig is deprecated. Will be removed in next releases.",

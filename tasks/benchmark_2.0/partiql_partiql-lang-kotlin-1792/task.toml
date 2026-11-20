@@ -1,0 +1,65 @@
+[metadata.source]
+repository_owner = "partiql"
+repository_name = "partiql-lang-kotlin"
+repository_url = "https://github.com/partiql/partiql-lang-kotlin"
+license = "Apache-2.0"
+code_change_type = "pr"
+code_change_id = "1792"
+code_change_url = "https://github.com/partiql/partiql-lang-kotlin/pull/1792"
+task_revision = 7
+maintainer = "serhii.fedusov@jetbrains.com"
+
+[metadata.taxonomy]
+ecosystem = ["kotlin"]
+language = ["java", "kotlin"]
+visibility = "open_source"
+difficulty = "medium"
+task_type = ["feature", "test"]
+skills = ["api_navigation", "multi_file_reasoning", "test_analysis"]
+subsystem = ["application", "business_logic", "testing"]
+
+[metadata.verifier]
+workdir = "/partiql-lang-kotlin"
+env = []
+test_command = "./gradlew test --no-daemon --console=plain && find . -name '*.xml' -path '*/test-results/*' -exec cat {} +"
+
+[verifier]
+implemented = false
+timeout_sec = 900.0
+network_mode = "public"
+environment_mode = "separate"
+
+[[verifier.collect]]
+# The agent's changes for the separate verifier; see reward_hacking/separate_verifier.py.
+command = '''set -eu
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'
+export GIT_CONFIG_KEY_1=core.fsmonitor GIT_CONFIG_VALUE_1=false
+mkdir -p /logs/artifacts
+rm -f /logs/artifacts/agent_changes.patch
+cd /partiql-lang-kotlin
+index=$(mktemp)
+patch=$(mktemp /logs/artifacts/.agent_changes.XXXXXX)
+cp "$(git rev-parse --git-path index)" "$index"
+GIT_INDEX_FILE="$index" git add -A
+GIT_INDEX_FILE="$index" git diff --cached --binary --no-ext-diff --no-textconv 52000305a625b6e2613728daeb7a40d499aa7e80 >"$patch"
+rm -f "$index"
+chmod 644 "$patch"
+mv "$patch" /logs/artifacts/agent_changes.patch
+'''
+timeout_sec = 300.0
+
+[agent]
+timeout_sec = 1800.0
+network_mode = "no-network"
+
+[environment]
+workdir = "/partiql-lang-kotlin"
+storage_mb = 5120
+build_timeout_sec = 1800.0
+cpus = 4
+memory_mb = 10240
+network_mode = "public"
+
+[environment.env]
+_JAVA_OPTIONS = "-Djava.net.preferIPv4Stack=true"

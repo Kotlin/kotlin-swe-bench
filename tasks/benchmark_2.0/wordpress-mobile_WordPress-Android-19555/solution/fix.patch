@@ -1,0 +1,182 @@
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainActivity.kt b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainActivity.kt
+index 4e7c315c8992..3ebf80dd6e67 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainActivity.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainActivity.kt
+@@ -89,6 +89,7 @@ class PurchaseDomainActivity : AppCompatActivity() {
+                     uiState = uiState,
+                     onNewDomainCardSelected = viewModel::onNewDomainSelected,
+                     onExistingSiteCardSelected = viewModel::onExistingSiteSelected,
++                    onErrorButtonTapped = viewModel::onErrorButtonTapped,
+                     onBackPressed = viewModel::onBackPressed,
+                 )
+             }
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainViewModel.kt
+index 111fea5f7b65..74c4d4a5dd0c 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainViewModel.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/PurchaseDomainViewModel.kt
+@@ -50,6 +50,12 @@ class PurchaseDomainViewModel @AssistedInject constructor(
+         }
+     }
+ 
++    fun onErrorButtonTapped() {
++        launch {
++            _uiStateFlow.update { UiState.Initial }
++        }
++    }
++
+     fun onSiteChosen(site: SiteModel?) {
+         analyticsTracker.track(Stat.DOMAIN_MANAGEMENT_PURCHASE_DOMAIN_SCREEN_EXISTING_SITE_CHOSEN)
+         createCart(site, productId, domain, privacy)
+@@ -77,14 +83,13 @@ class PurchaseDomainViewModel @AssistedInject constructor(
+             false
+         )
+ 
+-        launch {
+-            delay(loadingStateAnimationResetDelay)
+-            _uiStateFlow.update { UiState.Initial }
+-        }
+-
+         if (event.isError) {
+-            // TODO Handle failed cart creation
++            _uiStateFlow.update { UiState.ErrorSubmittingCart }
+         } else {
++            launch {
++                delay(loadingStateAnimationResetDelay)
++                _uiStateFlow.update { UiState.Initial }
++            }
+             if (site != null) {
+                 _actionEvents.emit(ActionEvent.GoToExistingSite(domain = domain, siteModel = site))
+             } else {
+@@ -97,6 +102,8 @@ class PurchaseDomainViewModel @AssistedInject constructor(
+         object Initial : UiState
+         object SubmittingJustDomainCart : UiState
+         object SubmittingSiteDomainCart : UiState
++
++        object ErrorSubmittingCart : UiState
+     }
+ 
+     sealed class ActionEvent {
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/composable/PurchaseDomainScreen.kt b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/composable/PurchaseDomainScreen.kt
+index ae8cb5afbf04..1241e68bd43e 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/composable/PurchaseDomainScreen.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/domains/management/purchasedomain/composable/PurchaseDomainScreen.kt
+@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Scaffold
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.res.painterResource
+@@ -44,6 +45,7 @@ fun PurchaseDomainScreen(
+     uiState: UiState,
+     onNewDomainCardSelected: () -> Unit,
+     onExistingSiteCardSelected: () -> Unit,
++    onErrorButtonTapped: () -> Unit,
+     onBackPressed: () -> Unit,
+     modifier: Modifier = Modifier
+ ) {
+@@ -65,22 +67,26 @@ fun PurchaseDomainScreen(
+             )
+         },
+         content = {
+-            Box(
+-                modifier = Modifier
+-                    .fillMaxSize()
+-                    .background(MaterialTheme.colorScheme.surface)
+-                    .padding(it)
+-            ) {
+-                Column(
++            if (uiState == UiState.ErrorSubmittingCart) {
++                ErrorScreen(onButtonTapped = onErrorButtonTapped)
++            } else {
++                Box(
+                     modifier = Modifier
+                         .fillMaxSize()
+-                        .verticalScroll(contentScrollState)
+-                        .padding(16.dp)
++                        .background(MaterialTheme.colorScheme.surface)
++                        .padding(it)
+                 ) {
+-                    ScreenHeader()
+-                    ScreenDescription()
+-                    DomainCards(uiState, onNewDomainCardSelected, onExistingSiteCardSelected)
+-                    DiscountNotice()
++                    Column(
++                        modifier = Modifier
++                            .fillMaxSize()
++                            .verticalScroll(contentScrollState)
++                            .padding(16.dp)
++                    ) {
++                        ScreenHeader()
++                        ScreenDescription()
++                        DomainCards(uiState, onNewDomainCardSelected, onExistingSiteCardSelected)
++                        DiscountNotice()
++                    }
+                 }
+             }
+         }
+@@ -236,6 +242,31 @@ private fun DomainOptionCard(
+     }
+ }
+ 
++@Composable
++fun ErrorScreen(onButtonTapped: () -> Unit) {
++    Column(
++        verticalArrangement = Arrangement.Center,
++        horizontalAlignment = Alignment.CenterHorizontally,
++        modifier = Modifier.fillMaxSize().padding(32.dp),
++    ) {
++        Text(
++            text = stringResource(R.string.purchase_domain_screen_error_title),
++            style = MaterialTheme.typography.titleLarge,
++            color = MaterialTheme.colorScheme.outline,
++        )
++        Text(
++            text = stringResource(R.string.purchase_domain_screen_error_subtitle),
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.outline,
++        )
++        PrimaryButton(
++            text = stringResource(R.string.purchase_domain_screen_error_button_title),
++            onClick = onButtonTapped,
++            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
++        )
++    }
++}
++
+ private val isPortrait: Boolean @Composable get() = LocalConfiguration.current.orientation == ORIENTATION_PORTRAIT
+ 
+ @Preview(name = "Light mode", locale = "en")
+@@ -245,7 +276,16 @@ private val isPortrait: Boolean @Composable get() = LocalConfiguration.current.o
+ @Composable
+ fun PurchaseDomainScreenPreview() {
+     M3Theme {
+-        PurchaseDomainScreen(Initial, {}, {}, {})
++        PurchaseDomainScreen(Initial, {}, {}, {}, {})
++    }
++}
++
++@Preview(name = "Light mode", locale = "en")
++@Preview(name = "Dark mode", uiMode = Configuration.UI_MODE_NIGHT_YES)
++@Composable
++fun PurchaseDomainScreenErrorPreview() {
++    M3Theme {
++        PurchaseDomainScreen(UiState.ErrorSubmittingCart, {}, {}, {}, {})
+     }
+ }
+ 
+diff --git a/WordPress/src/main/res/values/strings.xml b/WordPress/src/main/res/values/strings.xml
+index f20e5bb90a3a..77320a57c1bc 100644
+--- a/WordPress/src/main/res/values/strings.xml
++++ b/WordPress/src/main/res/values/strings.xml
+@@ -2734,6 +2734,9 @@
+     <string name="purchase_domain_screen_existing_domain_card_description">Use with a site you already started.</string>
+     <string name="purchase_domain_screen_existing_domain_card_button">Choose Site</string>
+     <string name="purchase_domain_screen_discount_notice">*A free domain for one year is included with all paid annual plans.</string>
++    <string name="purchase_domain_screen_error_title">Error</string>
++    <string name="purchase_domain_screen_error_subtitle">Something went wrong while adding the domain to the cart. Make sure you are online and retry.</string>
++    <string name="purchase_domain_screen_error_button_title">OK</string>
+ 
+     <!-- Domain Management - Search For A New Domain Screen -->
+     <string name="new_domain_search_screen_title">Search for a domain</string>

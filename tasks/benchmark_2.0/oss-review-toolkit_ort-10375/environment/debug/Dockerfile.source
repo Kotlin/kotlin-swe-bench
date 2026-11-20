@@ -1,0 +1,10 @@
+FROM kotlinai/oss-review-toolkit_ort:base
+
+COPY debug/exclude-flaky-tests.gradle /home/
+COPY debug/check_git_changes.sh /home/
+COPY debug/prepare.sh /home/
+COPY debug/seal_git_history.sh /home/
+
+RUN bash /home/prepare.sh
+RUN chmod +x /home/*.sh
+WORKDIR /home/ort

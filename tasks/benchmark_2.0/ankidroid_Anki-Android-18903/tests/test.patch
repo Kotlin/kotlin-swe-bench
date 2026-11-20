@@ -1,0 +1,112 @@
+diff --git a/AnkiDroid/src/test/java/com/ichi2/anki/CardBrowserTest.kt b/AnkiDroid/src/test/java/com/ichi2/anki/CardBrowserTest.kt
+index 9d4ec0fb2521..09986cf5857a 100644
+--- a/AnkiDroid/src/test/java/com/ichi2/anki/CardBrowserTest.kt
++++ b/AnkiDroid/src/test/java/com/ichi2/anki/CardBrowserTest.kt
+@@ -72,7 +72,9 @@ import com.ichi2.anki.browser.FindAndReplaceDialogFragment.Companion.ARG_SEARCH
+ import com.ichi2.anki.browser.FindAndReplaceDialogFragment.Companion.REQUEST_FIND_AND_REPLACE
+ import com.ichi2.anki.browser.FindAndReplaceDialogFragment.Companion.TAGS_AS_FIELD
+ import com.ichi2.anki.browser.column1
++import com.ichi2.anki.browser.selectRowAtPosition
+ import com.ichi2.anki.browser.setColumn
++import com.ichi2.anki.browser.toRowSelection
+ import com.ichi2.anki.common.time.TimeManager
+ import com.ichi2.anki.common.utils.isRunningAsUnitTest
+ import com.ichi2.anki.dialogs.DeckSelectionDialog
+@@ -1017,23 +1019,6 @@ class CardBrowserTest : RobolectricTest() {
+             assertThat(cardBrowser.viewModel.rowCount, equalTo(3))
+         }
+ 
+-    @Test
+-    fun checkIfScrollPositionSavedOnLongPress() =
+-        runTest {
+-            val cardBrowser = getBrowserWithNotes(10)
+-            cardBrowser.longClickRowAtPosition(5)
+-            assertThat(cardBrowser.viewModel.lastSelectedPosition, equalTo(5))
+-        }
+-
+-    @Test
+-    fun checkIfScrollPositionSavedOnTap() =
+-        runTest {
+-            val cardBrowser = getBrowserWithNotes(10)
+-            cardBrowser.longClickRowAtPosition(1)
+-            cardBrowser.clickRowAtPosition(5)
+-            assertThat(cardBrowser.viewModel.lastSelectedPosition, equalTo(5))
+-        }
+-
+     @Test
+     fun `column spinner positions are set if no preferences exist`() =
+         runBlocking {
+@@ -1625,7 +1610,7 @@ fun CardBrowser.selectRowsWithPositions(vararg positions: Int) {
+ 
+ fun CardBrowser.clickRowAtPosition(pos: Int) = cardBrowserFragment.onTap(viewModel.cards[pos])
+ 
+-fun CardBrowser.longClickRowAtPosition(pos: Int) = viewModel.handleRowLongPress(viewModel.cards[pos])
++fun CardBrowser.longClickRowAtPosition(pos: Int) = viewModel.handleRowLongPress(viewModel.cards[pos].toRowSelection())
+ 
+ val CardBrowser.lastDeckId
+     get() = viewModel.lastDeckId
+diff --git a/AnkiDroid/src/test/java/com/ichi2/anki/browser/CardBrowserViewModelTest.kt b/AnkiDroid/src/test/java/com/ichi2/anki/browser/CardBrowserViewModelTest.kt
+index 6034828b0137..3c2970824e94 100644
+--- a/AnkiDroid/src/test/java/com/ichi2/anki/browser/CardBrowserViewModelTest.kt
++++ b/AnkiDroid/src/test/java/com/ichi2/anki/browser/CardBrowserViewModelTest.kt
+@@ -49,7 +49,9 @@ import com.ichi2.anki.browser.CardBrowserColumn.SFLD
+ import com.ichi2.anki.browser.CardBrowserColumn.TAGS
+ import com.ichi2.anki.browser.CardBrowserLaunchOptions.DeepLink
+ import com.ichi2.anki.browser.CardBrowserLaunchOptions.SystemContextMenu
++import com.ichi2.anki.browser.CardBrowserViewModel.ChangeMultiSelectMode.SingleSelectCause
+ import com.ichi2.anki.browser.CardBrowserViewModel.Companion.STATE_MULTISELECT_VALUES
++import com.ichi2.anki.browser.CardBrowserViewModel.RowSelection
+ import com.ichi2.anki.browser.CardBrowserViewModel.ToggleSelectionState.SELECT_ALL
+ import com.ichi2.anki.browser.CardBrowserViewModel.ToggleSelectionState.SELECT_NONE
+ import com.ichi2.anki.browser.RepositionCardsRequest.ContainsNonNewCardsError
+@@ -1069,7 +1071,7 @@ class CardBrowserViewModelTest : JvmTest() {
+                 assertThat("toggle selection after select all manually", awaitItem(), equalTo(SELECT_NONE))
+ 
+                 // end select mode
+-                endMultiSelectMode()
++                endMultiSelectMode(SingleSelectCause.NavigateBack)
+                 assertThat("multiselect after toggle 3", isInMultiSelectMode, equalTo(false))
+                 cancelAndIgnoreRemainingEvents()
+             }
+@@ -1102,9 +1104,9 @@ class CardBrowserViewModelTest : JvmTest() {
+             this.toggleRowSelectionAtPosition(0)
+             this.toggleRowSelectionAtPosition(0)
+             this.toggleRowSelectionAtPosition(1)
+-            assertThat("selection -> in multiselect", flowOfIsInMultiSelectMode.value, equalTo(true))
++            assertThat("selection -> in multiselect", isInMultiSelectMode, equalTo(true))
+             this.toggleRowSelectionAtPosition(2)
+-            assertThat("tap last row -> disable multiselect", flowOfIsInMultiSelectMode.value, equalTo(false))
++            assertThat("tap last row -> disable multiselect", isInMultiSelectMode, equalTo(false))
+         }
+     }
+ 
+@@ -1113,14 +1115,14 @@ class CardBrowserViewModelTest : JvmTest() {
+         val handle = SavedStateHandle()
+         runViewModelTest(savedStateHandle = handle, notes = 1) {
+             assertThat(isInMultiSelectMode, equalTo(false))
+-            assertThat("initial multiselect state", handle.get<Boolean>("multiselect"), equalTo(null))
++            assertThat("initial multiselect state", handle.get<Boolean>("multiselect"), equalTo(false))
+             selectAll()
+             assertThat("multiselect after select all", handle.get<Boolean>("multiselect"), equalTo(true))
+         }
+ 
+         runViewModelTest(savedStateHandle = handle) {
+             assertThat("multiselect state restoration", isInMultiSelectMode, equalTo(true))
+-            endMultiSelectMode()
++            endMultiSelectMode(SingleSelectCause.NavigateBack)
+             assertThat("multiselect after 'end multiselect'", handle.get<Boolean>("multiselect"), equalTo(false))
+         }
+     }
+@@ -1345,4 +1347,11 @@ fun CardBrowserViewModel.setColumn(
+ val Pair<List<ColumnWithSample>, List<ColumnWithSample>>.allColumns
+     get() = this.first + this.second
+ 
+-private fun CardBrowserViewModel.toggleRowSelectionAtPosition(position: Int) = toggleRowSelection(cards[position])
++private fun CardBrowserViewModel.toggleRowSelectionAtPosition(position: Int) = toggleRowSelection(cards[position].toRowSelection())
++
++fun CardBrowserViewModel.selectRowAtPosition(position: Int) {
++    val rowId = this.getRowAtPosition(position)
++    this.selectRowAtPosition(position, rowId.toRowSelection())
++}
++
++fun CardOrNoteId.toRowSelection() = RowSelection(rowId = this, topOffset = 0)

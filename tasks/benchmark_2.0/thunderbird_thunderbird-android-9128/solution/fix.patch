@@ -1,0 +1,1532 @@
+diff --git a/app-common/build.gradle.kts b/app-common/build.gradle.kts
+index 8fa9edbaa70..03ae6b8c52c 100644
+--- a/app-common/build.gradle.kts
++++ b/app-common/build.gradle.kts
+@@ -8,13 +8,10 @@ android {
+ 
+ dependencies {
+     api(projects.legacy.common)
+-
+     api(projects.legacy.ui.legacy)
+ 
+     api(projects.feature.account.core)
+-
+     api(projects.feature.launcher)
+-
+     api(projects.feature.navigation.drawer.api)
+ 
+     implementation(projects.legacy.core)
+@@ -27,6 +24,9 @@ dependencies {
+ 
+     implementation(projects.feature.account.setup)
+     implementation(projects.feature.migration.provider)
++    implementation(projects.feature.widget.messageList)
+ 
+     implementation(projects.mail.protocols.imap)
++
++    implementation(libs.androidx.work.runtime)
+ }
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/AppCommonModule.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/AppCommonModule.kt
+index a6a5259401d..7821c6d3932 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/AppCommonModule.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/AppCommonModule.kt
+@@ -1,11 +1,20 @@
+ package net.thunderbird.app.common
+ 
++import com.fsck.k9.legacyCommonAppModules
++import com.fsck.k9.legacyCoreModules
++import com.fsck.k9.legacyUiModules
+ import net.thunderbird.app.common.account.appCommonAccountModule
++import net.thunderbird.app.common.feature.appCommonFeatureModule
+ import org.koin.core.module.Module
+ import org.koin.dsl.module
+ 
+ val appCommonModule: Module = module {
++    includes(legacyCommonAppModules)
++    includes(legacyCoreModules)
++    includes(legacyUiModules)
++
+     includes(
+         appCommonAccountModule,
++        appCommonFeatureModule,
+     )
+ }
+diff --git a/legacy/common/src/main/java/com/fsck/k9/CommonApp.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/BaseApplication.kt
+similarity index 94%
+rename from legacy/common/src/main/java/com/fsck/k9/CommonApp.kt
+rename to app-common/src/main/kotlin/net/thunderbird/app/common/BaseApplication.kt
+index c91045bb881..eae10e8b6cf 100644
+--- a/legacy/common/src/main/java/com/fsck/k9/CommonApp.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/BaseApplication.kt
+@@ -1,4 +1,4 @@
+-package com.fsck.k9
++package net.thunderbird.app.common
+ 
+ import android.app.Application
+ import android.content.Context
+@@ -6,8 +6,12 @@ import android.content.res.Configuration
+ import android.content.res.Resources
+ import app.k9mail.feature.widget.message.list.MessageListWidgetManager
+ import app.k9mail.legacy.di.DI
++import com.fsck.k9.Core
++import com.fsck.k9.K9
++import com.fsck.k9.MessagingListenerProvider
+ import com.fsck.k9.controller.MessagingController
+ import com.fsck.k9.job.WorkManagerConfigurationProvider
++import com.fsck.k9.logging.Timber
+ import com.fsck.k9.notification.NotificationChannelManager
+ import com.fsck.k9.ui.base.AppLanguageManager
+ import com.fsck.k9.ui.base.extensions.currentLocale
+@@ -21,10 +25,10 @@ import kotlinx.coroutines.flow.onEach
+ import net.thunderbird.core.ui.theme.manager.ThemeManager
+ import org.koin.android.ext.android.inject
+ import org.koin.core.module.Module
+-import timber.log.Timber
+ import androidx.work.Configuration as WorkManagerConfiguration
+ 
+-abstract class CommonApp : Application(), WorkManagerConfiguration.Provider {
++abstract class BaseApplication : Application(), WorkManagerConfiguration.Provider {
++
+     private val messagingController: MessagingController by inject()
+     private val messagingListenerProvider: MessagingListenerProvider by inject()
+     private val themeManager: ThemeManager by inject()
+@@ -38,10 +42,11 @@ abstract class CommonApp : Application(), WorkManagerConfiguration.Provider {
+ 
+     override fun attachBaseContext(base: Context?) {
+         Core.earlyInit()
++
+         super.attachBaseContext(base)
+ 
+         // Start Koin early so it is ready by the time content providers are initialized.
+-        DI.start(this, listOf(provideAppModule()) + coreModules + uiModules + commonAppModules)
++        DI.start(this, listOf(provideAppModule()))
+     }
+ 
+     override fun onCreate() {
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/account/AccountColorPicker.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/account/AccountColorPicker.kt
+index 47f9c84ff23..99fc1f3d836 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/account/AccountColorPicker.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/account/AccountColorPicker.kt
+@@ -4,7 +4,7 @@ import android.content.res.Resources
+ import app.k9mail.core.ui.legacy.theme2.common.R
+ import app.k9mail.legacy.account.AccountManager
+ 
+-class AccountColorPicker(
++internal class AccountColorPicker(
+     private val accountManager: AccountManager,
+     private val resources: Resources,
+ ) {
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/account/AccountCreator.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/account/AccountCreator.kt
+index adddacde92f..eed1f00df89 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/account/AccountCreator.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/account/AccountCreator.kt
+@@ -27,7 +27,7 @@ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ 
+ // TODO Move to feature/account/setup
+-class AccountCreator(
++internal class AccountCreator(
+     private val accountColorPicker: AccountColorPicker,
+     private val localFoldersCreator: SpecialLocalFoldersCreator,
+     private val preferences: Preferences,
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/account/CommonAccountDefaultsProvider.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/account/CommonAccountDefaultsProvider.kt
+index 15e79d43c9b..7cad8b030ce 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/account/CommonAccountDefaultsProvider.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/account/CommonAccountDefaultsProvider.kt
+@@ -32,7 +32,7 @@ import net.thunderbird.feature.notification.NotificationSettings
+ import net.thunderbird.feature.notification.NotificationVibration
+ 
+ @Suppress("MagicNumber")
+-class CommonAccountDefaultsProvider(
++internal class CommonAccountDefaultsProvider(
+     private val resourceProvider: CoreResourceProvider,
+     private val featureFlagProvider: FeatureFlagProvider,
+ ) : AccountDefaultsProvider {
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/account/data/CommonAccountProfileLocalDataSource.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/account/data/CommonAccountProfileLocalDataSource.kt
+index a73caf741ef..a4731f6d06c 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/account/data/CommonAccountProfileLocalDataSource.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/account/data/CommonAccountProfileLocalDataSource.kt
+@@ -8,7 +8,7 @@ import net.thunderbird.feature.account.api.AccountId
+ import net.thunderbird.feature.account.api.profile.AccountProfile
+ import net.thunderbird.feature.account.core.AccountCoreExternalContract.AccountProfileLocalDataSource
+ 
+-class CommonAccountProfileLocalDataSource(
++internal class CommonAccountProfileLocalDataSource(
+     private val accountManager: LegacyAccountWrapperManager,
+ ) : AccountProfileLocalDataSource {
+ 
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/account/data/CommonLegacyAccountWrapperManager.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/account/data/CommonLegacyAccountWrapperManager.kt
+index c49343282b8..53b4a5bb890 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/account/data/CommonLegacyAccountWrapperManager.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/account/data/CommonLegacyAccountWrapperManager.kt
+@@ -6,7 +6,7 @@ import app.k9mail.legacy.account.LegacyAccountWrapperManager
+ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.map
+ 
+-class CommonLegacyAccountWrapperManager(
++internal class CommonLegacyAccountWrapperManager(
+     private val accountManager: AccountManager,
+ ) : LegacyAccountWrapperManager {
+ 
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/feature/AccountSetupFinishedLauncher.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/feature/AccountSetupFinishedLauncher.kt
+index 9324615fb20..ebcca41f121 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/feature/AccountSetupFinishedLauncher.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/feature/AccountSetupFinishedLauncher.kt
+@@ -4,7 +4,7 @@ import android.content.Context
+ import app.k9mail.feature.launcher.FeatureLauncherExternalContract
+ import com.fsck.k9.activity.MessageList
+ 
+-class AccountSetupFinishedLauncher(
++internal class AccountSetupFinishedLauncher(
+     private val context: Context,
+ ) : FeatureLauncherExternalContract.AccountSetupFinishedLauncher {
+     override fun launch(accountUuid: String?) {
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/feature/FeatureModule.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/feature/AppCommonFeatureModule.kt
+similarity index 82%
+rename from app-common/src/main/kotlin/net/thunderbird/app/common/feature/FeatureModule.kt
+rename to app-common/src/main/kotlin/net/thunderbird/app/common/feature/AppCommonFeatureModule.kt
+index c03304c44e6..d68b7d286ee 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/feature/FeatureModule.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/feature/AppCommonFeatureModule.kt
+@@ -1,11 +1,14 @@
+ package net.thunderbird.app.common.feature
+ 
+ import app.k9mail.feature.launcher.FeatureLauncherExternalContract
++import app.k9mail.feature.launcher.di.featureLauncherModule
+ import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract
+ import org.koin.android.ext.koin.androidContext
+ import org.koin.dsl.module
+ 
+-val featureLauncherModule = module {
++internal val appCommonFeatureModule = module {
++    includes(featureLauncherModule)
++
+     factory<FeatureLauncherExternalContract.AccountSetupFinishedLauncher> {
+         AccountSetupFinishedLauncher(
+             context = androidContext(),
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/feature/NavigationDrawerConfigLoader.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/feature/NavigationDrawerConfigLoader.kt
+index a0a232c6c20..4aef5790bf6 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/feature/NavigationDrawerConfigLoader.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/feature/NavigationDrawerConfigLoader.kt
+@@ -4,7 +4,7 @@ import com.fsck.k9.preferences.DrawerConfigManager
+ import kotlinx.coroutines.flow.Flow
+ import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract
+ 
+-class NavigationDrawerConfigLoader(private val drawerConfigManager: DrawerConfigManager) :
++internal class NavigationDrawerConfigLoader(private val drawerConfigManager: DrawerConfigManager) :
+     NavigationDrawerExternalContract.DrawerConfigLoader {
+     override fun loadDrawerConfigFlow(): Flow<NavigationDrawerExternalContract.DrawerConfig> {
+         return drawerConfigManager.getConfigFlow()
+diff --git a/app-common/src/main/kotlin/net/thunderbird/app/common/feature/NavigationDrawerConfigWriter.kt b/app-common/src/main/kotlin/net/thunderbird/app/common/feature/NavigationDrawerConfigWriter.kt
+index d0f2c0eda54..aae40c240fb 100644
+--- a/app-common/src/main/kotlin/net/thunderbird/app/common/feature/NavigationDrawerConfigWriter.kt
++++ b/app-common/src/main/kotlin/net/thunderbird/app/common/feature/NavigationDrawerConfigWriter.kt
+@@ -4,7 +4,7 @@ import com.fsck.k9.preferences.DrawerConfigManager
+ import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract
+ import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract.DrawerConfig
+ 
+-class NavigationDrawerConfigWriter(
++internal class NavigationDrawerConfigWriter(
+     private val drawerConfigManager: DrawerConfigManager,
+ ) : NavigationDrawerExternalContract.DrawerConfigWriter {
+     override fun writeDrawerConfig(drawerConfig: DrawerConfig) {
+diff --git a/app-k9mail/dependencies/fossReleaseRuntimeClasspath.txt b/app-k9mail/dependencies/fossReleaseRuntimeClasspath.txt
+index fd0f4648ec5..ffd498ee47b 100644
+--- a/app-k9mail/dependencies/fossReleaseRuntimeClasspath.txt
++++ b/app-k9mail/dependencies/fossReleaseRuntimeClasspath.txt
+@@ -150,12 +150,12 @@ androidx.window:window-core:1.3.0
+ androidx.window:window:1.3.0
+ androidx.work:work-runtime-ktx:2.10.1
+ androidx.work:work-runtime:2.10.1
+-co.touchlab:stately-concurrency-jvm:2.0.6
+-co.touchlab:stately-concurrency:2.0.6
+-co.touchlab:stately-concurrent-collections-jvm:2.0.6
+-co.touchlab:stately-concurrent-collections:2.0.6
+-co.touchlab:stately-strict-jvm:2.0.6
+-co.touchlab:stately-strict:2.0.6
++co.touchlab:stately-concurrency-jvm:2.1.0
++co.touchlab:stately-concurrency:2.1.0
++co.touchlab:stately-concurrent-collections-jvm:2.1.0
++co.touchlab:stately-concurrent-collections:2.1.0
++co.touchlab:stately-strict-jvm:2.1.0
++co.touchlab:stately-strict:2.1.0
+ com.beetstra.jutf7:jutf7:1.0.0
+ com.github.ByteHamster:SearchPreference:v2.3.0
+ com.github.bumptech.glide:annotations:4.16.0
+@@ -198,13 +198,17 @@ io.coil-kt.coil3:coil-network-core:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp-jvm:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp:3.1.0
+ io.coil-kt.coil3:coil:3.1.0
+-io.insert-koin:koin-android:3.5.6
+-io.insert-koin:koin-androidx-compose:3.5.6
+-io.insert-koin:koin-bom:3.5.6
+-io.insert-koin:koin-compose-jvm:1.1.5
+-io.insert-koin:koin-compose:1.1.5
+-io.insert-koin:koin-core-jvm:3.5.6
+-io.insert-koin:koin-core:3.5.6
++io.insert-koin:koin-android:4.0.4
++io.insert-koin:koin-androidx-compose:4.0.4
++io.insert-koin:koin-bom:4.0.4
++io.insert-koin:koin-compose-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel:4.0.4
++io.insert-koin:koin-compose:4.0.4
++io.insert-koin:koin-core-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel:4.0.4
++io.insert-koin:koin-core:4.0.4
+ net.jcip:jcip-annotations:1.0
+ net.openid:appauth:0.11.1
+ org.apache.commons:commons-lang3:3.7
+@@ -214,10 +218,15 @@ org.apache.httpcomponents.core5:httpcore5-h2:5.3.4
+ org.apache.httpcomponents.core5:httpcore5:5.3.4
+ org.apache.james:apache-mime4j-core:0.8.12
+ org.apache.james:apache-mime4j-dom:0.8.12
++org.jetbrains.androidx.core:core-bundle-android:1.0.1
++org.jetbrains.androidx.core:core-bundle:1.0.1
+ org.jetbrains.androidx.lifecycle:lifecycle-common:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime:2.8.4
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3
+ org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.8.4
++org.jetbrains.androidx.savedstate:savedstate:1.2.2
+ org.jetbrains.compose.animation:animation-core:1.7.3
+ org.jetbrains.compose.animation:animation:1.7.3
+ org.jetbrains.compose.annotation-internal:annotation:1.7.3
+diff --git a/app-k9mail/dependencies/fullReleaseRuntimeClasspath.txt b/app-k9mail/dependencies/fullReleaseRuntimeClasspath.txt
+index 91bb3987fbd..05ef256f9c6 100644
+--- a/app-k9mail/dependencies/fullReleaseRuntimeClasspath.txt
++++ b/app-k9mail/dependencies/fullReleaseRuntimeClasspath.txt
+@@ -150,12 +150,12 @@ androidx.window:window-core:1.3.0
+ androidx.window:window:1.3.0
+ androidx.work:work-runtime-ktx:2.10.1
+ androidx.work:work-runtime:2.10.1
+-co.touchlab:stately-concurrency-jvm:2.0.6
+-co.touchlab:stately-concurrency:2.0.6
+-co.touchlab:stately-concurrent-collections-jvm:2.0.6
+-co.touchlab:stately-concurrent-collections:2.0.6
+-co.touchlab:stately-strict-jvm:2.0.6
+-co.touchlab:stately-strict:2.0.6
++co.touchlab:stately-concurrency-jvm:2.1.0
++co.touchlab:stately-concurrency:2.1.0
++co.touchlab:stately-concurrent-collections-jvm:2.1.0
++co.touchlab:stately-concurrent-collections:2.1.0
++co.touchlab:stately-strict-jvm:2.1.0
++co.touchlab:stately-strict:2.1.0
+ com.android.billingclient:billing-ktx:7.1.1
+ com.android.billingclient:billing:7.1.1
+ com.beetstra.jutf7:jutf7:1.0.0
+@@ -211,13 +211,17 @@ io.coil-kt.coil3:coil-network-core:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp-jvm:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp:3.1.0
+ io.coil-kt.coil3:coil:3.1.0
+-io.insert-koin:koin-android:3.5.6
+-io.insert-koin:koin-androidx-compose:3.5.6
+-io.insert-koin:koin-bom:3.5.6
+-io.insert-koin:koin-compose-jvm:1.1.5
+-io.insert-koin:koin-compose:1.1.5
+-io.insert-koin:koin-core-jvm:3.5.6
+-io.insert-koin:koin-core:3.5.6
++io.insert-koin:koin-android:4.0.4
++io.insert-koin:koin-androidx-compose:4.0.4
++io.insert-koin:koin-bom:4.0.4
++io.insert-koin:koin-compose-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel:4.0.4
++io.insert-koin:koin-compose:4.0.4
++io.insert-koin:koin-core-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel:4.0.4
++io.insert-koin:koin-core:4.0.4
+ javax.inject:javax.inject:1
+ net.jcip:jcip-annotations:1.0
+ net.openid:appauth:0.11.1
+@@ -228,10 +232,15 @@ org.apache.httpcomponents.core5:httpcore5-h2:5.3.4
+ org.apache.httpcomponents.core5:httpcore5:5.3.4
+ org.apache.james:apache-mime4j-core:0.8.12
+ org.apache.james:apache-mime4j-dom:0.8.12
++org.jetbrains.androidx.core:core-bundle-android:1.0.1
++org.jetbrains.androidx.core:core-bundle:1.0.1
+ org.jetbrains.androidx.lifecycle:lifecycle-common:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime:2.8.4
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3
+ org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.8.4
++org.jetbrains.androidx.savedstate:savedstate:1.2.2
+ org.jetbrains.compose.animation:animation-core:1.7.3
+ org.jetbrains.compose.animation:animation:1.7.3
+ org.jetbrains.compose.annotation-internal:annotation:1.7.3
+diff --git a/app-k9mail/src/main/kotlin/app/k9mail/K9App.kt b/app-k9mail/src/main/kotlin/app/k9mail/K9App.kt
+index 69576243853..a2ab33c84e0 100644
+--- a/app-k9mail/src/main/kotlin/app/k9mail/K9App.kt
++++ b/app-k9mail/src/main/kotlin/app/k9mail/K9App.kt
+@@ -1,8 +1,8 @@
+ package app.k9mail
+ 
+-import com.fsck.k9.CommonApp
++import net.thunderbird.app.common.BaseApplication
+ import org.koin.core.module.Module
+ 
+-class K9App : CommonApp() {
++class K9App : BaseApplication() {
+     override fun provideAppModule(): Module = appModule
+ }
+diff --git a/app-k9mail/src/main/kotlin/app/k9mail/K9KoinModule.kt b/app-k9mail/src/main/kotlin/app/k9mail/K9KoinModule.kt
+index 5eff8918815..f55a372a3b8 100644
+--- a/app-k9mail/src/main/kotlin/app/k9mail/K9KoinModule.kt
++++ b/app-k9mail/src/main/kotlin/app/k9mail/K9KoinModule.kt
+@@ -2,45 +2,33 @@ package app.k9mail
+ 
+ import app.k9mail.auth.K9OAuthConfigurationFactory
+ import app.k9mail.core.common.oauth.OAuthConfigurationFactory
+-import app.k9mail.core.common.provider.AppNameProvider
+-import app.k9mail.core.common.provider.BrandNameProvider
+ import app.k9mail.core.featureflag.FeatureFlagFactory
+-import app.k9mail.core.ui.theme.api.FeatureThemeProvider
+-import app.k9mail.core.ui.theme.api.ThemeProvider
+ import app.k9mail.dev.developmentModuleAdditions
+ import app.k9mail.feature.featureModule
+ import app.k9mail.feature.widget.shortcut.LauncherShortcutActivity
+ import app.k9mail.featureflag.K9FeatureFlagFactory
+-import app.k9mail.provider.K9AppNameProvider
+-import app.k9mail.provider.K9FeatureThemeProvider
+-import app.k9mail.widget.appWidgetModule
++import app.k9mail.provider.providerModule
++import app.k9mail.widget.widgetModule
+ import com.fsck.k9.AppConfig
+ import com.fsck.k9.BuildConfig
+ import com.fsck.k9.activity.MessageCompose
+-import com.fsck.k9.preferences.FilePrefixProvider
+-import com.fsck.k9.provider.K9ThemeProvider
+ import com.fsck.k9.provider.UnreadWidgetProvider
+ import com.fsck.k9.widget.list.MessageListWidgetProvider
+ import net.thunderbird.app.common.appCommonModule
+-import org.koin.android.ext.koin.androidContext
+ import org.koin.core.qualifier.named
+-import org.koin.dsl.binds
+ import org.koin.dsl.module
+ 
+ val appModule = module {
+     includes(appCommonModule)
+-    includes(appWidgetModule)
++
++    includes(widgetModule)
+     includes(featureModule)
++    includes(providerModule)
+ 
+     single(named("ClientInfoAppName")) { BuildConfig.CLIENT_INFO_APP_NAME }
+     single(named("ClientInfoAppVersion")) { BuildConfig.VERSION_NAME }
+     single<AppConfig> { appConfig }
+     single<OAuthConfigurationFactory> { K9OAuthConfigurationFactory() }
+-    single {
+-        K9AppNameProvider(androidContext())
+-    } binds arrayOf(AppNameProvider::class, BrandNameProvider::class, FilePrefixProvider::class)
+-    single<ThemeProvider> { K9ThemeProvider() }
+-    single<FeatureThemeProvider> { K9FeatureThemeProvider() }
+     single<FeatureFlagFactory> { K9FeatureFlagFactory() }
+ 
+     developmentModuleAdditions()
+diff --git a/app-k9mail/src/main/kotlin/app/k9mail/feature/FeatureModule.kt b/app-k9mail/src/main/kotlin/app/k9mail/feature/FeatureModule.kt
+index d9558ee3c4c..b008d73b38e 100644
+--- a/app-k9mail/src/main/kotlin/app/k9mail/feature/FeatureModule.kt
++++ b/app-k9mail/src/main/kotlin/app/k9mail/feature/FeatureModule.kt
+@@ -5,13 +5,10 @@ import app.k9mail.feature.funding.featureFundingModule
+ import app.k9mail.feature.migration.launcher.featureMigrationModule
+ import app.k9mail.feature.onboarding.migration.onboardingMigrationModule
+ import app.k9mail.feature.telemetry.telemetryModule
+-import net.thunderbird.app.common.feature.featureLauncherModule
+ import net.thunderbird.feature.account.settings.featureAccountSettingsModule
+ import org.koin.dsl.module
+ 
+ val featureModule = module {
+-    includes(featureLauncherModule)
+-
+     includes(featureAccountSettingsModule)
+     includes(telemetryModule)
+     includes(featureFundingModule)
+diff --git a/app-k9mail/src/main/kotlin/app/k9mail/feature/K9FundingSettings.kt b/app-k9mail/src/main/kotlin/app/k9mail/feature/K9FundingSettings.kt
+index 552d093df53..f539816fc18 100644
+--- a/app-k9mail/src/main/kotlin/app/k9mail/feature/K9FundingSettings.kt
++++ b/app-k9mail/src/main/kotlin/app/k9mail/feature/K9FundingSettings.kt
+@@ -3,7 +3,7 @@ package app.k9mail.feature
+ import app.k9mail.feature.funding.api.FundingSettings
+ import com.fsck.k9.K9
+ 
+-class K9FundingSettings : FundingSettings {
++internal class K9FundingSettings : FundingSettings {
+     override fun getReminderReferenceTimestamp(): Long = K9.fundingReminderReferenceTimestamp
+ 
+     override fun setReminderReferenceTimestamp(timestamp: Long) {
+diff --git a/app-k9mail/src/main/kotlin/app/k9mail/provider/K9AppNameProvider.kt b/app-k9mail/src/main/kotlin/app/k9mail/provider/K9AppNameProvider.kt
+index 18e1584b85c..0155eb3a9ad 100644
+--- a/app-k9mail/src/main/kotlin/app/k9mail/provider/K9AppNameProvider.kt
++++ b/app-k9mail/src/main/kotlin/app/k9mail/provider/K9AppNameProvider.kt
+@@ -6,7 +6,7 @@ import app.k9mail.core.common.provider.BrandNameProvider
+ import com.fsck.k9.R
+ import com.fsck.k9.preferences.FilePrefixProvider
+ 
+-class K9AppNameProvider(
++internal class K9AppNameProvider(
+     context: Context,
+ ) : AppNameProvider, BrandNameProvider, FilePrefixProvider {
+     override val appName: String by lazy {
+diff --git a/app-k9mail/src/main/kotlin/app/k9mail/provider/K9FeatureThemeProvider.kt b/app-k9mail/src/main/kotlin/app/k9mail/provider/K9FeatureThemeProvider.kt
+index 9363feff8d3..a10397d1f56 100644
+--- a/app-k9mail/src/main/kotlin/app/k9mail/provider/K9FeatureThemeProvider.kt
++++ b/app-k9mail/src/main/kotlin/app/k9mail/provider/K9FeatureThemeProvider.kt
+@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
+ import app.k9mail.core.ui.compose.theme2.k9mail.K9MailTheme2
+ import app.k9mail.core.ui.theme.api.FeatureThemeProvider
+ 
+-class K9FeatureThemeProvider : FeatureThemeProvider {
++internal class K9FeatureThemeProvider : FeatureThemeProvider {
+     @Composable
+     override fun WithTheme(content: @Composable () -> Unit) {
+         K9MailTheme2 {
+diff --git a/app-k9mail/src/main/kotlin/com/fsck/k9/provider/K9ThemeProvider.kt b/app-k9mail/src/main/kotlin/app/k9mail/provider/K9ThemeProvider.kt
+similarity index 85%
+rename from app-k9mail/src/main/kotlin/com/fsck/k9/provider/K9ThemeProvider.kt
+rename to app-k9mail/src/main/kotlin/app/k9mail/provider/K9ThemeProvider.kt
+index 5cd6e536acc..cc774256d76 100644
+--- a/app-k9mail/src/main/kotlin/com/fsck/k9/provider/K9ThemeProvider.kt
++++ b/app-k9mail/src/main/kotlin/app/k9mail/provider/K9ThemeProvider.kt
+@@ -1,9 +1,9 @@
+-package com.fsck.k9.provider
++package app.k9mail.provider
+ 
+ import app.k9mail.core.ui.theme.api.ThemeProvider
+ import com.fsck.k9.R
+ 
+-class K9ThemeProvider : ThemeProvider {
++internal class K9ThemeProvider : ThemeProvider {
+     override val appThemeResourceId = R.style.Theme_K9_DayNight
+     override val appLightThemeResourceId = R.style.Theme_K9_Light
+     override val appDarkThemeResourceId = R.style.Theme_K9_Dark
+diff --git a/app-k9mail/src/main/kotlin/app/k9mail/provider/ProviderModule.kt b/app-k9mail/src/main/kotlin/app/k9mail/provider/ProviderModule.kt
+new file mode 100644
+index 00000000000..b16574c8c0e
+--- /dev/null
++++ b/app-k9mail/src/main/kotlin/app/k9mail/provider/ProviderModule.kt
+@@ -0,0 +1,21 @@
++package app.k9mail.provider
++
++import app.k9mail.core.common.provider.AppNameProvider
++import app.k9mail.core.common.provider.BrandNameProvider
++import app.k9mail.core.ui.theme.api.FeatureThemeProvider
++import app.k9mail.core.ui.theme.api.ThemeProvider
++import app.k9mail.provider.K9ThemeProvider
++import com.fsck.k9.preferences.FilePrefixProvider
++import org.koin.android.ext.koin.androidContext
++import org.koin.dsl.binds
++import org.koin.dsl.module
++
++internal val providerModule = module {
++    single {
++        K9AppNameProvider(androidContext())
++    } binds arrayOf(AppNameProvider::class, BrandNameProvider::class, FilePrefixProvider::class)
++
++    single<ThemeProvider> { K9ThemeProvider() }
++
++    single<FeatureThemeProvider> { K9FeatureThemeProvider() }
++}
+diff --git a/app-k9mail/src/main/kotlin/app/k9mail/widget/KoinModule.kt b/app-k9mail/src/main/kotlin/app/k9mail/widget/WidgetModule.kt
+similarity index 92%
+rename from app-k9mail/src/main/kotlin/app/k9mail/widget/KoinModule.kt
+rename to app-k9mail/src/main/kotlin/app/k9mail/widget/WidgetModule.kt
+index b2e70a6f05a..0ea79d1e6b3 100644
+--- a/app-k9mail/src/main/kotlin/app/k9mail/widget/KoinModule.kt
++++ b/app-k9mail/src/main/kotlin/app/k9mail/widget/WidgetModule.kt
+@@ -5,7 +5,7 @@ import app.k9mail.feature.widget.unread.UnreadWidgetConfig
+ import net.thunderbird.feature.widget.message.list.featureWidgetMessageListModule
+ import org.koin.dsl.module
+ 
+-val appWidgetModule = module {
++internal val widgetModule = module {
+     includes(featureWidgetMessageListModule)
+ 
+     single<MessageListWidgetConfig> { K9MessageListWidgetConfig() }
+diff --git a/app-thunderbird/dependencies/fossBetaRuntimeClasspath.txt b/app-thunderbird/dependencies/fossBetaRuntimeClasspath.txt
+index 716b58fc502..6bea2338a6c 100644
+--- a/app-thunderbird/dependencies/fossBetaRuntimeClasspath.txt
++++ b/app-thunderbird/dependencies/fossBetaRuntimeClasspath.txt
+@@ -155,12 +155,12 @@ androidx.window:window-core:1.3.0
+ androidx.window:window:1.3.0
+ androidx.work:work-runtime-ktx:2.10.1
+ androidx.work:work-runtime:2.10.1
+-co.touchlab:stately-concurrency-jvm:2.0.6
+-co.touchlab:stately-concurrency:2.0.6
+-co.touchlab:stately-concurrent-collections-jvm:2.0.6
+-co.touchlab:stately-concurrent-collections:2.0.6
+-co.touchlab:stately-strict-jvm:2.0.6
+-co.touchlab:stately-strict:2.0.6
++co.touchlab:stately-concurrency-jvm:2.1.0
++co.touchlab:stately-concurrency:2.1.0
++co.touchlab:stately-concurrent-collections-jvm:2.1.0
++co.touchlab:stately-concurrent-collections:2.1.0
++co.touchlab:stately-strict-jvm:2.1.0
++co.touchlab:stately-strict:2.1.0
+ com.beetstra.jutf7:jutf7:1.0.0
+ com.github.ByteHamster:SearchPreference:v2.3.0
+ com.github.bumptech.glide:annotations:4.16.0
+@@ -205,13 +205,17 @@ io.coil-kt.coil3:coil-network-core:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp-jvm:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp:3.1.0
+ io.coil-kt.coil3:coil:3.1.0
+-io.insert-koin:koin-android:3.5.6
+-io.insert-koin:koin-androidx-compose:3.5.6
+-io.insert-koin:koin-bom:3.5.6
+-io.insert-koin:koin-compose-jvm:1.1.5
+-io.insert-koin:koin-compose:1.1.5
+-io.insert-koin:koin-core-jvm:3.5.6
+-io.insert-koin:koin-core:3.5.6
++io.insert-koin:koin-android:4.0.4
++io.insert-koin:koin-androidx-compose:4.0.4
++io.insert-koin:koin-bom:4.0.4
++io.insert-koin:koin-compose-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel:4.0.4
++io.insert-koin:koin-compose:4.0.4
++io.insert-koin:koin-core-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel:4.0.4
++io.insert-koin:koin-core:4.0.4
+ net.jcip:jcip-annotations:1.0
+ net.openid:appauth:0.11.1
+ org.apache.commons:commons-lang3:3.7
+@@ -221,10 +225,15 @@ org.apache.httpcomponents.core5:httpcore5-h2:5.3.4
+ org.apache.httpcomponents.core5:httpcore5:5.3.4
+ org.apache.james:apache-mime4j-core:0.8.12
+ org.apache.james:apache-mime4j-dom:0.8.12
++org.jetbrains.androidx.core:core-bundle-android:1.0.1
++org.jetbrains.androidx.core:core-bundle:1.0.1
+ org.jetbrains.androidx.lifecycle:lifecycle-common:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime:2.8.4
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3
+ org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.8.4
++org.jetbrains.androidx.savedstate:savedstate:1.2.2
+ org.jetbrains.compose.animation:animation-core:1.7.3
+ org.jetbrains.compose.animation:animation:1.7.3
+ org.jetbrains.compose.annotation-internal:annotation:1.7.3
+diff --git a/app-thunderbird/dependencies/fossDailyRuntimeClasspath.txt b/app-thunderbird/dependencies/fossDailyRuntimeClasspath.txt
+index 716b58fc502..6bea2338a6c 100644
+--- a/app-thunderbird/dependencies/fossDailyRuntimeClasspath.txt
++++ b/app-thunderbird/dependencies/fossDailyRuntimeClasspath.txt
+@@ -155,12 +155,12 @@ androidx.window:window-core:1.3.0
+ androidx.window:window:1.3.0
+ androidx.work:work-runtime-ktx:2.10.1
+ androidx.work:work-runtime:2.10.1
+-co.touchlab:stately-concurrency-jvm:2.0.6
+-co.touchlab:stately-concurrency:2.0.6
+-co.touchlab:stately-concurrent-collections-jvm:2.0.6
+-co.touchlab:stately-concurrent-collections:2.0.6
+-co.touchlab:stately-strict-jvm:2.0.6
+-co.touchlab:stately-strict:2.0.6
++co.touchlab:stately-concurrency-jvm:2.1.0
++co.touchlab:stately-concurrency:2.1.0
++co.touchlab:stately-concurrent-collections-jvm:2.1.0
++co.touchlab:stately-concurrent-collections:2.1.0
++co.touchlab:stately-strict-jvm:2.1.0
++co.touchlab:stately-strict:2.1.0
+ com.beetstra.jutf7:jutf7:1.0.0
+ com.github.ByteHamster:SearchPreference:v2.3.0
+ com.github.bumptech.glide:annotations:4.16.0
+@@ -205,13 +205,17 @@ io.coil-kt.coil3:coil-network-core:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp-jvm:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp:3.1.0
+ io.coil-kt.coil3:coil:3.1.0
+-io.insert-koin:koin-android:3.5.6
+-io.insert-koin:koin-androidx-compose:3.5.6
+-io.insert-koin:koin-bom:3.5.6
+-io.insert-koin:koin-compose-jvm:1.1.5
+-io.insert-koin:koin-compose:1.1.5
+-io.insert-koin:koin-core-jvm:3.5.6
+-io.insert-koin:koin-core:3.5.6
++io.insert-koin:koin-android:4.0.4
++io.insert-koin:koin-androidx-compose:4.0.4
++io.insert-koin:koin-bom:4.0.4
++io.insert-koin:koin-compose-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel:4.0.4
++io.insert-koin:koin-compose:4.0.4
++io.insert-koin:koin-core-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel:4.0.4
++io.insert-koin:koin-core:4.0.4
+ net.jcip:jcip-annotations:1.0
+ net.openid:appauth:0.11.1
+ org.apache.commons:commons-lang3:3.7
+@@ -221,10 +225,15 @@ org.apache.httpcomponents.core5:httpcore5-h2:5.3.4
+ org.apache.httpcomponents.core5:httpcore5:5.3.4
+ org.apache.james:apache-mime4j-core:0.8.12
+ org.apache.james:apache-mime4j-dom:0.8.12
++org.jetbrains.androidx.core:core-bundle-android:1.0.1
++org.jetbrains.androidx.core:core-bundle:1.0.1
+ org.jetbrains.androidx.lifecycle:lifecycle-common:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime:2.8.4
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3
+ org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.8.4
++org.jetbrains.androidx.savedstate:savedstate:1.2.2
+ org.jetbrains.compose.animation:animation-core:1.7.3
+ org.jetbrains.compose.animation:animation:1.7.3
+ org.jetbrains.compose.annotation-internal:annotation:1.7.3
+diff --git a/app-thunderbird/dependencies/fossReleaseRuntimeClasspath.txt b/app-thunderbird/dependencies/fossReleaseRuntimeClasspath.txt
+index 716b58fc502..6bea2338a6c 100644
+--- a/app-thunderbird/dependencies/fossReleaseRuntimeClasspath.txt
++++ b/app-thunderbird/dependencies/fossReleaseRuntimeClasspath.txt
+@@ -155,12 +155,12 @@ androidx.window:window-core:1.3.0
+ androidx.window:window:1.3.0
+ androidx.work:work-runtime-ktx:2.10.1
+ androidx.work:work-runtime:2.10.1
+-co.touchlab:stately-concurrency-jvm:2.0.6
+-co.touchlab:stately-concurrency:2.0.6
+-co.touchlab:stately-concurrent-collections-jvm:2.0.6
+-co.touchlab:stately-concurrent-collections:2.0.6
+-co.touchlab:stately-strict-jvm:2.0.6
+-co.touchlab:stately-strict:2.0.6
++co.touchlab:stately-concurrency-jvm:2.1.0
++co.touchlab:stately-concurrency:2.1.0
++co.touchlab:stately-concurrent-collections-jvm:2.1.0
++co.touchlab:stately-concurrent-collections:2.1.0
++co.touchlab:stately-strict-jvm:2.1.0
++co.touchlab:stately-strict:2.1.0
+ com.beetstra.jutf7:jutf7:1.0.0
+ com.github.ByteHamster:SearchPreference:v2.3.0
+ com.github.bumptech.glide:annotations:4.16.0
+@@ -205,13 +205,17 @@ io.coil-kt.coil3:coil-network-core:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp-jvm:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp:3.1.0
+ io.coil-kt.coil3:coil:3.1.0
+-io.insert-koin:koin-android:3.5.6
+-io.insert-koin:koin-androidx-compose:3.5.6
+-io.insert-koin:koin-bom:3.5.6
+-io.insert-koin:koin-compose-jvm:1.1.5
+-io.insert-koin:koin-compose:1.1.5
+-io.insert-koin:koin-core-jvm:3.5.6
+-io.insert-koin:koin-core:3.5.6
++io.insert-koin:koin-android:4.0.4
++io.insert-koin:koin-androidx-compose:4.0.4
++io.insert-koin:koin-bom:4.0.4
++io.insert-koin:koin-compose-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel:4.0.4
++io.insert-koin:koin-compose:4.0.4
++io.insert-koin:koin-core-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel:4.0.4
++io.insert-koin:koin-core:4.0.4
+ net.jcip:jcip-annotations:1.0
+ net.openid:appauth:0.11.1
+ org.apache.commons:commons-lang3:3.7
+@@ -221,10 +225,15 @@ org.apache.httpcomponents.core5:httpcore5-h2:5.3.4
+ org.apache.httpcomponents.core5:httpcore5:5.3.4
+ org.apache.james:apache-mime4j-core:0.8.12
+ org.apache.james:apache-mime4j-dom:0.8.12
++org.jetbrains.androidx.core:core-bundle-android:1.0.1
++org.jetbrains.androidx.core:core-bundle:1.0.1
+ org.jetbrains.androidx.lifecycle:lifecycle-common:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime:2.8.4
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3
+ org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.8.4
++org.jetbrains.androidx.savedstate:savedstate:1.2.2
+ org.jetbrains.compose.animation:animation-core:1.7.3
+ org.jetbrains.compose.animation:animation:1.7.3
+ org.jetbrains.compose.annotation-internal:annotation:1.7.3
+diff --git a/app-thunderbird/dependencies/fullBetaRuntimeClasspath.txt b/app-thunderbird/dependencies/fullBetaRuntimeClasspath.txt
+index c25dba02b62..eb3667b2867 100644
+--- a/app-thunderbird/dependencies/fullBetaRuntimeClasspath.txt
++++ b/app-thunderbird/dependencies/fullBetaRuntimeClasspath.txt
+@@ -155,12 +155,12 @@ androidx.window:window-core:1.3.0
+ androidx.window:window:1.3.0
+ androidx.work:work-runtime-ktx:2.10.1
+ androidx.work:work-runtime:2.10.1
+-co.touchlab:stately-concurrency-jvm:2.0.6
+-co.touchlab:stately-concurrency:2.0.6
+-co.touchlab:stately-concurrent-collections-jvm:2.0.6
+-co.touchlab:stately-concurrent-collections:2.0.6
+-co.touchlab:stately-strict-jvm:2.0.6
+-co.touchlab:stately-strict:2.0.6
++co.touchlab:stately-concurrency-jvm:2.1.0
++co.touchlab:stately-concurrency:2.1.0
++co.touchlab:stately-concurrent-collections-jvm:2.1.0
++co.touchlab:stately-concurrent-collections:2.1.0
++co.touchlab:stately-strict-jvm:2.1.0
++co.touchlab:stately-strict:2.1.0
+ com.android.billingclient:billing-ktx:7.1.1
+ com.android.billingclient:billing:7.1.1
+ com.beetstra.jutf7:jutf7:1.0.0
+@@ -218,13 +218,17 @@ io.coil-kt.coil3:coil-network-core:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp-jvm:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp:3.1.0
+ io.coil-kt.coil3:coil:3.1.0
+-io.insert-koin:koin-android:3.5.6
+-io.insert-koin:koin-androidx-compose:3.5.6
+-io.insert-koin:koin-bom:3.5.6
+-io.insert-koin:koin-compose-jvm:1.1.5
+-io.insert-koin:koin-compose:1.1.5
+-io.insert-koin:koin-core-jvm:3.5.6
+-io.insert-koin:koin-core:3.5.6
++io.insert-koin:koin-android:4.0.4
++io.insert-koin:koin-androidx-compose:4.0.4
++io.insert-koin:koin-bom:4.0.4
++io.insert-koin:koin-compose-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel:4.0.4
++io.insert-koin:koin-compose:4.0.4
++io.insert-koin:koin-core-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel:4.0.4
++io.insert-koin:koin-core:4.0.4
+ javax.inject:javax.inject:1
+ net.jcip:jcip-annotations:1.0
+ net.openid:appauth:0.11.1
+@@ -235,10 +239,15 @@ org.apache.httpcomponents.core5:httpcore5-h2:5.3.4
+ org.apache.httpcomponents.core5:httpcore5:5.3.4
+ org.apache.james:apache-mime4j-core:0.8.12
+ org.apache.james:apache-mime4j-dom:0.8.12
++org.jetbrains.androidx.core:core-bundle-android:1.0.1
++org.jetbrains.androidx.core:core-bundle:1.0.1
+ org.jetbrains.androidx.lifecycle:lifecycle-common:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime:2.8.4
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3
+ org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.8.4
++org.jetbrains.androidx.savedstate:savedstate:1.2.2
+ org.jetbrains.compose.animation:animation-core:1.7.3
+ org.jetbrains.compose.animation:animation:1.7.3
+ org.jetbrains.compose.annotation-internal:annotation:1.7.3
+diff --git a/app-thunderbird/dependencies/fullDailyRuntimeClasspath.txt b/app-thunderbird/dependencies/fullDailyRuntimeClasspath.txt
+index c25dba02b62..eb3667b2867 100644
+--- a/app-thunderbird/dependencies/fullDailyRuntimeClasspath.txt
++++ b/app-thunderbird/dependencies/fullDailyRuntimeClasspath.txt
+@@ -155,12 +155,12 @@ androidx.window:window-core:1.3.0
+ androidx.window:window:1.3.0
+ androidx.work:work-runtime-ktx:2.10.1
+ androidx.work:work-runtime:2.10.1
+-co.touchlab:stately-concurrency-jvm:2.0.6
+-co.touchlab:stately-concurrency:2.0.6
+-co.touchlab:stately-concurrent-collections-jvm:2.0.6
+-co.touchlab:stately-concurrent-collections:2.0.6
+-co.touchlab:stately-strict-jvm:2.0.6
+-co.touchlab:stately-strict:2.0.6
++co.touchlab:stately-concurrency-jvm:2.1.0
++co.touchlab:stately-concurrency:2.1.0
++co.touchlab:stately-concurrent-collections-jvm:2.1.0
++co.touchlab:stately-concurrent-collections:2.1.0
++co.touchlab:stately-strict-jvm:2.1.0
++co.touchlab:stately-strict:2.1.0
+ com.android.billingclient:billing-ktx:7.1.1
+ com.android.billingclient:billing:7.1.1
+ com.beetstra.jutf7:jutf7:1.0.0
+@@ -218,13 +218,17 @@ io.coil-kt.coil3:coil-network-core:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp-jvm:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp:3.1.0
+ io.coil-kt.coil3:coil:3.1.0
+-io.insert-koin:koin-android:3.5.6
+-io.insert-koin:koin-androidx-compose:3.5.6
+-io.insert-koin:koin-bom:3.5.6
+-io.insert-koin:koin-compose-jvm:1.1.5
+-io.insert-koin:koin-compose:1.1.5
+-io.insert-koin:koin-core-jvm:3.5.6
+-io.insert-koin:koin-core:3.5.6
++io.insert-koin:koin-android:4.0.4
++io.insert-koin:koin-androidx-compose:4.0.4
++io.insert-koin:koin-bom:4.0.4
++io.insert-koin:koin-compose-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel:4.0.4
++io.insert-koin:koin-compose:4.0.4
++io.insert-koin:koin-core-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel:4.0.4
++io.insert-koin:koin-core:4.0.4
+ javax.inject:javax.inject:1
+ net.jcip:jcip-annotations:1.0
+ net.openid:appauth:0.11.1
+@@ -235,10 +239,15 @@ org.apache.httpcomponents.core5:httpcore5-h2:5.3.4
+ org.apache.httpcomponents.core5:httpcore5:5.3.4
+ org.apache.james:apache-mime4j-core:0.8.12
+ org.apache.james:apache-mime4j-dom:0.8.12
++org.jetbrains.androidx.core:core-bundle-android:1.0.1
++org.jetbrains.androidx.core:core-bundle:1.0.1
+ org.jetbrains.androidx.lifecycle:lifecycle-common:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime:2.8.4
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3
+ org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.8.4
++org.jetbrains.androidx.savedstate:savedstate:1.2.2
+ org.jetbrains.compose.animation:animation-core:1.7.3
+ org.jetbrains.compose.animation:animation:1.7.3
+ org.jetbrains.compose.annotation-internal:annotation:1.7.3
+diff --git a/app-thunderbird/dependencies/fullReleaseRuntimeClasspath.txt b/app-thunderbird/dependencies/fullReleaseRuntimeClasspath.txt
+index c25dba02b62..eb3667b2867 100644
+--- a/app-thunderbird/dependencies/fullReleaseRuntimeClasspath.txt
++++ b/app-thunderbird/dependencies/fullReleaseRuntimeClasspath.txt
+@@ -155,12 +155,12 @@ androidx.window:window-core:1.3.0
+ androidx.window:window:1.3.0
+ androidx.work:work-runtime-ktx:2.10.1
+ androidx.work:work-runtime:2.10.1
+-co.touchlab:stately-concurrency-jvm:2.0.6
+-co.touchlab:stately-concurrency:2.0.6
+-co.touchlab:stately-concurrent-collections-jvm:2.0.6
+-co.touchlab:stately-concurrent-collections:2.0.6
+-co.touchlab:stately-strict-jvm:2.0.6
+-co.touchlab:stately-strict:2.0.6
++co.touchlab:stately-concurrency-jvm:2.1.0
++co.touchlab:stately-concurrency:2.1.0
++co.touchlab:stately-concurrent-collections-jvm:2.1.0
++co.touchlab:stately-concurrent-collections:2.1.0
++co.touchlab:stately-strict-jvm:2.1.0
++co.touchlab:stately-strict:2.1.0
+ com.android.billingclient:billing-ktx:7.1.1
+ com.android.billingclient:billing:7.1.1
+ com.beetstra.jutf7:jutf7:1.0.0
+@@ -218,13 +218,17 @@ io.coil-kt.coil3:coil-network-core:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp-jvm:3.1.0
+ io.coil-kt.coil3:coil-network-okhttp:3.1.0
+ io.coil-kt.coil3:coil:3.1.0
+-io.insert-koin:koin-android:3.5.6
+-io.insert-koin:koin-androidx-compose:3.5.6
+-io.insert-koin:koin-bom:3.5.6
+-io.insert-koin:koin-compose-jvm:1.1.5
+-io.insert-koin:koin-compose:1.1.5
+-io.insert-koin:koin-core-jvm:3.5.6
+-io.insert-koin:koin-core:3.5.6
++io.insert-koin:koin-android:4.0.4
++io.insert-koin:koin-androidx-compose:4.0.4
++io.insert-koin:koin-bom:4.0.4
++io.insert-koin:koin-compose-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel-jvm:4.0.4
++io.insert-koin:koin-compose-viewmodel:4.0.4
++io.insert-koin:koin-compose:4.0.4
++io.insert-koin:koin-core-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel-jvm:4.0.4
++io.insert-koin:koin-core-viewmodel:4.0.4
++io.insert-koin:koin-core:4.0.4
+ javax.inject:javax.inject:1
+ net.jcip:jcip-annotations:1.0
+ net.openid:appauth:0.11.1
+@@ -235,10 +239,15 @@ org.apache.httpcomponents.core5:httpcore5-h2:5.3.4
+ org.apache.httpcomponents.core5:httpcore5:5.3.4
+ org.apache.james:apache-mime4j-core:0.8.12
+ org.apache.james:apache-mime4j-dom:0.8.12
++org.jetbrains.androidx.core:core-bundle-android:1.0.1
++org.jetbrains.androidx.core:core-bundle:1.0.1
+ org.jetbrains.androidx.lifecycle:lifecycle-common:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4
+ org.jetbrains.androidx.lifecycle:lifecycle-runtime:2.8.4
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3
++org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.3
+ org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.8.4
++org.jetbrains.androidx.savedstate:savedstate:1.2.2
+ org.jetbrains.compose.animation:animation-core:1.7.3
+ org.jetbrains.compose.animation:animation:1.7.3
+ org.jetbrains.compose.annotation-internal:annotation:1.7.3
+diff --git a/app-thunderbird/src/main/kotlin/net/thunderbird/android/ThunderbirdApp.kt b/app-thunderbird/src/main/kotlin/net/thunderbird/android/ThunderbirdApp.kt
+index 3e5867c91a9..42dd6046625 100644
+--- a/app-thunderbird/src/main/kotlin/net/thunderbird/android/ThunderbirdApp.kt
++++ b/app-thunderbird/src/main/kotlin/net/thunderbird/android/ThunderbirdApp.kt
+@@ -1,12 +1,12 @@
+ package net.thunderbird.android
+ 
+ import app.k9mail.feature.telemetry.api.TelemetryManager
+-import com.fsck.k9.CommonApp
+ import com.fsck.k9.K9
++import net.thunderbird.app.common.BaseApplication
+ import org.koin.android.ext.android.inject
+ import org.koin.core.module.Module
+ 
+-class ThunderbirdApp : CommonApp() {
++class ThunderbirdApp : BaseApplication() {
+     private val telemetryManager: TelemetryManager by inject()
+ 
+     override fun provideAppModule(): Module = appModule
+diff --git a/app-thunderbird/src/main/kotlin/net/thunderbird/android/ThunderbirdKoinModule.kt b/app-thunderbird/src/main/kotlin/net/thunderbird/android/ThunderbirdKoinModule.kt
+index 2657efcef5b..fa6295ca974 100644
+--- a/app-thunderbird/src/main/kotlin/net/thunderbird/android/ThunderbirdKoinModule.kt
++++ b/app-thunderbird/src/main/kotlin/net/thunderbird/android/ThunderbirdKoinModule.kt
+@@ -1,45 +1,33 @@
+ package net.thunderbird.android
+ 
+ import app.k9mail.core.common.oauth.OAuthConfigurationFactory
+-import app.k9mail.core.common.provider.AppNameProvider
+-import app.k9mail.core.common.provider.BrandNameProvider
+ import app.k9mail.core.featureflag.FeatureFlagFactory
+-import app.k9mail.core.ui.theme.api.FeatureThemeProvider
+-import app.k9mail.core.ui.theme.api.ThemeProvider
+ import app.k9mail.feature.widget.shortcut.LauncherShortcutActivity
+ import com.fsck.k9.AppConfig
+ import com.fsck.k9.activity.MessageCompose
+-import com.fsck.k9.preferences.FilePrefixProvider
+ import net.thunderbird.android.auth.TbOAuthConfigurationFactory
+ import net.thunderbird.android.dev.developmentModuleAdditions
+ import net.thunderbird.android.feature.featureModule
+ import net.thunderbird.android.featureflag.TbFeatureFlagFactory
+-import net.thunderbird.android.provider.TbAppNameProvider
+-import net.thunderbird.android.provider.TbFeatureThemeProvider
+-import net.thunderbird.android.provider.TbThemeProvider
+-import net.thunderbird.android.widget.appWidgetModule
++import net.thunderbird.android.provider.providerModule
+ import net.thunderbird.android.widget.provider.MessageListWidgetProvider
+ import net.thunderbird.android.widget.provider.UnreadWidgetProvider
++import net.thunderbird.android.widget.widgetModule
+ import net.thunderbird.app.common.appCommonModule
+-import org.koin.android.ext.koin.androidContext
+ import org.koin.core.qualifier.named
+-import org.koin.dsl.binds
+ import org.koin.dsl.module
+ 
+ val appModule = module {
+     includes(appCommonModule)
+-    includes(appWidgetModule)
++
++    includes(widgetModule)
+     includes(featureModule)
++    includes(providerModule)
+ 
+     single(named("ClientInfoAppName")) { BuildConfig.CLIENT_INFO_APP_NAME }
+     single(named("ClientInfoAppVersion")) { BuildConfig.VERSION_NAME }
+     single<AppConfig> { appConfig }
+     single<OAuthConfigurationFactory> { TbOAuthConfigurationFactory() }
+-    single {
+-        TbAppNameProvider(androidContext())
+-    } binds arrayOf(AppNameProvider::class, BrandNameProvider::class, FilePrefixProvider::class)
+-    single<ThemeProvider> { TbThemeProvider() }
+-    single<FeatureThemeProvider> { TbFeatureThemeProvider() }
+     single<FeatureFlagFactory> { TbFeatureFlagFactory() }
+ 
+     developmentModuleAdditions()
+diff --git a/app-thunderbird/src/main/kotlin/net/thunderbird/android/feature/FeatureModule.kt b/app-thunderbird/src/main/kotlin/net/thunderbird/android/feature/FeatureModule.kt
+index 5f21be56110..d5875093a1f 100644
+--- a/app-thunderbird/src/main/kotlin/net/thunderbird/android/feature/FeatureModule.kt
++++ b/app-thunderbird/src/main/kotlin/net/thunderbird/android/feature/FeatureModule.kt
+@@ -5,13 +5,10 @@ import app.k9mail.feature.funding.featureFundingModule
+ import app.k9mail.feature.migration.launcher.featureMigrationModule
+ import app.k9mail.feature.onboarding.migration.onboardingMigrationModule
+ import app.k9mail.feature.telemetry.telemetryModule
+-import net.thunderbird.app.common.feature.featureLauncherModule
+ import net.thunderbird.feature.account.settings.featureAccountSettingsModule
+ import org.koin.dsl.module
+ 
+-val featureModule = module {
+-    includes(featureLauncherModule)
+-
++internal val featureModule = module {
+     includes(featureAccountSettingsModule)
+     includes(telemetryModule)
+     includes(featureFundingModule)
+diff --git a/app-thunderbird/src/main/kotlin/net/thunderbird/android/feature/TbFundingSettings.kt b/app-thunderbird/src/main/kotlin/net/thunderbird/android/feature/TbFundingSettings.kt
+index c1ceb7bcd83..48d90db9c71 100644
+--- a/app-thunderbird/src/main/kotlin/net/thunderbird/android/feature/TbFundingSettings.kt
++++ b/app-thunderbird/src/main/kotlin/net/thunderbird/android/feature/TbFundingSettings.kt
+@@ -3,7 +3,7 @@ package net.thunderbird.android.feature
+ import app.k9mail.feature.funding.api.FundingSettings
+ import com.fsck.k9.K9
+ 
+-class TbFundingSettings : FundingSettings {
++internal class TbFundingSettings : FundingSettings {
+     override fun getReminderReferenceTimestamp(): Long = K9.fundingReminderReferenceTimestamp
+ 
+     override fun setReminderReferenceTimestamp(timestamp: Long) {
+diff --git a/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/ProviderModule.kt b/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/ProviderModule.kt
+new file mode 100644
+index 00000000000..1503aed0b2f
+--- /dev/null
++++ b/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/ProviderModule.kt
+@@ -0,0 +1,20 @@
++package net.thunderbird.android.provider
++
++import app.k9mail.core.common.provider.AppNameProvider
++import app.k9mail.core.common.provider.BrandNameProvider
++import app.k9mail.core.ui.theme.api.FeatureThemeProvider
++import app.k9mail.core.ui.theme.api.ThemeProvider
++import com.fsck.k9.preferences.FilePrefixProvider
++import org.koin.android.ext.koin.androidContext
++import org.koin.dsl.binds
++import org.koin.dsl.module
++
++internal val providerModule = module {
++    single {
++        TbAppNameProvider(androidContext())
++    } binds arrayOf(AppNameProvider::class, BrandNameProvider::class, FilePrefixProvider::class)
++
++    single<ThemeProvider> { TbThemeProvider() }
++
++    single<FeatureThemeProvider> { TbFeatureThemeProvider() }
++}
+diff --git a/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbAppNameProvider.kt b/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbAppNameProvider.kt
+index 46021ef0390..18f19f0500f 100644
+--- a/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbAppNameProvider.kt
++++ b/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbAppNameProvider.kt
+@@ -6,7 +6,7 @@ import app.k9mail.core.common.provider.BrandNameProvider
+ import com.fsck.k9.preferences.FilePrefixProvider
+ import net.thunderbird.android.R
+ 
+-class TbAppNameProvider(
++internal class TbAppNameProvider(
+     context: Context,
+ ) : AppNameProvider, BrandNameProvider, FilePrefixProvider {
+     override val appName: String by lazy {
+diff --git a/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbFeatureThemeProvider.kt b/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbFeatureThemeProvider.kt
+index 304f99ed6a9..9a9ce6127cd 100644
+--- a/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbFeatureThemeProvider.kt
++++ b/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbFeatureThemeProvider.kt
+@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
+ import app.k9mail.core.ui.compose.theme2.thunderbird.ThunderbirdTheme2
+ import app.k9mail.core.ui.theme.api.FeatureThemeProvider
+ 
+-class TbFeatureThemeProvider : FeatureThemeProvider {
++internal class TbFeatureThemeProvider : FeatureThemeProvider {
+     @Composable
+     override fun WithTheme(content: @Composable () -> Unit) {
+         ThunderbirdTheme2 {
+diff --git a/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbThemeProvider.kt b/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbThemeProvider.kt
+index 155d95162d1..2645230bf07 100644
+--- a/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbThemeProvider.kt
++++ b/app-thunderbird/src/main/kotlin/net/thunderbird/android/provider/TbThemeProvider.kt
+@@ -3,7 +3,7 @@ package net.thunderbird.android.provider
+ import app.k9mail.core.ui.theme.api.ThemeProvider
+ import net.thunderbird.android.R
+ 
+-class TbThemeProvider : ThemeProvider {
++internal class TbThemeProvider : ThemeProvider {
+     override val appThemeResourceId = R.style.Theme_Thunderbird_DayNight
+     override val appLightThemeResourceId = R.style.Theme_Thunderbird_Light
+     override val appDarkThemeResourceId = R.style.Theme_Thunderbird_Dark
+diff --git a/app-thunderbird/src/main/kotlin/net/thunderbird/android/widget/KoinModule.kt b/app-thunderbird/src/main/kotlin/net/thunderbird/android/widget/WidgetModule.kt
+similarity index 92%
+rename from app-thunderbird/src/main/kotlin/net/thunderbird/android/widget/KoinModule.kt
+rename to app-thunderbird/src/main/kotlin/net/thunderbird/android/widget/WidgetModule.kt
+index 54f36b1825c..5f278cb61a1 100644
+--- a/app-thunderbird/src/main/kotlin/net/thunderbird/android/widget/KoinModule.kt
++++ b/app-thunderbird/src/main/kotlin/net/thunderbird/android/widget/WidgetModule.kt
+@@ -5,7 +5,7 @@ import app.k9mail.feature.widget.unread.UnreadWidgetConfig
+ import net.thunderbird.feature.widget.message.list.featureWidgetMessageListModule
+ import org.koin.dsl.module
+ 
+-val appWidgetModule = module {
++internal val widgetModule = module {
+     includes(featureWidgetMessageListModule)
+ 
+     single<MessageListWidgetConfig> { TbMessageListWidgetConfig() }
+diff --git a/app-ui-catalog/src/main/kotlin/net/thunderbird/ui/catalog/di/CatalogUiModule.kt b/app-ui-catalog/src/main/kotlin/net/thunderbird/ui/catalog/di/CatalogUiModule.kt
+index 2d7dd6714bb..fbd2ec8f71f 100644
+--- a/app-ui-catalog/src/main/kotlin/net/thunderbird/ui/catalog/di/CatalogUiModule.kt
++++ b/app-ui-catalog/src/main/kotlin/net/thunderbird/ui/catalog/di/CatalogUiModule.kt
+@@ -2,8 +2,8 @@ package net.thunderbird.ui.catalog.di
+ 
+ import net.thunderbird.ui.catalog.ui.CatalogViewModel
+ import net.thunderbird.ui.catalog.ui.page.CatalogPageViewModel
+-import org.koin.androidx.viewmodel.dsl.viewModel
+ import org.koin.core.module.Module
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val catalogUiModule: Module = module {
+diff --git a/cli/autodiscovery-cli/src/main/kotlin/app/k9mail/cli/autodiscovery/AutoDiscoveryCli.kt b/cli/autodiscovery-cli/src/main/kotlin/app/k9mail/cli/autodiscovery/AutoDiscoveryCli.kt
+index d23344e2f3a..8f5d92d1c56 100644
+--- a/cli/autodiscovery-cli/src/main/kotlin/app/k9mail/cli/autodiscovery/AutoDiscoveryCli.kt
++++ b/cli/autodiscovery-cli/src/main/kotlin/app/k9mail/cli/autodiscovery/AutoDiscoveryCli.kt
+@@ -12,11 +12,9 @@ import com.github.ajalt.clikt.core.Context
+ import com.github.ajalt.clikt.parameters.arguments.argument
+ import com.github.ajalt.clikt.parameters.options.flag
+ import com.github.ajalt.clikt.parameters.options.option
+-import kotlin.time.DurationUnit.MILLISECONDS
+-import kotlin.time.toDuration
++import kotlin.time.measureTimedValue
+ import kotlinx.coroutines.runBlocking
+ import okhttp3.OkHttpClient.Builder
+-import org.koin.core.time.measureDurationForResult
+ 
+ class AutoDiscoveryCli : CliktCommand() {
+     private val httpsOnly by option(help = "Only perform Autoconfig lookups using HTTPS").flag()
+@@ -36,7 +34,7 @@ class AutoDiscoveryCli : CliktCommand() {
+             includeEmailAddress = includeEmailAddress,
+         )
+ 
+-        val (discoveryResult, durationInMillis) = measureDurationForResult {
++        val (discoveryResult, duration) = measureTimedValue {
+             runAutoDiscovery(config)
+         }
+ 
+@@ -48,7 +46,7 @@ class AutoDiscoveryCli : CliktCommand() {
+         }
+ 
+         echo()
+-        echo("Duration: ${durationInMillis.toDuration(MILLISECONDS)}")
++        echo("Duration: ${duration.inWholeMilliseconds}")
+     }
+ 
+     private fun runAutoDiscovery(config: AutoconfigUrlConfig): AutoDiscoveryResult {
+diff --git a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/AccountEditModule.kt b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/AccountEditModule.kt
+index c015b14711d..1e4df623310 100644
+--- a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/AccountEditModule.kt
++++ b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/AccountEditModule.kt
+@@ -15,7 +15,7 @@ import app.k9mail.feature.account.oauth.featureAccountOAuthModule
+ import app.k9mail.feature.account.server.certificate.featureAccountServerCertificateModule
+ import app.k9mail.feature.account.server.settings.featureAccountServerSettingsModule
+ import app.k9mail.feature.account.server.validation.featureAccountServerValidationModule
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val featureAccountEditModule = module {
+diff --git a/feature/account/server/certificate/src/main/kotlin/app/k9mail/feature/account/server/certificate/ServerCertificateModule.kt b/feature/account/server/certificate/src/main/kotlin/app/k9mail/feature/account/server/certificate/ServerCertificateModule.kt
+index 3a732e2a05c..5c5fa65b9b6 100644
+--- a/feature/account/server/certificate/src/main/kotlin/app/k9mail/feature/account/server/certificate/ServerCertificateModule.kt
++++ b/feature/account/server/certificate/src/main/kotlin/app/k9mail/feature/account/server/certificate/ServerCertificateModule.kt
+@@ -9,8 +9,8 @@ import app.k9mail.feature.account.server.certificate.ui.DefaultServerNameFormatt
+ import app.k9mail.feature.account.server.certificate.ui.FingerprintFormatter
+ import app.k9mail.feature.account.server.certificate.ui.ServerCertificateErrorViewModel
+ import app.k9mail.feature.account.server.certificate.ui.ServerNameFormatter
+-import org.koin.androidx.viewmodel.dsl.viewModel
+ import org.koin.core.module.Module
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val featureAccountServerCertificateModule: Module = module {
+diff --git a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ServerSettingsModule.kt b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ServerSettingsModule.kt
+index 8b1fcd8911f..f7ae572be34 100644
+--- a/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ServerSettingsModule.kt
++++ b/feature/account/server/settings/src/main/kotlin/app/k9mail/feature/account/server/settings/ServerSettingsModule.kt
+@@ -7,8 +7,8 @@ import app.k9mail.feature.account.server.settings.ui.incoming.IncomingServerSett
+ import app.k9mail.feature.account.server.settings.ui.outgoing.OutgoingServerSettingsContract
+ import app.k9mail.feature.account.server.settings.ui.outgoing.OutgoingServerSettingsValidator
+ import app.k9mail.feature.account.server.settings.ui.outgoing.OutgoingServerSettingsViewModel
+-import org.koin.androidx.viewmodel.dsl.viewModel
+ import org.koin.core.module.Module
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val featureAccountServerSettingsModule: Module = module {
+diff --git a/feature/account/server/validation/src/main/kotlin/app/k9mail/feature/account/server/validation/ServerValidationModule.kt b/feature/account/server/validation/src/main/kotlin/app/k9mail/feature/account/server/validation/ServerValidationModule.kt
+index f68bb8dd45c..90a4193dfd7 100644
+--- a/feature/account/server/validation/src/main/kotlin/app/k9mail/feature/account/server/validation/ServerValidationModule.kt
++++ b/feature/account/server/validation/src/main/kotlin/app/k9mail/feature/account/server/validation/ServerValidationModule.kt
+@@ -11,7 +11,7 @@ import app.k9mail.feature.account.server.validation.ui.OutgoingServerValidationV
+ import com.fsck.k9.mail.store.imap.ImapServerSettingsValidator
+ import com.fsck.k9.mail.store.pop3.Pop3ServerSettingsValidator
+ import com.fsck.k9.mail.transport.smtp.SmtpServerSettingsValidator
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.core.qualifier.named
+ import org.koin.dsl.module
+ 
+diff --git a/feature/account/settings/impl/src/main/kotlin/net/thunderbird/feature/account/settings/AccountSettingsModule.kt b/feature/account/settings/impl/src/main/kotlin/net/thunderbird/feature/account/settings/AccountSettingsModule.kt
+index 328830ffad0..33a3ec5aad0 100644
+--- a/feature/account/settings/impl/src/main/kotlin/net/thunderbird/feature/account/settings/AccountSettingsModule.kt
++++ b/feature/account/settings/impl/src/main/kotlin/net/thunderbird/feature/account/settings/AccountSettingsModule.kt
+@@ -9,7 +9,7 @@ import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateGenera
+ import net.thunderbird.feature.account.settings.impl.ui.general.GeneralResourceProvider
+ import net.thunderbird.feature.account.settings.impl.ui.general.GeneralSettingsViewModel
+ import org.koin.android.ext.koin.androidContext
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val featureAccountSettingsModule = module {
+diff --git a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/AccountSetupModule.kt b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/AccountSetupModule.kt
+index ad0e5512eeb..731caa36279 100644
+--- a/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/AccountSetupModule.kt
++++ b/feature/account/setup/src/main/kotlin/app/k9mail/feature/account/setup/AccountSetupModule.kt
+@@ -30,8 +30,8 @@ import app.k9mail.feature.account.setup.ui.specialfolders.SpecialFoldersViewMode
+ import com.fsck.k9.mail.folders.FolderFetcher
+ import com.fsck.k9.mail.store.imap.ImapFolderFetcher
+ import okhttp3.OkHttpClient
+-import org.koin.androidx.viewmodel.dsl.viewModel
+ import org.koin.core.module.Module
++import org.koin.core.module.dsl.viewModel
+ import org.koin.core.qualifier.named
+ import org.koin.dsl.module
+ 
+diff --git a/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/FeatureFundingModule.kt b/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/FeatureFundingModule.kt
+index 7b19c14348a..352f31f35ca 100644
+--- a/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/FeatureFundingModule.kt
++++ b/feature/funding/googleplay/src/main/kotlin/app/k9mail/feature/funding/FeatureFundingModule.kt
+@@ -23,7 +23,7 @@ import app.k9mail.feature.funding.googleplay.ui.reminder.FundingReminder
+ import app.k9mail.feature.funding.googleplay.ui.reminder.FundingReminderContract
+ import app.k9mail.feature.funding.googleplay.ui.reminder.FundingReminderDialog
+ import com.android.billingclient.api.ProductDetails
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val featureFundingModule = module {
+diff --git a/feature/migration/qrcode/src/main/kotlin/app/k9mail/feature/migration/qrcode/QrCodeModule.kt b/feature/migration/qrcode/src/main/kotlin/app/k9mail/feature/migration/qrcode/QrCodeModule.kt
+index cc0db31968a..5850746318f 100644
+--- a/feature/migration/qrcode/src/main/kotlin/app/k9mail/feature/migration/qrcode/QrCodeModule.kt
++++ b/feature/migration/qrcode/src/main/kotlin/app/k9mail/feature/migration/qrcode/QrCodeModule.kt
+@@ -11,7 +11,7 @@ import app.k9mail.feature.migration.qrcode.settings.DefaultUuidGenerator
+ import app.k9mail.feature.migration.qrcode.settings.UuidGenerator
+ import app.k9mail.feature.migration.qrcode.settings.XmlSettingWriter
+ import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerViewModel
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val qrCodeModule = module {
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/NavigationDrawerModule.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/NavigationDrawerModule.kt
+index 6e8e152e896..42c6aa7f5bb 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/NavigationDrawerModule.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/NavigationDrawerModule.kt
+@@ -11,8 +11,8 @@ import net.thunderbird.feature.navigation.drawer.dropdown.domain.usecase.SaveDra
+ import net.thunderbird.feature.navigation.drawer.dropdown.domain.usecase.SyncAccount
+ import net.thunderbird.feature.navigation.drawer.dropdown.domain.usecase.SyncAllAccounts
+ import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerViewModel
+-import org.koin.androidx.viewmodel.dsl.viewModel
+ import org.koin.core.module.Module
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val navigationDropDownDrawerModule: Module = module {
+diff --git a/feature/navigation/drawer/siderail/src/main/kotlin/net/thunderbird/feature/navigation/drawer/siderail/NavigationDrawerModule.kt b/feature/navigation/drawer/siderail/src/main/kotlin/net/thunderbird/feature/navigation/drawer/siderail/NavigationDrawerModule.kt
+index 5add9e58e35..9aaa8670b50 100644
+--- a/feature/navigation/drawer/siderail/src/main/kotlin/net/thunderbird/feature/navigation/drawer/siderail/NavigationDrawerModule.kt
++++ b/feature/navigation/drawer/siderail/src/main/kotlin/net/thunderbird/feature/navigation/drawer/siderail/NavigationDrawerModule.kt
+@@ -10,8 +10,8 @@ import net.thunderbird.feature.navigation.drawer.siderail.domain.usecase.SaveDra
+ import net.thunderbird.feature.navigation.drawer.siderail.domain.usecase.SyncAccount
+ import net.thunderbird.feature.navigation.drawer.siderail.domain.usecase.SyncAllAccounts
+ import net.thunderbird.feature.navigation.drawer.siderail.ui.DrawerViewModel
+-import org.koin.androidx.viewmodel.dsl.viewModel
+ import org.koin.core.module.Module
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val navigationSideRailDrawerModule: Module = module {
+diff --git a/feature/onboarding/permissions/src/main/kotlin/app/k9mail/feature/onboarding/permissions/PermissionsModule.kt b/feature/onboarding/permissions/src/main/kotlin/app/k9mail/feature/onboarding/permissions/PermissionsModule.kt
+index 947d39cb30e..cc974230551 100644
+--- a/feature/onboarding/permissions/src/main/kotlin/app/k9mail/feature/onboarding/permissions/PermissionsModule.kt
++++ b/feature/onboarding/permissions/src/main/kotlin/app/k9mail/feature/onboarding/permissions/PermissionsModule.kt
+@@ -5,8 +5,8 @@ import app.k9mail.feature.onboarding.permissions.domain.PermissionsDomainContrac
+ import app.k9mail.feature.onboarding.permissions.domain.usecase.CheckPermission
+ import app.k9mail.feature.onboarding.permissions.domain.usecase.HasRuntimePermissions
+ import app.k9mail.feature.onboarding.permissions.ui.PermissionsViewModel
+-import org.koin.androidx.viewmodel.dsl.viewModel
+ import org.koin.core.module.Module
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val featureOnboardingPermissionsModule: Module = module {
+diff --git a/feature/settings/import/src/main/kotlin/app/k9mail/feature/settings/import/SettingsImportModule.kt b/feature/settings/import/src/main/kotlin/app/k9mail/feature/settings/import/SettingsImportModule.kt
+index b985139ac3a..5b2fe3052dc 100644
+--- a/feature/settings/import/src/main/kotlin/app/k9mail/feature/settings/import/SettingsImportModule.kt
++++ b/feature/settings/import/src/main/kotlin/app/k9mail/feature/settings/import/SettingsImportModule.kt
+@@ -4,7 +4,7 @@ import app.k9mail.feature.settings.import.ui.AuthViewModel
+ import app.k9mail.feature.settings.import.ui.ImportAppFetcher
+ import app.k9mail.feature.settings.import.ui.PickAppViewModel
+ import app.k9mail.feature.settings.import.ui.SettingsImportViewModel
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val featureSettingsImportModule = module {
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 5a3c394c090..580f0ad84f3 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -69,7 +69,7 @@ jsoup = "1.19.1"
+ junit = "4.13.2"
+ jutf7 = "1.0.0"
+ jzlib = "1.0.7"
+-koinBom = "3.5.6"
++koinBom = "4.0.4"
+ kotlinBom = "2.1.20"
+ # Needs to match the version used by Gradle, just check with `./gradlew --version`
+ kotlinGradleBom = "2.0.21"
+diff --git a/legacy/common/build.gradle.kts b/legacy/common/build.gradle.kts
+index 325e6788884..bbe044c1123 100644
+--- a/legacy/common/build.gradle.kts
++++ b/legacy/common/build.gradle.kts
+@@ -23,7 +23,6 @@ dependencies {
+ 
+     implementation(libs.androidx.appcompat)
+     implementation(libs.androidx.core.ktx)
+-    implementation(libs.androidx.work.runtime)
+     implementation(libs.preferencex)
+     implementation(libs.timber)
+     implementation(libs.kotlinx.coroutines.core)
+@@ -36,9 +35,6 @@ dependencies {
+         debugImplementation(libs.leakcanary.android)
+     }
+ 
+-    // Required for DependencyInjectionTest to be able to resolve OpenPgpApiManager
+-    testImplementation(projects.plugins.openpgpApiLib.openpgpApi)
+-
+     testImplementation(libs.robolectric)
+ }
+ 
+diff --git a/legacy/common/src/main/java/com/fsck/k9/CommonKoinModule.kt b/legacy/common/src/main/java/com/fsck/k9/LegacyCommonAppModule.kt
+similarity index 90%
+rename from legacy/common/src/main/java/com/fsck/k9/CommonKoinModule.kt
+rename to legacy/common/src/main/java/com/fsck/k9/LegacyCommonAppModule.kt
+index 6e3d79d32fa..413d4acb2ab 100644
+--- a/legacy/common/src/main/java/com/fsck/k9/CommonKoinModule.kt
++++ b/legacy/common/src/main/java/com/fsck/k9/LegacyCommonAppModule.kt
+@@ -2,7 +2,6 @@ package com.fsck.k9
+ 
+ import app.k9mail.core.featureflag.FeatureFlagProvider
+ import app.k9mail.core.featureflag.InMemoryFeatureFlagProvider
+-import app.k9mail.feature.launcher.di.featureLauncherModule
+ import app.k9mail.feature.widget.message.list.messageListWidgetModule
+ import app.k9mail.feature.widget.unread.UnreadWidgetUpdateListener
+ import app.k9mail.feature.widget.unread.unreadWidgetModule
+@@ -19,7 +18,7 @@ import com.fsck.k9.storage.storageModule
+ import org.koin.core.qualifier.named
+ import org.koin.dsl.module
+ 
+-val commonAppModule = module {
++val legacyCommonAppModule = module {
+     single {
+         MessagingListenerProvider(
+             listOf(
+@@ -37,8 +36,8 @@ val commonAppModule = module {
+     }
+ }
+ 
+-val commonAppModules = listOf(
+-    commonAppModule,
++val legacyCommonAppModules = listOf(
++    legacyCommonAppModule,
+     messageListWidgetModule,
+     unreadWidgetModule,
+     notificationModule,
+@@ -46,5 +45,4 @@ val commonAppModules = listOf(
+     backendsModule,
+     storageModule,
+     newAccountModule,
+-    featureLauncherModule,
+ )
+diff --git a/legacy/core/src/main/java/com/fsck/k9/CoreKoinModules.kt b/legacy/core/src/main/java/com/fsck/k9/CoreKoinModules.kt
+index f70ab1cd44b..a39f2c9e90b 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/CoreKoinModules.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/CoreKoinModules.kt
+@@ -16,7 +16,7 @@ import com.fsck.k9.preferences.preferencesModule
+ import net.thunderbird.core.android.logging.loggingModule
+ import net.thunderbird.core.android.network.coreAndroidNetworkModule
+ 
+-val coreModules = listOf(
++val legacyCoreModules = listOf(
+     mainModule,
+     coreAndroidNetworkModule,
+     openPgpModule,
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/UiKoinModules.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/UiKoinModules.kt
+index a7ea4c4fa20..e153e16ec4a 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/UiKoinModules.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/UiKoinModules.kt
+@@ -23,7 +23,7 @@ import com.fsck.k9.ui.settings.settingsUiModule
+ import com.fsck.k9.ui.uiModule
+ import com.fsck.k9.view.viewModule
+ 
+-val uiModules = listOf(
++val legacyUiModules = listOf(
+     featureAccountOAuthModule,
+     uiBaseModule,
+     activityModule,
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/changelog/KoinModule.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/changelog/KoinModule.kt
+index 196b074ff21..c42e009a007 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/changelog/KoinModule.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/changelog/KoinModule.kt
+@@ -1,6 +1,6 @@
+ package com.fsck.k9.ui.changelog
+ 
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.core.qualifier.named
+ import org.koin.dsl.module
+ 
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/choosefolder/KoinModule.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/choosefolder/KoinModule.kt
+index 1fa04a3ae1c..f03091d67f0 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/choosefolder/KoinModule.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/choosefolder/KoinModule.kt
+@@ -1,6 +1,6 @@
+ package com.fsck.k9.ui.choosefolder
+ 
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val chooseFolderUiModule = module {
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/endtoend/KoinModule.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/endtoend/KoinModule.kt
+index f36857c5883..3491de72c53 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/endtoend/KoinModule.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/endtoend/KoinModule.kt
+@@ -1,7 +1,7 @@
+ package com.fsck.k9.ui.endtoend
+ 
+ import androidx.lifecycle.LifecycleOwner
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.core.parameter.parametersOf
+ import org.koin.dsl.module
+ 
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/managefolders/KoinModule.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/managefolders/KoinModule.kt
+index b92c10a5ff0..31971684c13 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/managefolders/KoinModule.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/managefolders/KoinModule.kt
+@@ -1,6 +1,6 @@
+ package com.fsck.k9.ui.managefolders
+ 
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val manageFoldersUiModule = module {
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagedetails/KoinModule.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagedetails/KoinModule.kt
+index 1569f549970..e5cb6fc16e9 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagedetails/KoinModule.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagedetails/KoinModule.kt
+@@ -1,6 +1,6 @@
+ package com.fsck.k9.ui.messagedetails
+ 
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val messageDetailsUiModule = module {
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagelist/KoinModule.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagelist/KoinModule.kt
+index 8f96bca196e..c4ffedef71f 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagelist/KoinModule.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagelist/KoinModule.kt
+@@ -2,7 +2,7 @@ package com.fsck.k9.ui.messagelist
+ 
+ import net.thunderbird.feature.navigation.drawer.dropdown.navigationDropDownDrawerModule
+ import net.thunderbird.feature.navigation.drawer.siderail.navigationSideRailDrawerModule
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val messageListUiModule = module {
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagesource/KoinModule.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagesource/KoinModule.kt
+index 80feecc1f7d..dc9186800bf 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagesource/KoinModule.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/messagesource/KoinModule.kt
+@@ -1,6 +1,6 @@
+ package com.fsck.k9.ui.messagesource
+ 
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.dsl.module
+ 
+ val messageSourceModule = module {
+diff --git a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/KoinModule.kt b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/KoinModule.kt
+index e0e223b718f..bfd8920e9ab 100644
+--- a/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/KoinModule.kt
++++ b/legacy/ui/legacy/src/main/java/com/fsck/k9/ui/settings/KoinModule.kt
+@@ -8,7 +8,7 @@ import com.fsck.k9.ui.settings.export.SettingsExportViewModel
+ import com.fsck.k9.ui.settings.general.GeneralSettingsDataStore
+ import com.fsck.k9.ui.settings.general.GeneralSettingsViewModel
+ import java.util.concurrent.Executors
+-import org.koin.androidx.viewmodel.dsl.viewModel
++import org.koin.core.module.dsl.viewModel
+ import org.koin.core.qualifier.named
+ import org.koin.dsl.module
+ 

@@ -1,0 +1,287 @@
+--------- beginning of crash
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: FATAL EXCEPTION: main
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: Process: com.fsck.k9, PID: 13793
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: java.lang.RuntimeException: Unable to start activity ComponentInfo{com.fsck.k9/com.fsck.k9.activity.MessageList}: java.lang.IllegalStateException: Required value was null.
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3432)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:3596)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.ActivityThread.handleRelaunchActivityInner(ActivityThread.java:5456)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.ActivityThread.handleRelaunchActivity(ActivityThread.java:5362)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.servertransaction.ActivityRelaunchItem.execute(ActivityRelaunchItem.java:69)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.executeCallbacks(TransactionExecutor.java:135)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:95)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2067)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:106)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:223)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:7705)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:592)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:952)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: Caused by: java.lang.IllegalStateException: Required value was null.
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at com.fsck.k9.activity.MessageList.showMessageView(MessageList.kt:1225)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at com.fsck.k9.activity.MessageList.displayViews(MessageList.kt:351)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at com.fsck.k9.activity.MessageList.onCreate(MessageList.kt:214)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.Activity.performCreate(Activity.java:7994)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.Activity.performCreate(Activity.java:7978)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1310)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3405)
+04-21 21:49:47.479 13793 13793 E AndroidRuntime: 	... 13 more
+--------- beginning of main
+04-21 23:48:48.100  6757 22735 I K9StorageEditor: Committing preference changes
+04-21 23:48:48.126  6757 22735 I K9StorageEditor: Preferences commit took 26 ms
+04-21 23:48:55.750  6757  6783 I MessagingController: Running command 'clearNotifications', seq = 99 (foreground priority)
+04-21 23:48:55.750  6757  6783 V NotificationController: Removing some notifications for account 2deb1cb3-de0b-4987-9010-906541b7c4bc
+04-21 23:48:55.750  6757  6783 I MessagingController:  Command 'clearNotifications' completed
+04-21 23:48:58.502  6757  6757 D TokenAutoComplete: Current completion text: XHajT03@hajny.biz,
+04-21 23:48:58.549  6757  6757 I AssistStructure: Flattened final assist data: 5740 bytes, containing 1 windows, 35 views
+04-21 23:49:04.813  6757  6757 D TokenAutoComplete: Current completion text: "T
+04-21 23:49:05.558  6757  6757 D TokenAutoComplete: Current completion text: "To
+04-21 23:49:05.838  6757  6757 D TokenAutoComplete: Current completion text: "Tom
+04-21 23:49:06.439  6757  6757 D TokenAutoComplete: Current completion text: "Tomá
+04-21 23:49:06.896  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš
+04-21 23:49:07.466  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš 
+04-21 23:49:08.548  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš M
+04-21 23:49:09.112  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Ma
+04-21 23:49:09.606  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Mar
+04-21 23:49:09.905  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marn
+04-21 23:49:10.822  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný
+04-21 23:49:14.464  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný"
+04-21 23:49:16.437  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" 
+04-21 23:49:18.129  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <
+04-21 23:49:18.320  6757  6809 V RealImapConnection: conn247413832<<<#null# [OK, Still here]
+04-21 23:49:18.320  6757  6810 V RealImapConnection: conn221410060<<<#null# [OK, Still here]
+04-21 23:49:18.324  6757  6810 V AndroidPowerManager$AndroidWakeLock: AndroidWakeLock for tag ImapFolderPusher-Idefix-Sent / id 4: acquired with no timeout.
+04-21 23:49:18.325  6757  6810 V RealImapFolderIdler: ImapFolderIdler[Sent].idle(): Ignoring untagged response
+04-21 23:49:18.326  6757  6809 V AndroidPowerManager$AndroidWakeLock: AndroidWakeLock for tag ImapFolderPusher-Idefix-INBOX / id 3: acquired with no timeout.
+04-21 23:49:18.327  6757  6809 V RealImapFolderIdler: ImapFolderIdler[INBOX].idle(): Ignoring untagged response
+04-21 23:49:18.327  6757  6810 V AndroidPowerManager$AndroidWakeLock: AndroidWakeLock for tag ImapFolderPusher-Idefix-Sent / id 4: releasing after 1 ms, timeout = null ms
+04-21 23:49:18.328  6757  6809 V AndroidPowerManager$AndroidWakeLock: AndroidWakeLock for tag ImapFolderPusher-Idefix-INBOX / id 3: releasing after 1 ms, timeout = null ms
+04-21 23:49:18.985  6757  6811 V RealImapConnection: conn114623978<<<#null# [OK, Still here]
+04-21 23:49:18.988  6757  6811 V AndroidPowerManager$AndroidWakeLock: AndroidWakeLock for tag ImapFolderPusher-Idefix-Drafts / id 5: acquired with no timeout.
+04-21 23:49:18.989  6757  6811 V RealImapFolderIdler: ImapFolderIdler[Drafts].idle(): Ignoring untagged response
+04-21 23:49:18.990  6757  6811 V AndroidPowerManager$AndroidWakeLock: AndroidWakeLock for tag ImapFolderPusher-Idefix-Drafts / id 5: releasing after 1 ms, timeout = null ms
+04-21 23:49:19.560  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <t
+04-21 23:49:19.891  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <to
+04-21 23:49:20.872  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tom
+04-21 23:49:21.203  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <toma
+04-21 23:49:21.904  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas
+04-21 23:49:23.742  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@
+04-21 23:49:25.004  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@e
+04-21 23:49:25.427  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@ex
+04-21 23:49:25.989  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@exa
+04-21 23:49:26.217  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@exam
+04-21 23:49:26.657  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@examp
+04-21 23:49:27.006  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@exampl
+04-21 23:49:27.370  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example
+04-21 23:49:28.528  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.
+04-21 23:49:28.935  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.c
+04-21 23:49:29.232  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.co
+04-21 23:49:29.757  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.com
+04-21 23:49:31.373  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.com>
+04-21 23:49:36.153  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.com>
+04-21 23:49:36.157  6757  6757 E Address : MimeException in Address.parse()
+04-21 23:49:36.157  6757  6757 E Address : org.apache.james.mime4j.field.address.ParseException: org.apache.james.mime4j.field.address.TokenMgrError: Lexical error at line 1, column 6.  Encountered: "\u0161" (353), after : ""
+04-21 23:49:36.157  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.parseAddressList(AddressListParser.java:41)
+04-21 23:49:36.157  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.DefaultAddressParser.parseAddressList(DefaultAddressParser.java:69)
+04-21 23:49:36.157  6757  6757 E Address : 	at com.fsck.k9.mail.Address.parse(Address.java:138)
+04-21 23:49:36.157  6757  6757 E Address : 	at com.fsck.k9.view.RecipientSelectView.defaultObject(RecipientSelectView.java:174)
+04-21 23:49:36.157  6757  6757 E Address : 	at com.fsck.k9.view.RecipientSelectView.performCompletion(RecipientSelectView.java:248)
+04-21 23:49:36.157  6757  6757 E Address : 	at com.tokenautocomplete.TokenCompleteTextView.handleDone(TokenCompleteTextView.java:629)
+04-21 23:49:36.157  6757  6757 E Address : 	at com.tokenautocomplete.TokenCompleteTextView.onKeyUp(TokenCompleteTextView.java:644)
+04-21 23:49:36.157  6757  6757 E Address : 	at android.view.KeyEvent.dispatch(KeyEvent.java:2866)
+04-21 23:49:36.157  6757  6757 E Address : 	at android.view.View.dispatchKeyEvent(View.java:14247)
+04-21 23:49:36.157  6757  6757 E Address : 	at android.view.ViewGroup.dispatchKeyEvent(ViewGroup.java:1959)
+04-21 23:49:36.157  6757  6757 I chatty  : uid=10336(com.fsck.k9) identical 6 lines
+04-21 23:49:36.158  6757  6757 E Address : 	at android.view.ViewGroup.dispatchKeyEvent(ViewGroup.java:1959)
+04-21 23:49:36.158  6757  6757 E Address : 	at android.widget.ScrollView.dispatchKeyEvent(ScrollView.java:491)
+04-21 23:49:36.158  6757  6757 E Address : 	at android.view.ViewGroup.dispatchKeyEvent(ViewGroup.java:1959)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.view.ViewGroup.dispatchKeyEvent(ViewGroup.java:1959)
+04-21 23:49:36.159  6757  6757 E Address : 	at com.android.internal.policy.DecorView.superDispatchKeyEvent(DecorView.java:476)
+04-21 23:49:36.159  6757  6757 E Address : 	at com.android.internal.policy.PhoneWindow.superDispatchKeyEvent(PhoneWindow.java:1863)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.app.Activity.dispatchKeyEvent(Activity.java:4085)
+04-21 23:49:36.159  6757  6757 E Address : 	at androidx.core.app.ComponentActivity.superDispatchKeyEvent(ComponentActivity.java:126)
+04-21 23:49:36.159  6757  6757 E Address : 	at androidx.core.view.KeyEventDispatcher.dispatchKeyEvent(KeyEventDispatcher.java:86)
+04-21 23:49:36.159  6757  6757 E Address : 	at androidx.core.app.ComponentActivity.dispatchKeyEvent(ComponentActivity.java:144)
+04-21 23:49:36.159  6757  6757 E Address : 	at androidx.appcompat.app.AppCompatActivity.dispatchKeyEvent(AppCompatActivity.java:604)
+04-21 23:49:36.159  6757  6757 E Address : 	at androidx.appcompat.view.WindowCallbackWrapper.dispatchKeyEvent(WindowCallbackWrapper.java:60)
+04-21 23:49:36.159  6757  6757 E Address : 	at androidx.appcompat.app.AppCompatDelegateImpl$AppCompatWindowCallback.dispatchKeyEvent(AppCompatDelegateImpl.java:3413)
+04-21 23:49:36.159  6757  6757 E Address : 	at com.android.internal.policy.DecorView.dispatchKeyEvent(DecorView.java:390)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.view.ViewRootImpl$ViewPostImeInputStage.processKeyEvent(ViewRootImpl.java:5955)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.view.ViewRootImpl$ViewPostImeInputStage.onProcess(ViewRootImpl.java:5823)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:5318)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.onDeliverToNext(ViewRootImpl.java:5375)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.forward(ViewRootImpl.java:5341)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.view.ViewRootImpl$AsyncInputStage.forward(ViewRootImpl.java:5493)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.apply(ViewRootImpl.java:5349)
+04-21 23:49:36.159  6757  6757 E Address : 	at android.view.ViewRootImpl$AsyncInputStage.apply(ViewRootImpl.java:5550)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:5322)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.onDeliverToNext(ViewRootImpl.java:5375)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.forward(ViewRootImpl.java:5341)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.apply(ViewRootImpl.java:5349)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:5322)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.onDeliverToNext(ViewRootImpl.java:5375)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.forward(ViewRootImpl.java:5341)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.ViewRootImpl$AsyncInputStage.forward(ViewRootImpl.java:5526)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.ViewRootImpl$ImeInputStage.onFinishedInputEvent(ViewRootImpl.java:5684)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.inputmethod.InputMethodManager$PendingEvent.run(InputMethodManager.java:3183)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.inputmethod.InputMethodManager.invokeFinishedInputEventCallback(InputMethodManager.java:2725)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.inputmethod.InputMethodManager.finishedInputEvent(InputMethodManager.java:2716)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.inputmethod.InputMethodManager$ImeInputEventSender.onInputEventFinished(InputMethodManager.java:3160)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.view.InputEventSender.dispatchInputEventFinished(InputEventSender.java:143)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.os.MessageQueue.nativePollOnce(Native Method)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.os.MessageQueue.next(MessageQueue.java:335)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.os.Looper.loop(Looper.java:183)
+04-21 23:49:36.160  6757  6757 E Address : 	at android.app.ActivityThread.main(ActivityThread.java:7705)
+04-21 23:49:36.160  6757  6757 E Address : 	at java.lang.reflect.Method.invoke(Native Method)
+04-21 23:49:36.161  6757  6757 E Address : 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:592)
+04-21 23:49:36.161  6757  6757 E Address : 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:952)
+04-21 23:49:36.161  6757  6757 E Address : Caused by: org.apache.james.mime4j.field.address.TokenMgrError: Lexical error at line 1, column 6.  Encountered: "\u0161" (353), after : ""
+04-21 23:49:36.161  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParserTokenManager.getNextToken(AddressListParserTokenManager.java:879)
+04-21 23:49:36.161  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.getToken(AddressListParser.java:889)
+04-21 23:49:36.161  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.jjtreeOpenNodeScope(AddressListParser.java:64)
+04-21 23:49:36.161  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.address_list(AddressListParser.java:104)
+04-21 23:49:36.161  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.parseAddressList0(AddressListParser.java:85)
+04-21 23:49:36.161  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.parseAddressList(AddressListParser.java:38)
+04-21 23:49:36.161  6757  6757 E Address : 	... 58 more
+04-21 23:49:49.058  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.com>
+04-21 23:49:49.063  6757  6757 E Address : MimeException in Address.parse()
+04-21 23:49:49.063  6757  6757 E Address : org.apache.james.mime4j.field.address.ParseException: org.apache.james.mime4j.field.address.TokenMgrError: Lexical error at line 1, column 6.  Encountered: "\u0161" (353), after : ""
+04-21 23:49:49.063  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.parseAddressList(AddressListParser.java:41)
+04-21 23:49:49.063  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.DefaultAddressParser.parseAddressList(DefaultAddressParser.java:69)
+04-21 23:49:49.063  6757  6757 E Address : 	at com.fsck.k9.mail.Address.parse(Address.java:138)
+04-21 23:49:49.063  6757  6757 E Address : 	at com.fsck.k9.view.RecipientSelectView.defaultObject(RecipientSelectView.java:174)
+04-21 23:49:49.063  6757  6757 E Address : 	at com.fsck.k9.view.RecipientSelectView.performCompletion(RecipientSelectView.java:248)
+04-21 23:49:49.063  6757  6757 E Address : 	at com.fsck.k9.view.RecipientSelectView.onFocusChanged(RecipientSelectView.java:204)
+04-21 23:49:49.063  6757  6757 E Address : 	at android.view.View.clearFocusInternal(View.java:7953)
+04-21 23:49:49.063  6757  6757 E Address : 	at android.view.View.unFocus(View.java:7986)
+04-21 23:49:49.063  6757  6757 E Address : 	at android.view.ViewGroup.unFocus(ViewGroup.java:1200)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.unFocus(ViewGroup.java:1200)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.requestChildFocus(ViewGroup.java:858)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.requestChildFocus(ViewGroup.java:864)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.View.handleFocusGainInternal(View.java:7778)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.View.requestFocusNoSearch(View.java:13320)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.View.requestFocus(View.java:13294)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.View.requestFocus(View.java:13261)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.View.requestFocus(View.java:13203)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.View.onTouchEvent(View.java:15706)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.widget.TextView.onTouchEvent(TextView.java:11030)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.View.dispatchTouchEvent(View.java:14310)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3118)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2799)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3118)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2799)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3118)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2799)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3118)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2799)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3118)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2799)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3118)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2799)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3118)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2799)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3118)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2799)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTransformedTouchEvent(ViewGroup.java:3118)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewGroup.dispatchTouchEvent(ViewGroup.java:2799)
+04-21 23:49:49.064  6757  6757 E Address : 	at com.android.internal.policy.DecorView.superDispatchTouchEvent(DecorView.java:488)
+04-21 23:49:49.064  6757  6757 E Address : 	at com.android.internal.policy.PhoneWindow.superDispatchTouchEvent(PhoneWindow.java:1873)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.app.Activity.dispatchTouchEvent(Activity.java:4125)
+04-21 23:49:49.064  6757  6757 E Address : 	at androidx.appcompat.view.WindowCallbackWrapper.dispatchTouchEvent(WindowCallbackWrapper.java:70)
+04-21 23:49:49.064  6757  6757 E Address : 	at com.android.internal.policy.DecorView.dispatchTouchEvent(DecorView.java:446)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.View.dispatchPointerEvent(View.java:14569)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$ViewPostImeInputStage.processPointerEvent(ViewRootImpl.java:6024)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$ViewPostImeInputStage.onProcess(ViewRootImpl.java:5827)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:5318)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.onDeliverToNext(ViewRootImpl.java:5375)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.forward(ViewRootImpl.java:5341)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$AsyncInputStage.forward(ViewRootImpl.java:5493)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.apply(ViewRootImpl.java:5349)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$AsyncInputStage.apply(ViewRootImpl.java:5550)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:5322)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.onDeliverToNext(ViewRootImpl.java:5375)
+04-21 23:49:49.064  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.forward(ViewRootImpl.java:5341)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.apply(ViewRootImpl.java:5349)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.view.ViewRootImpl$InputStage.deliver(ViewRootImpl.java:5322)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.view.ViewRootImpl.deliverInputEvent(ViewRootImpl.java:8095)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.view.ViewRootImpl.doProcessInputEvents(ViewRootImpl.java:8046)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.view.ViewRootImpl.enqueueInputEvent(ViewRootImpl.java:8006)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.view.ViewRootImpl$WindowInputEventReceiver.onInputEvent(ViewRootImpl.java:8218)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.view.InputEventReceiver.dispatchInputEvent(InputEventReceiver.java:221)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.os.MessageQueue.nativePollOnce(Native Method)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.os.MessageQueue.next(MessageQueue.java:335)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.os.Looper.loop(Looper.java:183)
+04-21 23:49:49.065  6757  6757 E Address : 	at android.app.ActivityThread.main(ActivityThread.java:7705)
+04-21 23:49:49.065  6757  6757 E Address : 	at java.lang.reflect.Method.invoke(Native Method)
+04-21 23:49:49.065  6757  6757 E Address : 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:592)
+04-21 23:49:49.065  6757  6757 E Address : 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:952)
+04-21 23:49:49.065  6757  6757 E Address : Caused by: org.apache.james.mime4j.field.address.TokenMgrError: Lexical error at line 1, column 6.  Encountered: "\u0161" (353), after : ""
+04-21 23:49:49.065  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParserTokenManager.getNextToken(AddressListParserTokenManager.java:879)
+04-21 23:49:49.065  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.getToken(AddressListParser.java:889)
+04-21 23:49:49.065  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.jjtreeOpenNodeScope(AddressListParser.java:64)
+04-21 23:49:49.065  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.address_list(AddressListParser.java:104)
+04-21 23:49:49.065  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.parseAddressList0(AddressListParser.java:85)
+04-21 23:49:49.065  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.parseAddressList(AddressListParser.java:38)
+04-21 23:49:49.065  6757  6757 E Address : 	... 68 more
+04-21 23:49:49.133  6757  6757 I AssistStructure: Flattened final assist data: 5812 bytes, containing 1 windows, 35 views
+04-21 23:49:52.891  6757  6757 I AssistStructure: Flattened final assist data: 5860 bytes, containing 1 windows, 35 views
+04-21 23:49:57.032  6757  6757 D TokenAutoComplete: Current completion text: 
+04-21 23:49:57.032  6757  6757 D TokenAutoComplete: Current completion text: 
+04-21 23:49:57.032  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.com>
+04-21 23:49:57.033  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.com>
+04-21 23:49:57.038  6757  6757 E Address : MimeException in Address.parse()
+04-21 23:49:57.038  6757  6757 E Address : org.apache.james.mime4j.field.address.ParseException: org.apache.james.mime4j.field.address.TokenMgrError: Lexical error at line 1, column 6.  Encountered: "\u0161" (353), after : ""
+04-21 23:49:57.038  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.parseAddressList(AddressListParser.java:41)
+04-21 23:49:57.038  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.DefaultAddressParser.parseAddressList(DefaultAddressParser.java:69)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.fsck.k9.mail.Address.parse(Address.java:138)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.fsck.k9.view.RecipientSelectView.defaultObject(RecipientSelectView.java:174)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.fsck.k9.view.RecipientSelectView.performCompletion(RecipientSelectView.java:248)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.fsck.k9.view.RecipientSelectView.tryPerformCompletion(RecipientSelectView.java:427)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.fsck.k9.activity.compose.RecipientMvpView.recipientToTryPerformCompletion(RecipientMvpView.kt:253)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.fsck.k9.activity.compose.RecipientPresenter.checkRecipientsOkForSending(RecipientPresenter.kt:101)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.fsck.k9.activity.MessageCompose.checkToSendMessage(MessageCompose.java:755)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.fsck.k9.activity.MessageCompose.onOptionsItemSelected(MessageCompose.java:1020)
+04-21 23:49:57.038  6757  6757 E Address : 	at android.app.Activity.onMenuItemSelected(Activity.java:4269)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.activity.ComponentActivity.onMenuItemSelected(ComponentActivity.java:529)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.fragment.app.FragmentActivity.onMenuItemSelected(FragmentActivity.java:265)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.app.AppCompatActivity.onMenuItemSelected(AppCompatActivity.java:269)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.view.WindowCallbackWrapper.onMenuItemSelected(WindowCallbackWrapper.java:110)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.app.ToolbarActionBar$2.onMenuItemClick(ToolbarActionBar.java:66)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.widget.Toolbar$1.onMenuItemClick(Toolbar.java:225)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.widget.ActionMenuView$MenuBuilderCallback.onMenuItemSelected(ActionMenuView.java:781)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.view.menu.MenuBuilder.dispatchMenuItemSelected(MenuBuilder.java:836)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.view.menu.MenuItemImpl.invoke(MenuItemImpl.java:159)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.view.menu.MenuBuilder.performItemAction(MenuBuilder.java:987)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.view.menu.MenuBuilder.performItemAction(MenuBuilder.java:977)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.widget.ActionMenuView.invokeItem(ActionMenuView.java:625)
+04-21 23:49:57.038  6757  6757 E Address : 	at androidx.appcompat.view.menu.ActionMenuItemView.onClick(ActionMenuItemView.java:156)
+04-21 23:49:57.038  6757  6757 E Address : 	at android.view.View.performClick(View.java:7448)
+04-21 23:49:57.038  6757  6757 E Address : 	at android.view.View.performClickInternal(View.java:7425)
+04-21 23:49:57.038  6757  6757 E Address : 	at android.view.View.access$3600(View.java:810)
+04-21 23:49:57.038  6757  6757 E Address : 	at android.view.View$PerformClick.run(View.java:28309)
+04-21 23:49:57.038  6757  6757 E Address : 	at android.os.Handler.handleCallback(Handler.java:938)
+04-21 23:49:57.038  6757  6757 E Address : 	at android.os.Handler.dispatchMessage(Handler.java:99)
+04-21 23:49:57.038  6757  6757 E Address : 	at android.os.Looper.loop(Looper.java:223)
+04-21 23:49:57.038  6757  6757 E Address : 	at android.app.ActivityThread.main(ActivityThread.java:7705)
+04-21 23:49:57.038  6757  6757 E Address : 	at java.lang.reflect.Method.invoke(Native Method)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:592)
+04-21 23:49:57.038  6757  6757 E Address : 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:952)
+04-21 23:49:57.038  6757  6757 E Address : Caused by: org.apache.james.mime4j.field.address.TokenMgrError: Lexical error at line 1, column 6.  Encountered: "\u0161" (353), after : ""
+04-21 23:49:57.038  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParserTokenManager.getNextToken(AddressListParserTokenManager.java:879)
+04-21 23:49:57.038  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.getToken(AddressListParser.java:889)
+04-21 23:49:57.038  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.jjtreeOpenNodeScope(AddressListParser.java:64)
+04-21 23:49:57.038  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.address_list(AddressListParser.java:104)
+04-21 23:49:57.038  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.parseAddressList0(AddressListParser.java:85)
+04-21 23:49:57.038  6757  6757 E Address : 	at org.apache.james.mime4j.field.address.AddressListParser.parseAddressList(AddressListParser.java:38)
+04-21 23:49:57.038  6757  6757 E Address : 	... 34 more
+04-21 23:49:57.040  6757  6757 D TokenAutoComplete: Current completion text: 
+04-21 23:49:57.040  6757  6757 D TokenAutoComplete: Current completion text: 
+04-21 23:49:57.040  6757  6757 D TokenAutoComplete: Current completion text: "Tomáš Marný" <tomas@example.com>
+04-21 23:50:07.341  6757  6784 D OpenGLRenderer: endAllActiveAnimators on 0xb40000718b9ec350 (RippleDrawable) with handle 0xb4000070ab84d6f0
+04-21 23:50:07.546  6757  6783 I MessagingController: Running command 'clearNotifications', seq = 100 (foreground priority)
+04-21 23:50:07.547  6757  6783 V NotificationController: Removing some notifications for account 2deb1cb3-de0b-4987-9010-906541b7c4bc
+04-21 23:50:07.547  6757  6783 I MessagingController:  Command 'clearNotifications' completed
+04-21 23:50:07.548  6757  6783 I MessagingController: Running command 'clearNotifications', seq = 101 (foreground priority)
+04-21 23:50:07.548  6757  6783 V NotificationController: Removing some notifications for account 2deb1cb3-de0b-4987-9010-906541b7c4bc
+04-21 23:50:07.549  6757  6783 I MessagingController:  Command 'clearNotifications' completed
+04-21 23:50:07.855  6757  6769 W com.fsck.k9: Reducing the number of considered missed Gc histogram windows from 110 to 100
+04-21 23:50:59.439  6757 23051 V LogcatLogFileWriter: Writing logcat output to content URI: content://com.android.externalstorage.documents/document/primary%3ADownload%2Fk9mail-logs_230421.txt

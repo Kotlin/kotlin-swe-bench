@@ -1,0 +1,105 @@
+diff --git a/javalin/src/test/java/io/javalin/TestCustomJetty.kt b/javalin/src/test/java/io/javalin/TestCustomJetty.kt
+index 5dd7c3e42..b03d3248d 100644
+--- a/javalin/src/test/java/io/javalin/TestCustomJetty.kt
++++ b/javalin/src/test/java/io/javalin/TestCustomJetty.kt
+@@ -66,7 +66,7 @@ class TestCustomJetty {
+     fun `embedded server can have custom jetty Handler`() = TestUtil.runLogLess {
+         val statisticsHandler = StatisticsHandler()
+         val newServer = Server().apply { handler = statisticsHandler }
+-        val app = Javalin.create { it.pvt.server =  newServer }.get("/") { it.result("Hello World") }.start(0)
++        val app = Javalin.create { it.pvt.jetty.server =  newServer }.get("/") { it.result("Hello World") }.start(0)
+         val requests = 5
+         for (i in 0 until requests) {
+             assertThat(Unirest.get("http://localhost:" + app.port() + "/").asString().body).isEqualTo("Hello World")
+@@ -84,7 +84,7 @@ class TestCustomJetty {
+         val requestLogHandler = RequestLogHandler().apply { requestLog = RequestLog { _, _ -> logCount.incrementAndGet() } }
+         val handlerChain = StatisticsHandler().apply { handler = requestLogHandler }
+         val newServer = Server().apply { handler = handlerChain }
+-        val app = Javalin.create { it.pvt.server = newServer }.get("/") { it.result("Hello World") }.start(0)
++        val app = Javalin.create { it.pvt.jetty.server = newServer }.get("/") { it.result("Hello World") }.start(0)
+         val requests = 10
+         for (i in 0 until requests) {
+             assertThat(Unirest.get("http://localhost:" + app.port() + "/").asString().body).isEqualTo("Hello World")
+@@ -102,7 +102,7 @@ class TestCustomJetty {
+         val handlerCollection = HandlerCollection()
+         val handlerChain = StatisticsHandler().apply { handler = handlerCollection }
+         val newServer = Server().apply { handler = handlerChain }
+-        val app = Javalin.create { it.pvt.server = newServer }.get("/") { it.result("Hello World") }.start(0)
++        val app = Javalin.create { it.pvt.jetty.server = newServer }.get("/") { it.result("Hello World") }.start(0)
+         val requests = 10
+         for (i in 0 until requests) {
+             assertThat(Unirest.get("http://localhost:" + app.port() + "/").asString().body).isEqualTo("Hello World")
+@@ -127,7 +127,7 @@ class TestCustomJetty {
+         }
+         val javalin = Javalin.create {
+             it.jetty.modifyServletContextHandler { it.sessionHandler = fileSessionHandler }
+-            it.pvt.server = newServer
++            it.pvt.jetty.server = newServer
+         }.start(0)
+         val httpHandler = (newServer.handlers[0] as ServletContextHandler)
+         assertThat(httpHandler.sessionHandler).isEqualTo(fileSessionHandler)
+@@ -153,7 +153,7 @@ class TestCustomJetty {
+         }
+         newServer.handler = handler
+ 
+-        val javalin = Javalin.create { it.pvt.server = newServer }
++        val javalin = Javalin.create { it.pvt.jetty.server = newServer }
+         TestUtil.test(javalin) { app, http ->
+             app.get("/bar") { it.result("Hello") }
+             assertThat(http.getBody("/foo/foo")).isEqualTo("yo dude")
+@@ -173,7 +173,7 @@ class TestCustomJetty {
+             }
+         }
+         val javalin = Javalin.create {
+-            it.pvt.server = newServer
++            it.pvt.jetty.server = newServer
+             it.router.contextPath = "/api"
+         }
+         TestUtil.test(javalin) { app, http ->
+diff --git a/javalin/src/test/java/io/javalin/TestGracefulShutdown.java b/javalin/src/test/java/io/javalin/TestGracefulShutdown.java
+index dd154a777..bfb5cd56f 100644
+--- a/javalin/src/test/java/io/javalin/TestGracefulShutdown.java
++++ b/javalin/src/test/java/io/javalin/TestGracefulShutdown.java
+@@ -41,14 +41,14 @@ public void t1_shutdown_is_graceful_with_default_config() throws Exception {
+     public void t2_shutdown_is_graceful_when_custom_server_has_statisticshandler() throws Exception {
+         Server server = new Server();
+         server.insertHandler(new StatisticsHandler());
+-        Javalin app = Javalin.create(c -> c.pvt.server = server).start(0);
++        Javalin app = Javalin.create(c -> c.pvt.jetty.server = server).start(0);
+         addEndpoints(app);
+         testIfShutdownIsGraceful(app);
+     }
+ 
+     @Test
+     public void t3_shutdown_is_not_graceful_when_custom_server_has_no_statisticshandler() {
+-        Javalin app = Javalin.create(c -> c.pvt.server = new Server()).start(0);
++        Javalin app = Javalin.create(c -> c.pvt.jetty.server = new Server()).start(0);
+         addEndpoints(app);
+         assertThrows(ExecutionException.class, () -> testIfShutdownIsGraceful(app));
+     }
+diff --git a/javalin/src/test/java/io/javalin/examples/HelloWorldServlet.java b/javalin/src/test/java/io/javalin/examples/HelloWorldServlet.java
+index 57adfdede..9f2b28a98 100644
+--- a/javalin/src/test/java/io/javalin/examples/HelloWorldServlet.java
++++ b/javalin/src/test/java/io/javalin/examples/HelloWorldServlet.java
+@@ -28,7 +28,7 @@ public static void main(String[] args) {
+             handlers.setHandlers(new Handler[]{context});
+             server.setHandler(handlers);
+ 
+-            config.pvt.server = server;
++            config.pvt.jetty.server = server;
+         });
+         app.get("/", ctx -> ctx.result("Hello Javalin World!"));
+         app.start(8000);
+diff --git a/javalin/src/test/kotlin/io/javalin/examples/AdvancedServerSentEvent.kt b/javalin/src/test/kotlin/io/javalin/examples/AdvancedServerSentEvent.kt
+index d27855d6d..0874c80c9 100644
+--- a/javalin/src/test/kotlin/io/javalin/examples/AdvancedServerSentEvent.kt
++++ b/javalin/src/test/kotlin/io/javalin/examples/AdvancedServerSentEvent.kt
+@@ -22,7 +22,7 @@ fun main() {
+ 
+     Javalin.create {
+         it.staticFiles.add("/public", Location.CLASSPATH)
+-        it.pvt.server = Server(tp)
++        it.pvt.jetty.server = Server(tp)
+     }.apply {
+         get("/") { it.redirect("/sse/sse-example.html") }
+         sse("/sse-counter") { client ->

@@ -1,0 +1,522 @@
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/NavigationDrawerModule.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/NavigationDrawerModule.kt
+index 78ce21ee6e4..899ebadb8c4 100644
+--- a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/NavigationDrawerModule.kt
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/NavigationDrawerModule.kt
+@@ -1,5 +1,7 @@
+ package app.k9mail.feature.navigation.drawer
+ 
++import app.k9mail.feature.navigation.drawer.data.UnifiedFolderRepository
++import app.k9mail.feature.navigation.drawer.domain.DomainContract
+ import app.k9mail.feature.navigation.drawer.domain.DomainContract.UseCase
+ import app.k9mail.feature.navigation.drawer.domain.usecase.GetDisplayAccounts
+ import app.k9mail.feature.navigation.drawer.domain.usecase.GetDisplayFoldersForAccount
+@@ -14,6 +16,12 @@ import org.koin.dsl.module
+ 
+ val navigationDrawerModule: Module = module {
+ 
++    single<DomainContract.UnifiedFolderRepository> {
++        UnifiedFolderRepository(
++            messageCountsProvider = get(),
++        )
++    }
++
+     single<UseCase.GetDrawerConfig> {
+         GetDrawerConfig(
+             configLoader = get(),
+@@ -35,8 +43,8 @@ val navigationDrawerModule: Module = module {
+ 
+     single<UseCase.GetDisplayFoldersForAccount> {
+         GetDisplayFoldersForAccount(
+-            repository = get(),
+-            messageCountsProvider = get(),
++            displayFolderRepository = get(),
++            unifiedFolderRepository = get(),
+         )
+     }
+ 
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/data/UnifiedFolderRepository.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/data/UnifiedFolderRepository.kt
+new file mode 100644
+index 00000000000..2042b3a768c
+--- /dev/null
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/data/UnifiedFolderRepository.kt
+@@ -0,0 +1,44 @@
++package app.k9mail.feature.navigation.drawer.data
++
++import app.k9mail.feature.navigation.drawer.domain.DomainContract
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolder
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolderType
++import app.k9mail.legacy.message.controller.MessageCountsProvider
++import app.k9mail.legacy.search.LocalSearch
++import app.k9mail.legacy.search.api.SearchAttribute
++import app.k9mail.legacy.search.api.SearchField
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.map
++
++internal class UnifiedFolderRepository(
++    private val messageCountsProvider: MessageCountsProvider,
++) : DomainContract.UnifiedFolderRepository {
++
++    override fun getDisplayUnifiedFolderFlow(unifiedFolderType: DisplayUnifiedFolderType): Flow<DisplayUnifiedFolder> {
++        return messageCountsProvider.getMessageCountsFlow(createUnifiedFolderSearch(unifiedFolderType)).map {
++            DisplayUnifiedFolder(
++                id = UNIFIED_INBOX_ID,
++                unifiedType = DisplayUnifiedFolderType.INBOX,
++                unreadMessageCount = it.unread,
++                starredMessageCount = it.starred,
++            )
++        }
++    }
++
++    private fun createUnifiedFolderSearch(unifiedFolderType: DisplayUnifiedFolderType): LocalSearch {
++        return when (unifiedFolderType) {
++            DisplayUnifiedFolderType.INBOX -> return createUnifiedInboxSearch()
++        }
++    }
++
++    private fun createUnifiedInboxSearch(): LocalSearch {
++        return LocalSearch().apply {
++            id = UNIFIED_INBOX_ID
++            and(SearchField.INTEGRATE, "1", SearchAttribute.EQUALS)
++        }
++    }
++
++    companion object {
++        const val UNIFIED_INBOX_ID = "unified_inbox"
++    }
++}
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/domain/DomainContract.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/domain/DomainContract.kt
+index f0164ac9e2d..335abfb40ed 100644
+--- a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/domain/DomainContract.kt
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/domain/DomainContract.kt
+@@ -3,6 +3,8 @@ package app.k9mail.feature.navigation.drawer.domain
+ import app.k9mail.feature.navigation.drawer.NavigationDrawerExternalContract.DrawerConfig
+ import app.k9mail.feature.navigation.drawer.domain.entity.DisplayAccount
+ import app.k9mail.feature.navigation.drawer.domain.entity.DisplayFolder
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolder
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolderType
+ import kotlinx.coroutines.flow.Flow
+ 
+ internal interface DomainContract {
+@@ -38,4 +40,8 @@ internal interface DomainContract {
+             operator fun invoke(): Flow<Result<Unit>>
+         }
+     }
++
++    interface UnifiedFolderRepository {
++        fun getDisplayUnifiedFolderFlow(unifiedFolderType: DisplayUnifiedFolderType): Flow<DisplayUnifiedFolder>
++    }
+ }
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/GetDisplayFoldersForAccount.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/GetDisplayFoldersForAccount.kt
+index 0b57abe58ff..a18b6c2bba6 100644
+--- a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/GetDisplayFoldersForAccount.kt
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/GetDisplayFoldersForAccount.kt
+@@ -1,68 +1,49 @@
+ package app.k9mail.feature.navigation.drawer.domain.usecase
+ 
++import app.k9mail.feature.navigation.drawer.domain.DomainContract.UnifiedFolderRepository
+ import app.k9mail.feature.navigation.drawer.domain.DomainContract.UseCase
+ import app.k9mail.feature.navigation.drawer.domain.entity.DisplayAccountFolder
+ import app.k9mail.feature.navigation.drawer.domain.entity.DisplayFolder
+ import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolder
+ import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolderType
+-import app.k9mail.legacy.message.controller.MessageCountsProvider
+-import app.k9mail.legacy.search.LocalSearch
+-import app.k9mail.legacy.search.api.SearchAttribute
+-import app.k9mail.legacy.search.api.SearchField
+ import app.k9mail.legacy.ui.folder.DisplayFolderRepository
+ import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.flowOf
+ import kotlinx.coroutines.flow.map
+ 
+ internal class GetDisplayFoldersForAccount(
+-    private val repository: DisplayFolderRepository,
+-    private val messageCountsProvider: MessageCountsProvider,
++    private val displayFolderRepository: DisplayFolderRepository,
++    private val unifiedFolderRepository: UnifiedFolderRepository,
+ ) : UseCase.GetDisplayFoldersForAccount {
+     override fun invoke(accountId: String, includeUnifiedFolders: Boolean): Flow<List<DisplayFolder>> {
+-        return repository.getDisplayFoldersFlow(accountId).map { displayFolders ->
+-            displayFolders.map { displayFolder ->
+-                DisplayAccountFolder(
+-                    accountId = accountId,
+-                    folder = displayFolder.folder,
+-                    isInTopGroup = displayFolder.isInTopGroup,
+-                    unreadMessageCount = displayFolder.unreadMessageCount,
+-                    starredMessageCount = displayFolder.starredMessageCount,
+-                )
++        val accountFoldersFlow: Flow<List<DisplayFolder>> =
++            displayFolderRepository.getDisplayFoldersFlow(accountId).map { displayFolders ->
++                displayFolders.map { displayFolder ->
++                    DisplayAccountFolder(
++                        accountId = accountId,
++                        folder = displayFolder.folder,
++                        isInTopGroup = displayFolder.isInTopGroup,
++                        unreadMessageCount = displayFolder.unreadMessageCount,
++                        starredMessageCount = displayFolder.starredMessageCount,
++                    )
++                }
+             }
+-        }.map { displayFolders ->
+-            if (includeUnifiedFolders) {
+-                createDisplayUnifiedFolders() + displayFolders
+-            } else {
+-                displayFolders
+-            }
+-        }
+-    }
+-
+-    private fun createDisplayUnifiedFolders(): List<DisplayUnifiedFolder> {
+-        return listOf(
+-            createUnifiedInboxFolder(),
+-        )
+-    }
+ 
+-    private fun createUnifiedInboxFolder(): DisplayUnifiedFolder {
+-        val search = getUnifiedInboxSearch()
+-        val messageCounts = messageCountsProvider.getMessageCounts(search)
+-
+-        return DisplayUnifiedFolder(
+-            id = UNIFIED_INBOX_ID,
+-            unifiedType = DisplayUnifiedFolderType.INBOX,
+-            unreadMessageCount = messageCounts.unread,
+-            starredMessageCount = messageCounts.starred,
+-        )
+-    }
+-
+-    private fun getUnifiedInboxSearch(): LocalSearch {
+-        return LocalSearch().apply {
+-            id = UNIFIED_INBOX_ID
+-            and(SearchField.INTEGRATE, "1", SearchAttribute.EQUALS)
++        val unifiedFoldersFlow: Flow<List<DisplayFolder>> = if (includeUnifiedFolders) {
++            unifiedFolderRepository.getDisplayUnifiedFolderFlow(DisplayUnifiedFolderType.INBOX)
++                .map { displayUnifiedFolder ->
++                    listOf(displayUnifiedFolder)
++                }
++        } else {
++            flowOf(emptyList<DisplayUnifiedFolder>())
+         }
+-    }
+ 
+-    companion object {
+-        private const val UNIFIED_INBOX_ID = "unified_inbox"
++        return combine(
++            accountFoldersFlow,
++            unifiedFoldersFlow,
++        ) { accountFolders, unifiedFolders ->
++            unifiedFolders + accountFolders
++        }
+     }
+ }
+diff --git a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerViewModel.kt b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerViewModel.kt
+index ba49d366a1f..990d4c955bf 100644
+--- a/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerViewModel.kt
++++ b/feature/navigation/drawer/src/main/kotlin/app/k9mail/feature/navigation/drawer/ui/DrawerViewModel.kt
+@@ -84,7 +84,7 @@ internal class DrawerViewModel(
+             .distinctUntilChanged()
+             .flatMapLatest { (accountId, showUnifiedInbox) ->
+                 getDisplayFoldersForAccount(accountId, showUnifiedInbox)
+-            }.collectLatest { folders ->
++            }.collect { folders ->
+                 updateFolders(folders)
+             }
+     }
+diff --git a/legacy/core/src/main/java/com/fsck/k9/controller/DefaultMessageCountsProvider.kt b/legacy/core/src/main/java/com/fsck/k9/controller/DefaultMessageCountsProvider.kt
+index 0eec16e3445..7c4a630617f 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/controller/DefaultMessageCountsProvider.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/controller/DefaultMessageCountsProvider.kt
+@@ -5,17 +5,31 @@ import app.k9mail.legacy.account.AccountManager
+ import app.k9mail.legacy.mailstore.MessageStoreManager
+ import app.k9mail.legacy.message.controller.MessageCounts
+ import app.k9mail.legacy.message.controller.MessageCountsProvider
++import app.k9mail.legacy.message.controller.MessagingControllerRegistry
++import app.k9mail.legacy.message.controller.SimpleMessagingListener
+ import app.k9mail.legacy.search.ConditionsTreeNode
+ import app.k9mail.legacy.search.LocalSearch
+ import app.k9mail.legacy.search.SearchAccount
+ import com.fsck.k9.search.excludeSpecialFolders
+ import com.fsck.k9.search.getAccounts
+ import com.fsck.k9.search.limitToDisplayableFolders
++import kotlin.coroutines.CoroutineContext
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.channels.awaitClose
++import kotlinx.coroutines.channels.trySendBlocking
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.buffer
++import kotlinx.coroutines.flow.callbackFlow
++import kotlinx.coroutines.flow.distinctUntilChanged
++import kotlinx.coroutines.flow.flowOn
+ import timber.log.Timber
+ 
+ internal class DefaultMessageCountsProvider(
+     private val accountManager: AccountManager,
+     private val messageStoreManager: MessageStoreManager,
++    private val messagingControllerRegistry: MessagingControllerRegistry,
++    private val coroutineContext: CoroutineContext = Dispatchers.IO,
+ ) : MessageCountsProvider {
+     override fun getMessageCounts(account: Account): MessageCounts {
+         val search = LocalSearch().apply {
+@@ -59,6 +73,25 @@ internal class DefaultMessageCountsProvider(
+         }
+     }
+ 
++    override fun getMessageCountsFlow(search: LocalSearch): Flow<MessageCounts> {
++        return callbackFlow {
++            send(getMessageCounts(search))
++
++            val folderStatusChangedListener = object : SimpleMessagingListener() {
++                override fun folderStatusChanged(account: Account, folderId: Long) {
++                    trySendBlocking(getMessageCounts(search))
++                }
++            }
++            messagingControllerRegistry.addListener(folderStatusChangedListener)
++
++            awaitClose {
++                messagingControllerRegistry.removeListener(folderStatusChangedListener)
++            }
++        }.buffer(capacity = Channel.CONFLATED)
++            .distinctUntilChanged()
++            .flowOn(coroutineContext)
++    }
++
+     @Suppress("TooGenericExceptionCaught")
+     private fun getMessageCounts(account: Account, conditions: ConditionsTreeNode?): MessageCounts {
+         return try {
+diff --git a/legacy/core/src/main/java/com/fsck/k9/controller/KoinModule.kt b/legacy/core/src/main/java/com/fsck/k9/controller/KoinModule.kt
+index 565e7925f17..b4f46e5d905 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/controller/KoinModule.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/controller/KoinModule.kt
+@@ -39,6 +39,7 @@ val controllerModule = module {
+         DefaultMessageCountsProvider(
+             accountManager = get(),
+             messageStoreManager = get(),
++            messagingControllerRegistry = get(),
+         )
+     }
+ 
+diff --git a/legacy/message/src/main/java/app/k9mail/legacy/message/controller/MessageCountsProvider.kt b/legacy/message/src/main/java/app/k9mail/legacy/message/controller/MessageCountsProvider.kt
+index 0c27cc4b3e5..19cbd7e0791 100644
+--- a/legacy/message/src/main/java/app/k9mail/legacy/message/controller/MessageCountsProvider.kt
++++ b/legacy/message/src/main/java/app/k9mail/legacy/message/controller/MessageCountsProvider.kt
+@@ -3,11 +3,13 @@ package app.k9mail.legacy.message.controller
+ import app.k9mail.legacy.account.Account
+ import app.k9mail.legacy.search.LocalSearch
+ import app.k9mail.legacy.search.SearchAccount
++import kotlinx.coroutines.flow.Flow
+ 
+ interface MessageCountsProvider {
+     fun getMessageCounts(account: Account): MessageCounts
+     fun getMessageCounts(searchAccount: SearchAccount): MessageCounts
+     fun getMessageCounts(search: LocalSearch): MessageCounts
++    fun getMessageCountsFlow(search: LocalSearch): Flow<MessageCounts>
+     fun getUnreadMessageCount(account: Account, folderId: Long): Int
+ }
+ 
+diff --git a/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DefaultDisplayFolderRepository.kt b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DefaultDisplayFolderRepository.kt
+new file mode 100644
+index 00000000000..a22021a3c67
+--- /dev/null
++++ b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DefaultDisplayFolderRepository.kt
+@@ -0,0 +1,89 @@
++package app.k9mail.legacy.ui.folder
++
++import app.k9mail.core.mail.folder.api.Folder
++import app.k9mail.core.mail.folder.api.FolderType
++import app.k9mail.legacy.account.Account
++import app.k9mail.legacy.account.AccountManager
++import app.k9mail.legacy.mailstore.FolderSettingsChangedListener
++import app.k9mail.legacy.mailstore.FolderTypeMapper
++import app.k9mail.legacy.mailstore.MessageStoreManager
++import app.k9mail.legacy.message.controller.MessagingControllerRegistry
++import app.k9mail.legacy.message.controller.SimpleMessagingListener
++import kotlin.coroutines.CoroutineContext
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.channels.awaitClose
++import kotlinx.coroutines.channels.trySendBlocking
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.buffer
++import kotlinx.coroutines.flow.callbackFlow
++import kotlinx.coroutines.flow.distinctUntilChanged
++import kotlinx.coroutines.flow.flowOn
++
++class DefaultDisplayFolderRepository(
++    private val accountManager: AccountManager,
++    private val messagingController: MessagingControllerRegistry,
++    private val messageStoreManager: MessageStoreManager,
++    private val coroutineContext: CoroutineContext = Dispatchers.IO,
++) : DisplayFolderRepository {
++    private val sortForDisplay =
++        compareByDescending<DisplayFolder> { it.folder.type == FolderType.INBOX }
++            .thenByDescending { it.folder.type == FolderType.OUTBOX }
++            .thenByDescending { it.folder.type != FolderType.REGULAR }
++            .thenByDescending { it.isInTopGroup }
++            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.folder.name }
++
++    private fun getDisplayFolders(account: Account, includeHiddenFolders: Boolean): List<DisplayFolder> {
++        val messageStore = messageStoreManager.getMessageStore(account.uuid)
++        return messageStore.getDisplayFolders(
++            includeHiddenFolders = includeHiddenFolders,
++            outboxFolderId = account.outboxFolderId,
++        ) { folder ->
++            DisplayFolder(
++                folder = Folder(
++                    id = folder.id,
++                    name = folder.name,
++                    type = FolderTypeMapper.folderTypeOf(account, folder.id),
++                    isLocalOnly = folder.isLocalOnly,
++                ),
++                isInTopGroup = folder.isInTopGroup,
++                unreadMessageCount = folder.unreadMessageCount,
++                starredMessageCount = folder.starredMessageCount,
++            )
++        }.sortedWith(sortForDisplay)
++    }
++
++    override fun getDisplayFoldersFlow(account: Account, includeHiddenFolders: Boolean): Flow<List<DisplayFolder>> {
++        val messageStore = messageStoreManager.getMessageStore(account.uuid)
++
++        return callbackFlow {
++            send(getDisplayFolders(account, includeHiddenFolders))
++
++            val folderStatusChangedListener = object : SimpleMessagingListener() {
++                override fun folderStatusChanged(statusChangedAccount: Account, folderId: Long) {
++                    if (statusChangedAccount.uuid == account.uuid) {
++                        trySendBlocking(getDisplayFolders(account, includeHiddenFolders))
++                    }
++                }
++            }
++            messagingController.addListener(folderStatusChangedListener)
++
++            val folderSettingsChangedListener = FolderSettingsChangedListener {
++                trySendBlocking(getDisplayFolders(account, includeHiddenFolders))
++            }
++            messageStore.addFolderSettingsChangedListener(folderSettingsChangedListener)
++
++            awaitClose {
++                messagingController.removeListener(folderStatusChangedListener)
++                messageStore.removeFolderSettingsChangedListener(folderSettingsChangedListener)
++            }
++        }.buffer(capacity = Channel.CONFLATED)
++            .distinctUntilChanged()
++            .flowOn(coroutineContext)
++    }
++
++    override fun getDisplayFoldersFlow(accountUuid: String): Flow<List<DisplayFolder>> {
++        val account = accountManager.getAccount(accountUuid) ?: error("Account not found: $accountUuid")
++        return getDisplayFoldersFlow(account, includeHiddenFolders = false)
++    }
++}
+diff --git a/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DisplayFolderRepository.kt b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DisplayFolderRepository.kt
+index c413c9308df..a03f3ca6b5c 100644
+--- a/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DisplayFolderRepository.kt
++++ b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/DisplayFolderRepository.kt
+@@ -1,89 +1,11 @@
+ package app.k9mail.legacy.ui.folder
+ 
+-import app.k9mail.core.mail.folder.api.Folder
+-import app.k9mail.core.mail.folder.api.FolderType
+ import app.k9mail.legacy.account.Account
+-import app.k9mail.legacy.account.AccountManager
+-import app.k9mail.legacy.mailstore.FolderSettingsChangedListener
+-import app.k9mail.legacy.mailstore.FolderTypeMapper
+-import app.k9mail.legacy.mailstore.MessageStoreManager
+-import app.k9mail.legacy.message.controller.MessagingControllerRegistry
+-import app.k9mail.legacy.message.controller.SimpleMessagingListener
+-import kotlin.coroutines.CoroutineContext
+-import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.channels.Channel
+-import kotlinx.coroutines.channels.awaitClose
+-import kotlinx.coroutines.channels.trySendBlocking
+ import kotlinx.coroutines.flow.Flow
+-import kotlinx.coroutines.flow.buffer
+-import kotlinx.coroutines.flow.callbackFlow
+-import kotlinx.coroutines.flow.distinctUntilChanged
+-import kotlinx.coroutines.flow.flowOn
+ 
+-class DisplayFolderRepository(
+-    private val accountManager: AccountManager,
+-    private val messagingController: MessagingControllerRegistry,
+-    private val messageStoreManager: MessageStoreManager,
+-    private val coroutineContext: CoroutineContext = Dispatchers.IO,
+-) {
+-    private val sortForDisplay =
+-        compareByDescending<DisplayFolder> { it.folder.type == FolderType.INBOX }
+-            .thenByDescending { it.folder.type == FolderType.OUTBOX }
+-            .thenByDescending { it.folder.type != FolderType.REGULAR }
+-            .thenByDescending { it.isInTopGroup }
+-            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.folder.name }
++interface DisplayFolderRepository {
+ 
+-    private fun getDisplayFolders(account: Account, includeHiddenFolders: Boolean): List<DisplayFolder> {
+-        val messageStore = messageStoreManager.getMessageStore(account.uuid)
+-        return messageStore.getDisplayFolders(
+-            includeHiddenFolders = includeHiddenFolders,
+-            outboxFolderId = account.outboxFolderId,
+-        ) { folder ->
+-            DisplayFolder(
+-                folder = Folder(
+-                    id = folder.id,
+-                    name = folder.name,
+-                    type = FolderTypeMapper.folderTypeOf(account, folder.id),
+-                    isLocalOnly = folder.isLocalOnly,
+-                ),
+-                isInTopGroup = folder.isInTopGroup,
+-                unreadMessageCount = folder.unreadMessageCount,
+-                starredMessageCount = folder.starredMessageCount,
+-            )
+-        }.sortedWith(sortForDisplay)
+-    }
++    fun getDisplayFoldersFlow(account: Account, includeHiddenFolders: Boolean): Flow<List<DisplayFolder>>
+ 
+-    fun getDisplayFoldersFlow(account: Account, includeHiddenFolders: Boolean): Flow<List<DisplayFolder>> {
+-        val messageStore = messageStoreManager.getMessageStore(account.uuid)
+-
+-        return callbackFlow {
+-            send(getDisplayFolders(account, includeHiddenFolders))
+-
+-            val folderStatusChangedListener = object : SimpleMessagingListener() {
+-                override fun folderStatusChanged(statusChangedAccount: Account, folderId: Long) {
+-                    if (statusChangedAccount.uuid == account.uuid) {
+-                        trySendBlocking(getDisplayFolders(account, includeHiddenFolders))
+-                    }
+-                }
+-            }
+-            messagingController.addListener(folderStatusChangedListener)
+-
+-            val folderSettingsChangedListener = FolderSettingsChangedListener {
+-                trySendBlocking(getDisplayFolders(account, includeHiddenFolders))
+-            }
+-            messageStore.addFolderSettingsChangedListener(folderSettingsChangedListener)
+-
+-            awaitClose {
+-                messagingController.removeListener(folderStatusChangedListener)
+-                messageStore.removeFolderSettingsChangedListener(folderSettingsChangedListener)
+-            }
+-        }.buffer(capacity = Channel.CONFLATED)
+-            .distinctUntilChanged()
+-            .flowOn(coroutineContext)
+-    }
+-
+-    fun getDisplayFoldersFlow(accountUuid: String): Flow<List<DisplayFolder>> {
+-        val account = accountManager.getAccount(accountUuid) ?: error("Account not found: $accountUuid")
+-        return getDisplayFoldersFlow(account, includeHiddenFolders = false)
+-    }
++    fun getDisplayFoldersFlow(accountUuid: String): Flow<List<DisplayFolder>>
+ }
+diff --git a/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/KoinModule.kt b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/KoinModule.kt
+index 70a212104dd..06229fd4a3f 100644
+--- a/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/KoinModule.kt
++++ b/legacy/ui/folder/src/main/java/app/k9mail/legacy/ui/folder/KoinModule.kt
+@@ -3,8 +3,8 @@ package app.k9mail.legacy.ui.folder
+ import org.koin.dsl.module
+ 
+ val uiFolderModule = module {
+-    single {
+-        DisplayFolderRepository(
++    single<DisplayFolderRepository> {
++        DefaultDisplayFolderRepository(
+             accountManager = get(),
+             messagingController = get(),
+             messageStoreManager = get(),

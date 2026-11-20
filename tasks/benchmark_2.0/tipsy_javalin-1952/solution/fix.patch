@@ -1,0 +1,179 @@
+diff --git a/javalin/src/main/java/io/javalin/compression/CompressedStream.kt b/javalin/src/main/java/io/javalin/compression/CompressedStream.kt
+index 74129c825..80e3b33ae 100644
+--- a/javalin/src/main/java/io/javalin/compression/CompressedStream.kt
++++ b/javalin/src/main/java/io/javalin/compression/CompressedStream.kt
+@@ -6,22 +6,41 @@ import jakarta.servlet.ServletOutputStream
+ import jakarta.servlet.WriteListener
+ import java.io.OutputStream
+ 
+-internal class CompressedOutputStream(val compression: CompressionStrategy, val ctx: Context) : ServletOutputStream() {
++internal class CompressedOutputStream(
++    val minSizeForCompression: Int,
++    val compression: CompressionStrategy,
++    val ctx: Context,
++) : ServletOutputStream() {
+ 
+     private val originStream = ctx.res().outputStream
+     private var compressedStream: OutputStream? = null
++    private var isCompressionDecisionMade = false
+ 
+-    override fun write(bytes: ByteArray, offset: Int, length: Int) {
+-        if (compressedStream == null && length >= compression.minSizeForCompression && compression.allowsForCompression(ctx.res().contentType) && !ctx.res().containsHeader(Header.CONTENT_ENCODING)) {
+-            tryMatchCompression(compression, ctx)?.also {
+-                this.compressedStream = it.compress(originStream)
+-                ctx.header(Header.CONTENT_ENCODING, it.encoding())
++    private fun maybeCreateCompressionStreamOnFirstWrite(length: Int) {
++        if (!isCompressionDecisionMade) {
++            val isCompressionAllowed = !ctx.res().containsHeader(Header.CONTENT_ENCODING) &&
++                compression.allowsForCompression(ctx.res().contentType)
++            val isCompressionDesired = length >= minSizeForCompression
++            if (isCompressionAllowed && isCompressionDesired) {
++                findMatchingCompressor(compression, ctx)?.also {
++                    this.compressedStream = it.compress(originStream)
++                    ctx.header(Header.CONTENT_ENCODING, it.encoding())
++                }
+             }
++            isCompressionDecisionMade = true
+         }
+-        (compressedStream ?: originStream).write(bytes, offset, length) // fall back to default stream if no compression
+     }
+ 
+-    override fun write(byte: Int) = originStream.write(byte)
++    override fun write(bytes: ByteArray, offset: Int, length: Int) {
++        maybeCreateCompressionStreamOnFirstWrite(length)
++        (compressedStream ?: originStream).write(bytes, offset, length)
++    }
++
++    override fun write(byte: Int) {
++        maybeCreateCompressionStreamOnFirstWrite(1)
++        (compressedStream ?: originStream).write(byte)
++    }
++
+     override fun setWriteListener(writeListener: WriteListener?) = originStream.setWriteListener(writeListener)
+     override fun isReady(): Boolean = originStream.isReady
+     override fun close() {
+@@ -30,7 +49,7 @@ internal class CompressedOutputStream(val compression: CompressionStrategy, val
+ 
+ }
+ 
+-private fun tryMatchCompression(
++private fun findMatchingCompressor(
+     compression: CompressionStrategy,
+     ctx: Context,
+ ): Compressor? =
+@@ -40,5 +59,6 @@ private fun tryMatchCompression(
+ 
+ 
+ private fun CompressionStrategy.allowsForCompression(contentType: String?): Boolean =
+-    contentType == null || excludedMimeTypesFromCompression.none { excluded -> contentType.contains(excluded, ignoreCase = true) }
+-
++    contentType == null || excludedMimeTypesFromCompression.none { excluded ->
++        contentType.contains(excluded, ignoreCase = true)
++    }
+diff --git a/javalin/src/main/java/io/javalin/compression/CompressionStrategy.kt b/javalin/src/main/java/io/javalin/compression/CompressionStrategy.kt
+index c85e9d7c9..58279ea9c 100644
+--- a/javalin/src/main/java/io/javalin/compression/CompressionStrategy.kt
++++ b/javalin/src/main/java/io/javalin/compression/CompressionStrategy.kt
+@@ -55,7 +55,7 @@ class CompressionStrategy(brotli: Brotli? = null, gzip: Gzip? = null) {
+     }
+ 
+     /** 1500 is the size of a packet, compressing responses smaller than this serves no purpose */
+-    var minSizeForCompression = 1500
++    var defaultMinSizeForCompression = 1500
+ 
+     /** Those mime types will be processed using NONE compression strategy */
+     var excludedMimeTypesFromCompression = listOf(
+diff --git a/javalin/src/main/java/io/javalin/http/Context.kt b/javalin/src/main/java/io/javalin/http/Context.kt
+index dd03202bf..49a184cf8 100644
+--- a/javalin/src/main/java/io/javalin/http/Context.kt
++++ b/javalin/src/main/java/io/javalin/http/Context.kt
+@@ -293,13 +293,22 @@ interface Context {
+     fun responseCharset(): Charset = runCatching { Charset.forName(res().characterEncoding) }.getOrElse { Charset.defaultCharset() }
+ 
+     /**
+-     * Gets output-stream you can write to.
+-     * This stream by default uses compression specified in Javalin configuration,
+-     * if you're looking for raw, uncompressed servlet's output-stream, use `ctx.res().outputStream`.
++     * Gets the output stream you can write to.
++     * This stream by default uses compression specified in the Javalin configuration.
++     * If you're looking for the servlet's raw, uncompressed output stream, use `ctx.res().outputStream`.
+      * @see [HttpServletResponse.getOutputStream]
+      */
+     fun outputStream(): ServletOutputStream
+ 
++    /**
++     * The output stream returned by outputStream() will use compression (as specified in Javalin configuration), but
++     * compression will happen only if the first write to the output stream is larger than `minSizeForCompression`.
++     * Setting this value to zero will cause compression to always be used. This value must be assigned before calling
++     * outputStream() for the first time. The default value is set to the value of
++     * [io.javalin.config.CompressionStrategy.defaultMinSizeForCompression].
++     */
++    var minSizeForCompression: Int
++
+     /**
+      * Writes the specified inputStream as a seekable stream.
+      * You can change this default in [io.javalin.config.JavalinConfig].
+@@ -434,10 +443,10 @@ interface Context {
+      * Consumes the specified stream with the configured JsonMapper, which transforms the stream's
+      * content to JSON, writing the results directly to the response's `outputStream` as the stream
+      * is consumed. This function call is synchronous, and may be wrapped in `ctx.async { }` if needed.
++     * The response will always be compressed regardless of size, given that compression is enabled in
++     * the Javalin configuration.
+      */
+-    fun writeJsonStream(stream: Stream<*>) = jsonMapper().writeToOutputStream(
+-        stream, this.contentType(ContentType.APPLICATION_JSON).outputStream()
+-    )
++    fun writeJsonStream(stream: Stream<*>)
+ 
+     /** Sets context result to specified html string and sets content-type to text/html. */
+     fun html(html: String): Context = contentType(ContentType.TEXT_HTML).result(html)
+diff --git a/javalin/src/main/java/io/javalin/http/servlet/JavalinServletContext.kt b/javalin/src/main/java/io/javalin/http/servlet/JavalinServletContext.kt
+index d6dbb49d2..9ddb6cb41 100644
+--- a/javalin/src/main/java/io/javalin/http/servlet/JavalinServletContext.kt
++++ b/javalin/src/main/java/io/javalin/http/servlet/JavalinServletContext.kt
+@@ -15,6 +15,7 @@ import io.javalin.http.HandlerType.AFTER
+ import io.javalin.http.Header
+ import io.javalin.http.HttpResponseException
+ import io.javalin.http.HttpStatus
++import io.javalin.json.jsonMapper
+ import io.javalin.routing.HandlerEntry
+ import io.javalin.security.BasicAuthCredentials
+ import io.javalin.util.JavalinLogger
+@@ -29,6 +30,7 @@ import java.util.*
+ import java.util.concurrent.CompletableFuture
+ import java.util.concurrent.atomic.AtomicBoolean
+ import java.util.function.Supplier
++import java.util.stream.Stream
+ 
+ data class JavalinServletContextConfig(
+     val appAttributes: Map<String, Any>,
+@@ -51,6 +53,7 @@ class JavalinServletContext(
+     internal var endpointHandlerPath: String = "",
+     internal var userFutureSupplier: Supplier<out CompletableFuture<*>>? = null,
+     private var resultStream: InputStream? = null,
++    override var minSizeForCompression: Int = cfg.compressionStrategy.defaultMinSizeForCompression,
+ ) : Context {
+ 
+     init {
+@@ -112,7 +115,9 @@ class JavalinServletContext(
+     private val queryParams by lazy { super.queryParamMap() }
+     override fun queryParamMap(): Map<String, List<String>> = queryParams
+ 
+-    internal val outputStreamWrapper = lazy { CompressedOutputStream(cfg.compressionStrategy, this) }
++    internal val outputStreamWrapper = lazy {
++        CompressedOutputStream(minSizeForCompression, cfg.compressionStrategy, this)
++    }
+     override fun outputStream(): ServletOutputStream = outputStreamWrapper.value
+ 
+     override fun redirect(location: String, status: HttpStatus) {
+@@ -136,6 +141,10 @@ class JavalinServletContext(
+ 
+     override fun skipRemainingHandlers(): Context = also { tasks.clear() }
+ 
++    override fun writeJsonStream(stream: Stream<*>) {
++        minSizeForCompression = 0
++        jsonMapper().writeToOutputStream(stream, this.contentType(ContentType.APPLICATION_JSON).outputStream())
++    }
+ }
+ 
+ // this header is semicolon separated, like: "text/html; charset=UTF-8"

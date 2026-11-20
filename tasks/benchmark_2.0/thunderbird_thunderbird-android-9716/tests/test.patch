@@ -1,0 +1,80 @@
+diff --git a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolderTest.kt b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolderTest.kt
+index 0598feaccbd..1229ea96891 100644
+--- a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolderTest.kt
++++ b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolderTest.kt
+@@ -199,7 +199,7 @@ class GetDisplayTreeFolderTest {
+                     children = persistentListOf(
+                         DisplayTreeFolder(
+                             displayFolder = MailDisplayFolder(
+-                                accountId = "placeholder",
++                                accountId = null,
+                                 folder = Folder(
+                                     id = 1L,
+                                     name = "(Unnamed)/(Unnamed)",
+@@ -238,7 +238,7 @@ class GetDisplayTreeFolderTest {
+                 ),
+                 DisplayTreeFolder(
+                     displayFolder = MailDisplayFolder(
+-                        accountId = "placeholder",
++                        accountId = null,
+                         folder = Folder(id = 2, name = "valid1", type = FolderType.REGULAR, isLocalOnly = false),
+                         isInTopGroup = true,
+                         unreadMessageCount = 0,
+@@ -250,7 +250,7 @@ class GetDisplayTreeFolderTest {
+                     children = persistentListOf(
+                         DisplayTreeFolder(
+                             displayFolder = MailDisplayFolder(
+-                                accountId = "placeholder",
++                                accountId = null,
+                                 folder = Folder(
+                                     id = 3L,
+                                     name = "valid1/(Unnamed)",
+@@ -321,7 +321,7 @@ class GetDisplayTreeFolderTest {
+             children = persistentListOf(
+                 createDisplayTreeFolder(
+                     displayFolder = createDisplayAccountFolder(
+-                        accountId = "placeholder",
++                        accountId = null,
+                         folderId = 1L,
+                         folderName = "folderLevel1",
+                         unreadMessageCount = 0,
+@@ -380,7 +380,7 @@ class GetDisplayTreeFolderTest {
+             children = persistentListOf(
+                 createDisplayTreeFolder(
+                     displayFolder = createDisplayAccountFolder(
+-                        accountId = "placeholder",
++                        accountId = null,
+                         folderId = 1,
+                         folderName = "level1",
+                         unreadMessageCount = 0,
+@@ -392,7 +392,7 @@ class GetDisplayTreeFolderTest {
+                     children = persistentListOf(
+                         createDisplayTreeFolder(
+                             displayFolder = createDisplayAccountFolder(
+-                                accountId = "placeholder",
++                                accountId = null,
+                                 folderId = 2L,
+                                 folderName = "level1/level2",
+                                 unreadMessageCount = 0,
+@@ -430,7 +430,7 @@ class GetDisplayTreeFolderTest {
+             folderName: String,
+             unreadMessageCount: Int,
+             starredMessageCount: Int,
+-            accountId: String = "accountId",
++            accountId: String? = "accountId",
+         ): MailDisplayFolder {
+             return MailDisplayFolder(
+                 accountId = accountId,
+diff --git a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModelTest.kt b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModelTest.kt
+index 9b845976de8..a0a1af139e7 100644
+--- a/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModelTest.kt
++++ b/feature/navigation/drawer/dropdown/src/test/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModelTest.kt
+@@ -334,7 +334,7 @@ internal class DrawerViewModelTest {
+ 
+         assertThat(turbines.awaitEffectItem()).isEqualTo(
+             Effect.OpenFolder(
+-                accountId = displayFolders[1].accountId,
++                accountId = requireNotNull(displayFolders[1].accountId),
+                 folderId = displayFolders[1].folder.id,
+             ),
+         )

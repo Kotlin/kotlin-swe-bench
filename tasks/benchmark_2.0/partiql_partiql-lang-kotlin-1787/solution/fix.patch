@@ -1,0 +1,148 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 09dd8583c..56cc6e541 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -45,6 +45,7 @@ rewritten to their query representation
+ - Handle the formatting when the nanoseconds of `INTERVAL` datum underflow
+ - CLI printing of negative interval literals
+ - Fix alias collision problem when multiple table references need auto-generated aliases
++- Add `ABS` function support on `INTERVAL` field
+ 
+ ### Removed
+ 
+diff --git a/partiql-planner/src/main/kotlin/org/partiql/planner/internal/FnComparator.kt b/partiql-planner/src/main/kotlin/org/partiql/planner/internal/FnComparator.kt
+index 7a3dd20f2..7c6509bc4 100644
+--- a/partiql-planner/src/main/kotlin/org/partiql/planner/internal/FnComparator.kt
++++ b/partiql-planner/src/main/kotlin/org/partiql/planner/internal/FnComparator.kt
+@@ -62,6 +62,8 @@ internal object FnComparator : Comparator<FnOverload> {
+         PType.TIMEZ,
+         PType.TIMESTAMP,
+         PType.TIMESTAMPZ,
++        PType.INTERVAL_YM,
++        PType.INTERVAL_DT,
+         PType.ARRAY,
+         PType.BAG,
+         PType.ROW,
+diff --git a/partiql-spi/src/main/kotlin/org/partiql/spi/function/Builtins.kt b/partiql-spi/src/main/kotlin/org/partiql/spi/function/Builtins.kt
+index e8b6d53d8..7dd40c78d 100644
+--- a/partiql-spi/src/main/kotlin/org/partiql/spi/function/Builtins.kt
++++ b/partiql-spi/src/main/kotlin/org/partiql/spi/function/Builtins.kt
+@@ -27,6 +27,8 @@ internal object Builtins {
+         Fn_ABS__FLOAT32__FLOAT32,
+         Fn_ABS__FLOAT64__FLOAT64,
+         Fn_ABS__DECIMAL_ARBITRARY__DECIMAL_ARBITRARY,
++        Fn_ABS__INTERVAL_YM__INTERVAL_YM,
++        Fn_ABS__INTERVAL_DT__INTERVAL_DT,
+         Fn_AND__BOOL_BOOL__BOOL,
+         FnBetween,
+         Fn_BIT_LENGTH__STRING__INT32,
+diff --git a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnAbs.kt b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnAbs.kt
+index 537dbfd18..95a41e202 100644
+--- a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnAbs.kt
++++ b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnAbs.kt
+@@ -6,6 +6,7 @@ package org.partiql.spi.function.builtins
+ import org.partiql.spi.function.Function
+ import org.partiql.spi.function.Parameter
+ import org.partiql.spi.function.builtins.internal.PErrors
++import org.partiql.spi.types.IntervalCode
+ import org.partiql.spi.types.PType
+ import org.partiql.spi.value.Datum
+ import kotlin.math.absoluteValue
+@@ -110,3 +111,97 @@ internal val Fn_ABS__FLOAT64__FLOAT64 = Function.overload(
+     val value = args[0].double
+     Datum.doublePrecision(value.absoluteValue)
+ }
++
++internal val Fn_ABS__INTERVAL_YM__INTERVAL_YM = Function.overload(
++    name = "abs",
++    returns = PType.intervalYearMonth(2), // Default precision 2
++    parameters = arrayOf(Parameter("value", PType.intervalYearMonth(2))),
++) { args ->
++    val interval = args[0]
++    when (interval.type.getIntervalCode()) {
++        IntervalCode.YEAR -> Datum.intervalYear(
++            interval.years.absoluteValue,
++            interval.type.precision,
++        )
++        IntervalCode.MONTH -> Datum.intervalMonth(
++            interval.months.absoluteValue,
++            interval.type.precision,
++        )
++        IntervalCode.YEAR_MONTH -> Datum.intervalYearMonth(
++            interval.years.absoluteValue,
++            interval.months.absoluteValue,
++            interval.type.precision,
++        )
++        else -> throw IllegalArgumentException("Unexpected interval code for year-month interval: ${interval.type.getIntervalCode()}")
++    }
++}
++
++internal val Fn_ABS__INTERVAL_DT__INTERVAL_DT = Function.overload(
++    name = "abs",
++    returns = PType.intervalDaySecond(2, 6), // Default precision 2, fractional precision 6
++    parameters = arrayOf(Parameter("value", PType.intervalDaySecond(2, 6))),
++) { args ->
++    val interval = args[0]
++    val intervalCode = interval.type.getIntervalCode()
++    when (intervalCode) {
++        IntervalCode.DAY -> Datum.intervalDay(
++            interval.days.absoluteValue,
++            interval.type.precision,
++        )
++        IntervalCode.HOUR -> Datum.intervalHour(
++            interval.hours.absoluteValue,
++            interval.type.precision,
++        )
++        IntervalCode.MINUTE -> Datum.intervalMinute(
++            interval.minutes.absoluteValue,
++            interval.type.precision,
++        )
++        IntervalCode.SECOND -> Datum.intervalSecond(
++            interval.seconds.absoluteValue,
++            interval.nanos.absoluteValue,
++            interval.type.precision,
++            interval.type.fractionalPrecision,
++        )
++        IntervalCode.DAY_HOUR -> Datum.intervalDayHour(
++            interval.days.absoluteValue,
++            interval.hours.absoluteValue,
++            interval.type.precision,
++        )
++        IntervalCode.DAY_MINUTE -> Datum.intervalDayMinute(
++            interval.days.absoluteValue,
++            interval.hours.absoluteValue,
++            interval.minutes.absoluteValue,
++            interval.type.precision,
++        )
++        IntervalCode.DAY_SECOND -> Datum.intervalDaySecond(
++            interval.days.absoluteValue,
++            interval.hours.absoluteValue,
++            interval.minutes.absoluteValue,
++            interval.seconds.absoluteValue,
++            interval.nanos.absoluteValue,
++            interval.type.precision,
++            interval.type.fractionalPrecision,
++        )
++        IntervalCode.HOUR_MINUTE -> Datum.intervalHourMinute(
++            interval.hours.absoluteValue,
++            interval.minutes.absoluteValue,
++            interval.type.precision,
++        )
++        IntervalCode.HOUR_SECOND -> Datum.intervalHourSecond(
++            interval.hours.absoluteValue,
++            interval.minutes.absoluteValue,
++            interval.seconds.absoluteValue,
++            interval.nanos.absoluteValue,
++            interval.type.precision,
++            interval.type.fractionalPrecision,
++        )
++        IntervalCode.MINUTE_SECOND -> Datum.intervalMinuteSecond(
++            interval.minutes.absoluteValue,
++            interval.seconds.absoluteValue,
++            interval.nanos.absoluteValue,
++            interval.type.precision,
++            interval.type.fractionalPrecision,
++        )
++        else -> throw IllegalArgumentException("Unexpected interval code for day-time interval: $intervalCode")
++    }
++}

@@ -1,0 +1,362 @@
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderFragment.kt b/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderFragment.kt
+index 474ef518d722..ec1427374780 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderFragment.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/ReaderFragment.kt
+@@ -13,6 +13,7 @@ import androidx.compose.runtime.livedata.observeAsState
+ import androidx.compose.ui.platform.ViewCompositionStrategy
+ import androidx.core.view.isVisible
+ import androidx.fragment.app.Fragment
++import androidx.lifecycle.Observer
+ import androidx.lifecycle.ViewModelProvider
+ import androidx.lifecycle.ViewModelStoreOwner
+ import androidx.recyclerview.widget.RecyclerView
+@@ -96,6 +97,86 @@ class ReaderFragment : Fragment(R.layout.reader_fragment_layout), ScrollableView
+ 
+     private var readerSubsActivityResultLauncher: ActivityResultLauncher<Intent>? = null
+ 
++    private val wpMainActivityViewModel by lazy {
++        ViewModelProvider(
++            requireActivity(),
++            viewModelFactory
++        )[WPMainActivityViewModel::class.java]
++    }
++
++    // region SubgroupFilterViewModel Observers
++    // we need a reference to the observers so they are properly handled by the lifecycle and ViewModel owners, avoiding
++    // duplication, and ensuring they are properly removed when the Fragment is destroyed
++    private val currentSubfilterObserver = Observer<SubfilterListItem> { subfilterListItem ->
++        viewModel.onSubFilterItemSelected(subfilterListItem)
++    }
++
++    private val updateTagsAndSitesObserver = Observer<Event<EnumSet<UpdateTask>>> { event ->
++        event.applyIfNotHandled {
++            if (NetworkUtils.isNetworkAvailable(activity)) {
++                ReaderUpdateServiceStarter.startService(activity, this)
++            }
++        }
++    }
++
++    private val subFiltersObserver = Observer<List<SubfilterListItem>> { subFilters ->
++        val selectedTag = (viewModel.uiState.value as? ContentUiState)?.selectedReaderTag ?: return@Observer
++        viewModel.showTopBarFilterGroup(
++            selectedTag,
++            subFilters
++        )
++    }
++
++    private val bottomSheetUiStateObserver = Observer<Event<BottomSheetUiState>> { event ->
++        event.applyIfNotHandled {
++            val selectedTag = (viewModel.uiState.value as? ContentUiState)?.selectedReaderTag
++                ?: return@applyIfNotHandled
++            val viewModelKey = SubFilterViewModel.getViewModelKeyForTag(selectedTag)
++
++            val fm = childFragmentManager
++            var bottomSheet = fm.findFragmentByTag(SUBFILTER_BOTTOM_SHEET_TAG) as SubfilterBottomSheetFragment?
++            if (isVisible && bottomSheet == null) {
++                val (title, category) = this as BottomSheetVisible
++                bottomSheet = newInstance(
++                    viewModelKey,
++                    category,
++                    uiHelpers.getTextOfUiString(requireContext(), title)
++                )
++                bottomSheet.show(childFragmentManager, SUBFILTER_BOTTOM_SHEET_TAG)
++            } else if (!isVisible && bottomSheet != null) {
++                bottomSheet.dismiss()
++            }
++        }
++    }
++
++    private val bottomSheetActionObserver = Observer<Event<ActionType>> { event ->
++        event.applyIfNotHandled {
++            when (this) {
++                is OpenSubsAtPage -> {
++                    readerSubsActivityResultLauncher?.launch(
++                        ReaderActivityLauncher.createIntentShowReaderSubs(
++                            requireActivity(),
++                            tabIndex
++                        )
++                    )
++                }
++
++                is OpenLoginPage -> {
++                    wpMainActivityViewModel.onOpenLoginPage()
++                }
++
++                is OpenSearchPage -> {
++                    ReaderActivityLauncher.showReaderSearch(requireActivity())
++                }
++
++                is OpenSuggestedTagsPage -> {
++                    ReaderActivityLauncher.showReaderInterests(requireActivity())
++                }
++            }
++        }
++    }
++    // endregion
++
+     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+         binding = ReaderFragmentLayoutBinding.bind(view).apply {
+             initTopAppBar()
+@@ -453,104 +534,41 @@ class ReaderFragment : Fragment(R.layout.reader_fragment_layout), ScrollableView
+     }
+ 
+     private fun SubFilterViewModel.initSubFilterViewModel(startedTag: ReaderTag, savedInstanceState: Bundle?) {
+-        setupSubFilterBottomSheetObservers(startedTag)
++        bottomSheetUiState.observe(
++            viewLifecycleOwner,
++            bottomSheetUiStateObserver
++        )
++
++        bottomSheetAction.observe(
++            viewLifecycleOwner,
++            bottomSheetActionObserver
++        )
+ 
+         currentSubFilter.observe(
+-            viewLifecycleOwner
+-        ) { subfilterListItem: SubfilterListItem ->
+-            onSubfilterSelected(subfilterListItem)
+-            viewModel.onSubFilterItemSelected(subfilterListItem)
+-        }
++            viewLifecycleOwner,
++            currentSubfilterObserver
++        )
+ 
+ 
+         updateTagsAndSites.observe(
+-            viewLifecycleOwner
+-        ) { event: Event<EnumSet<UpdateTask>> ->
+-            event.applyIfNotHandled {
+-                if (NetworkUtils.isNetworkAvailable(activity)) {
+-                    ReaderUpdateServiceStarter.startService(activity, this)
+-                }
+-            }
+-        }
++            viewLifecycleOwner,
++            updateTagsAndSitesObserver
++        )
+ 
+         if (startedTag.isFilterable) {
+             subFilters.observe(
+-                viewLifecycleOwner
+-            ) { subFilters: List<SubfilterListItem> ->
+-                viewModel.showTopBarFilterGroup(
+-                    startedTag,
+-                    subFilters
+-                )
+-            }
++                viewLifecycleOwner,
++                subFiltersObserver
++            )
+ 
+             updateTagsAndSites()
+         } else {
+             viewModel.hideTopBarFilterGroup(startedTag)
+         }
+ 
+-        // thomashortadev: not sure if always passing the same tags can cause problems
+         start(startedTag, startedTag, savedInstanceState)
+     }
+ 
+-    private fun SubFilterViewModel.setupSubFilterBottomSheetObservers(startedTag: ReaderTag) {
+-        val wpMainActivityViewModel = ViewModelProvider(
+-            requireActivity(),
+-            viewModelFactory
+-        )[WPMainActivityViewModel::class.java]
+-
+-        val viewModelKey = SubFilterViewModel.getViewModelKeyForTag(startedTag)
+-
+-        bottomSheetUiState.observe(
+-            viewLifecycleOwner
+-        ) { event: Event<BottomSheetUiState> ->
+-            event.applyIfNotHandled {
+-                val fm = childFragmentManager
+-                var bottomSheet = fm.findFragmentByTag(SUBFILTER_BOTTOM_SHEET_TAG) as SubfilterBottomSheetFragment?
+-                if (isVisible && bottomSheet == null) {
+-                    loadSubFilters()
+-                    val (title, category) = this as BottomSheetVisible
+-                    bottomSheet = newInstance(
+-                        viewModelKey,
+-                        category,
+-                        uiHelpers.getTextOfUiString(requireContext(), title)
+-                    )
+-                    bottomSheet.show(childFragmentManager, SUBFILTER_BOTTOM_SHEET_TAG)
+-                } else if (!isVisible && bottomSheet != null) {
+-                    bottomSheet.dismiss()
+-                }
+-            }
+-        }
+-
+-        bottomSheetAction.observe(
+-            viewLifecycleOwner
+-        ) { event: Event<ActionType> ->
+-            event.applyIfNotHandled {
+-                when (this) {
+-                    is OpenSubsAtPage -> {
+-                        readerSubsActivityResultLauncher?.launch(
+-                            ReaderActivityLauncher.createIntentShowReaderSubs(
+-                                requireActivity(),
+-                                tabIndex
+-                            )
+-                        )
+-                    }
+-
+-                    is OpenLoginPage -> {
+-                        wpMainActivityViewModel.onOpenLoginPage()
+-                    }
+-
+-                    is OpenSearchPage -> {
+-                        ReaderActivityLauncher.showReaderSearch(requireActivity())
+-                    }
+-
+-                    is OpenSuggestedTagsPage -> {
+-                        ReaderActivityLauncher.showReaderInterests(requireActivity())
+-                    }
+-                }
+-            }
+-        }
+-    }
+-
+     companion object {
+         private const val SUBFILTER_BOTTOM_SHEET_TAG = "SUBFILTER_BOTTOM_SHEET_TAG"
+     }
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/reader/subfilter/SubFilterViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/reader/subfilter/SubFilterViewModel.kt
+index eefb58a67f82..8f41c16c70e7 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/reader/subfilter/SubFilterViewModel.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/reader/subfilter/SubFilterViewModel.kt
+@@ -9,8 +9,8 @@ import kotlinx.coroutines.withContext
+ import org.greenrobot.eventbus.Subscribe
+ import org.greenrobot.eventbus.ThreadMode
+ import org.wordpress.android.analytics.AnalyticsTracker.Stat
+-import org.wordpress.android.datasets.ReaderBlogTable
+-import org.wordpress.android.datasets.ReaderTagTable
++import org.wordpress.android.datasets.ReaderBlogTableWrapper
++import org.wordpress.android.datasets.wrappers.ReaderTagTableWrapper
+ import org.wordpress.android.fluxc.store.AccountStore
+ import org.wordpress.android.models.ReaderBlog
+ import org.wordpress.android.models.ReaderTag
+@@ -38,7 +38,6 @@ import org.wordpress.android.util.UrlUtils
+ import org.wordpress.android.viewmodel.Event
+ import org.wordpress.android.viewmodel.ScopedViewModel
+ import org.wordpress.android.viewmodel.SingleLiveEvent
+-import java.util.Comparator
+ import java.util.EnumSet
+ import javax.inject.Inject
+ import javax.inject.Named
+@@ -50,7 +49,9 @@ class SubFilterViewModel @Inject constructor(
+     private val subfilterListItemMapper: SubfilterListItemMapper,
+     private val eventBusWrapper: EventBusWrapper,
+     private val accountStore: AccountStore,
+-    private val readerTracker: ReaderTracker
++    private val readerTracker: ReaderTracker,
++    private val readerTagTableWrapper: ReaderTagTableWrapper,
++    private val readerBlogTableWrapper: ReaderBlogTableWrapper,
+ ) : ScopedViewModel(bgDispatcher) {
+     private val _subFilters = MutableLiveData<List<SubfilterListItem>>()
+     val subFilters: LiveData<List<SubfilterListItem>> = _subFilters
+@@ -125,6 +126,7 @@ class SubFilterViewModel @Inject constructor(
+             ""
+         }
+     }
++
+     fun loadSubFilters() {
+         launch {
+             val filterList = ArrayList<SubfilterListItem>()
+@@ -132,19 +134,19 @@ class SubFilterViewModel @Inject constructor(
+             if (accountStore.hasAccessToken()) {
+                 val organization = mTagFragmentStartedWith?.organization
+ 
+-                val followedBlogs = ReaderBlogTable.getFollowedBlogs().let { blogList ->
++                val followedBlogs = readerBlogTableWrapper.getFollowedBlogs().let { blogList ->
+                     // Filtering out all blogs not belonging to this VM organization if valid
+                     blogList.filter { blog ->
+                         organization?.let {
+                             blog.organizationId == organization.orgId
+                         } ?: false
+                     }
+-                }.sortedWith(Comparator { blog1, blog2 ->
++                }.sortedWith { blog1, blog2 ->
+                     // sort followed blogs by name/domain to match display
+                     val blogOneName = getBlogNameForComparison(blog1)
+                     val blogTwoName = getBlogNameForComparison(blog2)
+                     blogOneName.compareTo(blogTwoName, true)
+-                })
++                }
+ 
+                 filterList.addAll(
+                     followedBlogs.map { blog ->
+@@ -157,7 +159,7 @@ class SubFilterViewModel @Inject constructor(
+                 )
+             }
+ 
+-            val tags = ReaderTagTable.getFollowedTags()
++            val tags = readerTagTableWrapper.getFollowedTags()
+ 
+             for (tag in tags) {
+                 filterList.add(
+@@ -239,13 +241,14 @@ class SubFilterViewModel @Inject constructor(
+         category: SubfilterCategory,
+     ) {
+         updateTagsAndSites()
++        loadSubFilters()
+         _bottomSheetUiState.value = Event(
+             BottomSheetVisible(
+                 UiStringRes(category.titleRes),
+                 category
+             )
+         )
+-        val source = when(category) {
++        val source = when (category) {
+             SubfilterCategory.SITES -> "blogs"
+             SubfilterCategory.TAGS -> "tags"
+         }
+@@ -323,8 +326,8 @@ class SubFilterViewModel @Inject constructor(
+     }
+ 
+     fun onSubfilterSelected(subfilterListItem: SubfilterListItem) {
+-        // We should not track subfilter selected if we're clearing a filter that is currently applied.
+-        if (!subfilterListItem.isClearingFilter) {
++        // We should only track the selection of a subfilter if it's a tracked item (meaning it's a valid tag or site)
++        if (subfilterListItem.isTrackedItem) {
+             val filterItemType = FilterItemType.fromSubfilterListItem(subfilterListItem)
+             if (filterItemType != null) {
+                 readerTracker.track(
+@@ -332,7 +335,7 @@ class SubFilterViewModel @Inject constructor(
+                     mutableMapOf(FilterItemType.trackingEntry(filterItemType))
+                 )
+             } else {
+-                readerTracker.track(Stat.READER_FILTER_SHEET_ITEM_SELECTED,)
++                readerTracker.track(Stat.READER_FILTER_SHEET_ITEM_SELECTED)
+             }
+         }
+         changeSubfilter(subfilterListItem, true, mTagFragmentStartedWith)
+@@ -354,6 +357,7 @@ class SubFilterViewModel @Inject constructor(
+             readerTracker.stop(ReaderTrackerType.SUBFILTERED_LIST)
+         }
+         _currentSubFilter.value = filter
++        onSubfilterSelected(filter)
+     }
+ 
+     fun onUserComesToReader() {
+@@ -414,10 +418,10 @@ class SubFilterViewModel @Inject constructor(
+         loadSubFilters()
+     }
+ 
+-    @Suppress("unused", "UNUSED_PARAMETER")
++    @Suppress("unused")
+     @Subscribe(threadMode = ThreadMode.MAIN)
+     fun onEventMainThread(event: ReaderEvents.FollowedBlogsFetched) {
+-        if(event.didChange()) {
++        if (event.didChange()) {
+             AppLog.d(T.READER, "Subfilter bottom sheet > followed blogs changed")
+             loadSubFilters()
+         }
+@@ -449,7 +453,7 @@ class SubFilterViewModel @Inject constructor(
+ 
+         companion object {
+             fun fromSubfilterListItem(subfilterListItem: SubfilterListItem): FilterItemType? =
+-                when(subfilterListItem.type) {
++                when (subfilterListItem.type) {
+                     SubfilterListItem.ItemType.SITE -> Blog
+                     SubfilterListItem.ItemType.TAG -> Tag
+                     else -> null

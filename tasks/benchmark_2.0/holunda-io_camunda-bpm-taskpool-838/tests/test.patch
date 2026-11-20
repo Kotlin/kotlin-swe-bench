@@ -1,0 +1,132 @@
+diff --git a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/JpaPolyflowViewServiceTaskITest.kt b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/JpaPolyflowViewServiceTaskITest.kt
+index 57e414d3e..605859a12 100644
+--- a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/JpaPolyflowViewServiceTaskITest.kt
++++ b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/JpaPolyflowViewServiceTaskITest.kt
+@@ -214,7 +214,7 @@ internal class JpaPolyflowViewServiceTaskITest {
+         entryId = dataId2,
+         type = "Test",
+         applicationName = "test-application",
+-        name = "Test Entry 1",
++        name = "Test Entry 2",
+         state = ProcessingType.IN_PROGRESS.of("In progress"),
+         payload = serialize(payload = payload, mapper = objectMapper),
+         authorizations = listOf(
+@@ -365,6 +365,57 @@ internal class JpaPolyflowViewServiceTaskITest {
+   }
+ 
+ 
++  @Test
++  fun `should or-compose filters on same attribute when querying tasks`() {
++    val kermit = jpaPolyflowViewService.query(
++      TasksForUserQuery(
++        user = User("zoro", setOf("strawhats")),
++        assignedToMeOnly = false,
++        filters = listOf("task.businessKey=business-3", "task.businessKey=business-4")
++      )
++    )
++    assertThat(kermit.elements).hasSize(2)
++  }
++
++  @Test
++  fun `should or-compose filters on same attribute when querying data entries`() {
++    val kermit = jpaPolyflowViewService.query(
++      TasksWithDataEntriesForUserQuery(
++        user = User("zoro", setOf("strawhats")),
++        assignedToMeOnly = false,
++        filters = listOf("data.entryId=${dataId1}", "data.entryId=${dataId2}")
++      )
++    )
++    assertThat(kermit.elements).hasSize(2)
++  }
++
++  @Test
++  fun `should or-compose filters on same attribute when filtering on task payload`() {
++    // query with mutually exclusive filter criteria should still yield result
++    val kermit = jpaPolyflowViewService.query(
++      TasksForUserQuery(
++        user = User("zoro", setOf("strawhats")),
++        assignedToMeOnly = false,
++        filters = listOf("key=value", "key.not-value")
++      )
++    )
++    assertThat(kermit.elements).hasSize(2)
++  }
++
++  @Test
++  fun `should or-compose filters on same attribute when filtering on data entry payload`() {
++    // query with mutually exclusive filter criteria should still yield result
++    val kermit = jpaPolyflowViewService.query(
++      TasksWithDataEntriesForUserQuery(
++        user = User("zoro", setOf("strawhats")),
++        assignedToMeOnly = false,
++        filters = listOf("key=value", "key.not-value")
++      )
++    )
++    assertThat(kermit.elements).hasSize(2)
++  }
++
++
+   @Test
+   fun `should find the task by group`() {
+     val unassigned = jpaPolyflowViewService.query(TasksForGroupQuery(user = User("other", setOf("muppets")), includeAssigned = false))
+diff --git a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/SpecificationTest.kt b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/SpecificationTest.kt
+index fb7f95bb2..bb81e5bf9 100644
+--- a/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/SpecificationTest.kt
++++ b/view/jpa/src/test/kotlin/io/holunda/polyflow/view/jpa/SpecificationTest.kt
+@@ -6,7 +6,9 @@ import io.holunda.polyflow.view.jpa.auth.AuthorizationPrincipal.Companion.user
+ import io.holunda.polyflow.view.jpa.data.DataEntryRepository
+ import org.assertj.core.api.Assertions.assertThat
+ import org.junit.jupiter.api.Test
++import org.junit.jupiter.api.assertThrows
+ import org.springframework.data.domain.Sort.Direction
++import java.lang.NumberFormatException
+ 
+ /**
+  * Tests conversion of criteria into JPA Specifications.
+@@ -37,6 +39,46 @@ internal class SpecificationTest {
+     assertThat(specification).isNotNull
+   }
+ 
++  @Test
++  fun `creates multiple attribute specification for tasks`() {
++    val filters = listOf(
++      "task.priority=50",
++      "task.businessKey=business-1"
++    )
++    val criteria = toCriteria(filters)
++
++    val specification = criteria.toTaskSpecification()
++    assertThat(specification).isNotNull
++  }
++
++  @Test
++  fun `fails with unsupported task attribute in filters`() {
++    val filters = listOf(
++      "task.candidateUsers=foo"
++    )
++    val criteria = toCriteria(filters)
++
++    val error = assertThrows<IllegalArgumentException> {
++     criteria.toTaskSpecification()
++    }
++
++    assertThat(error.message).isEqualTo("JPA View found unsupported task attribute for equals comparison: candidateUsers.")
++  }
++
++  @Test
++  fun `fails with wrong value type for filter attribute`() {
++    val filters = listOf(
++      "task.priority=foo"
++    )
++    val criteria = toCriteria(filters)
++
++    val error = assertThrows<NumberFormatException> {
++      criteria.toTaskSpecification()
++    }
++
++    assertThat(error.message).isEqualTo("For input string: \"foo\"")
++  }
++
+   @Test
+   fun `creates multiple principal specifications`() {
+     val spec = DataEntryRepository.isAuthorizedFor(

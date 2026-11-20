@@ -1,0 +1,349 @@
+diff --git a/kompendium-core/src/test/kotlin/io/bkbn/kompendium/core/KompendiumTest.kt b/kompendium-core/src/test/kotlin/io/bkbn/kompendium/core/KompendiumTest.kt
+index 096a34bb8f..6446bcfa27 100644
+--- a/kompendium-core/src/test/kotlin/io/bkbn/kompendium/core/KompendiumTest.kt
++++ b/kompendium-core/src/test/kotlin/io/bkbn/kompendium/core/KompendiumTest.kt
+@@ -11,6 +11,7 @@ import io.bkbn.kompendium.core.fixtures.docs
+ import io.bkbn.kompendium.core.util.complexType
+ import io.bkbn.kompendium.core.util.constrainedDoubleInfo
+ import io.bkbn.kompendium.core.util.constrainedIntInfo
++import io.bkbn.kompendium.core.util.dateTimeString
+ import io.bkbn.kompendium.core.util.defaultField
+ import io.bkbn.kompendium.core.util.defaultParameter
+ import io.bkbn.kompendium.core.util.exampleParams
+@@ -59,6 +60,8 @@ import io.bkbn.kompendium.core.util.uniqueArray
+ import io.bkbn.kompendium.core.util.withDefaultParameter
+ import io.bkbn.kompendium.core.util.withExamples
+ import io.bkbn.kompendium.core.util.withOperationId
++import io.bkbn.kompendium.oas.schema.FormattedSchema
++import io.bkbn.kompendium.oas.schema.SimpleSchema
+ import io.bkbn.kompendium.oas.serialization.KompendiumSerializersModule
+ import io.kotest.core.spec.style.DescribeSpec
+ import io.ktor.application.call
+@@ -75,6 +78,7 @@ import io.ktor.serialization.json
+ import io.ktor.server.testing.withTestApplication
+ import kotlinx.serialization.encodeToString
+ import kotlinx.serialization.json.Json
++import java.time.Instant
+ 
+ class KompendiumTest : DescribeSpec({
+   describe("Notarized Open API Metadata Tests") {
+@@ -275,6 +279,23 @@ class KompendiumTest : DescribeSpec({
+       openApiTestAllSerializers("min_max_free_form.json") { minMaxFreeForm() }
+     }
+   }
++  describe("Formats") {
++    it("Can set a format on a simple type schema") {
++      openApiTestAllSerializers("formatted_date_time_string.json", { dateTimeString() }) {
++        addCustomTypeSchema(Instant::class, SimpleSchema("string", format = "date-time"))
++      }
++    }
++    it("Can set a format on formatted type schema") {
++      openApiTestAllSerializers("formatted_date_time_string.json", { dateTimeString() }) {
++        addCustomTypeSchema(Instant::class, FormattedSchema("date-time", "string"))
++      }
++    }
++    it("Can bypass a format on a simple type schema") {
++      openApiTestAllSerializers("formatted_no_format_string.json", { dateTimeString() }) {
++        addCustomTypeSchema(Instant::class, SimpleSchema("string"))
++      }
++    }
++  }
+   describe("Free Form") {
+     it("Can create a free-form field") {
+       openApiTestAllSerializers("free_form_object.json") { freeFormObject() }
+diff --git a/kompendium-core/src/test/kotlin/io/bkbn/kompendium/core/util/TestModules.kt b/kompendium-core/src/test/kotlin/io/bkbn/kompendium/core/util/TestModules.kt
+index 3436d8e9e9..e14fa204b4 100644
+--- a/kompendium-core/src/test/kotlin/io/bkbn/kompendium/core/util/TestModules.kt
++++ b/kompendium-core/src/test/kotlin/io/bkbn/kompendium/core/util/TestModules.kt
+@@ -9,6 +9,7 @@ import io.bkbn.kompendium.core.Notarized.notarizedPost
+ import io.bkbn.kompendium.core.Notarized.notarizedPut
+ import io.bkbn.kompendium.core.fixtures.Bibbity
+ import io.bkbn.kompendium.core.fixtures.ComplexGibbit
++import io.bkbn.kompendium.core.fixtures.DateTimeString
+ import io.bkbn.kompendium.core.fixtures.DefaultParameter
+ import io.bkbn.kompendium.core.fixtures.Gibbity
+ import io.bkbn.kompendium.core.fixtures.Mysterious
+@@ -19,6 +20,7 @@ import io.bkbn.kompendium.core.fixtures.TestNested
+ import io.bkbn.kompendium.core.fixtures.TestRequest
+ import io.bkbn.kompendium.core.fixtures.TestResponse
+ import io.bkbn.kompendium.core.fixtures.TestResponseInfo
++import io.bkbn.kompendium.core.fixtures.TestResponseInfo.dateTimeString
+ import io.bkbn.kompendium.core.fixtures.TestResponseInfo.defaultField
+ import io.bkbn.kompendium.core.fixtures.TestResponseInfo.defaultParam
+ import io.bkbn.kompendium.core.fixtures.TestResponseInfo.formattedParam
+@@ -38,6 +40,7 @@ import io.ktor.response.respond
+ import io.ktor.response.respondText
+ import io.ktor.routing.route
+ import io.ktor.routing.routing
++import java.time.Instant
+ 
+ fun Application.notarizedGetWithNotarizedException() {
+   routing {
+@@ -526,6 +529,16 @@ fun Application.regexString() {
+   }
+ }
+ 
++fun Application.dateTimeString() {
++  routing {
++    route("/test/date_time_format") {
++      notarizedGet(dateTimeString) {
++        call.respond(HttpStatusCode.OK, DateTimeString(Instant.now()))
++      }
++    }
++  }
++}
++
+ fun Application.minMaxArray() {
+   routing {
+     route("/test/required_param") {
+diff --git a/kompendium-core/src/test/resources/formatted_date_time_string.json b/kompendium-core/src/test/resources/formatted_date_time_string.json
+new file mode 100644
+index 0000000000..fd8d44e580
+--- /dev/null
++++ b/kompendium-core/src/test/resources/formatted_date_time_string.json
+@@ -0,0 +1,70 @@
++{
++  "openapi": "3.0.3",
++  "info": {
++    "title": "Test API",
++    "version": "1.33.7",
++    "description": "An amazing, fully-ish 😉 generated API spec",
++    "termsOfService": "https://example.com",
++    "contact": {
++      "name": "Homer Simpson",
++      "url": "https://gph.is/1NPUDiM",
++      "email": "chunkylover53@aol.com"
++    },
++    "license": {
++      "name": "MIT",
++      "url": "https://github.com/bkbnio/kompendium/blob/main/LICENSE"
++    }
++  },
++  "servers": [
++    {
++      "url": "https://myawesomeapi.com",
++      "description": "Production instance of my API"
++    },
++    {
++      "url": "https://staging.myawesomeapi.com",
++      "description": "Where the fun stuff happens"
++    }
++  ],
++  "paths": {
++    "/test/date_time_format": {
++      "get": {
++        "tags": [],
++        "summary": "Date time string test",
++        "description": "Cool stuff",
++        "parameters": [],
++        "responses": {
++          "200": {
++            "description": "A successful endeavor",
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/DateTimeString"
++                }
++              }
++            }
++          }
++        },
++        "deprecated": false
++      }
++    }
++  },
++  "components": {
++    "schemas": {
++      "DateTimeString": {
++        "properties": {
++          "a": {
++            "type": "string",
++            "format": "date-time"
++          }
++        },
++        "required": [
++          "a"
++        ],
++        "type": "object"
++      }
++    },
++    "securitySchemes": {}
++  },
++  "security": [],
++  "tags": []
++}
+diff --git a/kompendium-core/src/test/resources/formatted_no_format_string.json b/kompendium-core/src/test/resources/formatted_no_format_string.json
+new file mode 100644
+index 0000000000..6d9309755f
+--- /dev/null
++++ b/kompendium-core/src/test/resources/formatted_no_format_string.json
+@@ -0,0 +1,69 @@
++{
++  "openapi": "3.0.3",
++  "info": {
++    "title": "Test API",
++    "version": "1.33.7",
++    "description": "An amazing, fully-ish 😉 generated API spec",
++    "termsOfService": "https://example.com",
++    "contact": {
++      "name": "Homer Simpson",
++      "url": "https://gph.is/1NPUDiM",
++      "email": "chunkylover53@aol.com"
++    },
++    "license": {
++      "name": "MIT",
++      "url": "https://github.com/bkbnio/kompendium/blob/main/LICENSE"
++    }
++  },
++  "servers": [
++    {
++      "url": "https://myawesomeapi.com",
++      "description": "Production instance of my API"
++    },
++    {
++      "url": "https://staging.myawesomeapi.com",
++      "description": "Where the fun stuff happens"
++    }
++  ],
++  "paths": {
++    "/test/date_time_format": {
++      "get": {
++        "tags": [],
++        "summary": "Date time string test",
++        "description": "Cool stuff",
++        "parameters": [],
++        "responses": {
++          "200": {
++            "description": "A successful endeavor",
++            "content": {
++              "application/json": {
++                "schema": {
++                  "$ref": "#/components/schemas/DateTimeString"
++                }
++              }
++            }
++          }
++        },
++        "deprecated": false
++      }
++    }
++  },
++  "components": {
++    "schemas": {
++      "DateTimeString": {
++        "properties": {
++          "a": {
++            "type": "string"
++          }
++        },
++        "required": [
++          "a"
++        ],
++        "type": "object"
++      }
++    },
++    "securitySchemes": {}
++  },
++  "security": [],
++  "tags": []
++}
+diff --git a/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestHelpers.kt b/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestHelpers.kt
+index 0b5163f292..817d1ae5c5 100644
+--- a/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestHelpers.kt
++++ b/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestHelpers.kt
+@@ -1,5 +1,6 @@
+ package io.bkbn.kompendium.core.fixtures
+ 
++import io.bkbn.kompendium.core.Kompendium
+ import io.bkbn.kompendium.oas.serialization.KompendiumSerializersModule
+ import io.kotest.assertions.json.shouldEqualJson
+ import io.kotest.assertions.ktor.shouldHaveStatus
+@@ -53,19 +54,27 @@ object TestHelpers {
+    * @param moduleFunction Initializer for the application to allow tests to pass the required Ktor modules
+    */
+   fun openApiTestAllSerializers(snapshotName: String, moduleFunction: Application.() -> Unit) {
+-    openApiTest(snapshotName, SupportedSerializer.KOTLINX, moduleFunction)
+-    openApiTest(snapshotName, SupportedSerializer.JACKSON, moduleFunction)
+-    openApiTest(snapshotName, SupportedSerializer.GSON, moduleFunction)
++    openApiTestAllSerializers(snapshotName, moduleFunction) {}
++  }
++
++  fun openApiTestAllSerializers(
++    snapshotName: String, moduleFunction: Application.() -> Unit,
++    kompendiumConfigurer: Kompendium.Configuration.() -> Unit
++  ) {
++    openApiTest(snapshotName, SupportedSerializer.KOTLINX, moduleFunction, kompendiumConfigurer)
++    openApiTest(snapshotName, SupportedSerializer.JACKSON, moduleFunction, kompendiumConfigurer)
++    openApiTest(snapshotName, SupportedSerializer.GSON, moduleFunction, kompendiumConfigurer)
+   }
+ 
+   private fun openApiTest(
+     snapshotName: String,
+     serializer: SupportedSerializer,
+-    moduleFunction: Application.() -> Unit
++    moduleFunction: Application.() -> Unit,
++    kompendiumConfigurer: Kompendium.Configuration.() -> Unit
+   ) {
+     withApplication(createTestEnvironment()) {
+       moduleFunction(application.apply {
+-        kompendium()
++        kompendium(kompendiumConfigurer)
+         docs()
+         when (serializer) {
+           SupportedSerializer.KOTLINX -> {
+diff --git a/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModels.kt b/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModels.kt
+index cbff7f4ee3..14f30d89c1 100644
+--- a/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModels.kt
++++ b/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModels.kt
+@@ -21,6 +21,7 @@ import kotlinx.serialization.Serializable
+ import kotlinx.serialization.json.JsonElement
+ import java.math.BigDecimal
+ import java.math.BigInteger
++import java.time.Instant
+ import java.util.UUID
+ 
+ data class TestSimpleModel(val a: String, val b: Int)
+@@ -106,6 +107,10 @@ data class RegexString(
+   val a: String
+ )
+ 
++data class DateTimeString(
++  val a: Instant
++)
++
+ data class MinMaxArray(
+   @MinItems(1)
+   @MaxItems(10)
+diff --git a/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModules.kt b/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModules.kt
+index ec9ec6e493..b9cf20add3 100644
+--- a/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModules.kt
++++ b/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestModules.kt
+@@ -27,8 +27,9 @@ fun Application.jacksonConfigModule() {
+   }
+ }
+ 
+-fun Application.kompendium() {
++fun Application.kompendium(configurer: Kompendium.Configuration.() -> Unit = {}) {
+   install(Kompendium) {
+     spec = defaultSpec()
++    configurer()
+   }
+ }
+diff --git a/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestResponseInfo.kt b/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestResponseInfo.kt
+index 03a2a1da96..b6998923f8 100644
+--- a/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestResponseInfo.kt
++++ b/kompendium-core/src/testFixtures/kotlin/io/bkbn/kompendium/core/fixtures/TestResponseInfo.kt
+@@ -226,6 +226,13 @@ object TestResponseInfo {
+     responseInfo = simpleOkResponse()
+   )
+ 
++
++  val dateTimeString = GetInfo<Unit, DateTimeString>(
++    summary = "Date time string test",
++    description = "Cool stuff",
++    responseInfo = simpleOkResponse()
++  )
++
+   val minMaxArray = GetInfo<Unit, MinMaxArray>(
+     summary = "required param",
+     description = "Cool stuff",

@@ -1,0 +1,79 @@
+diff --git a/RELEASE-NOTES.txt b/RELEASE-NOTES.txt
+index eddfe3067805..e48356de0b17 100644
+--- a/RELEASE-NOTES.txt
++++ b/RELEASE-NOTES.txt
+@@ -5,6 +5,7 @@
+ * [**] Block Editor: Image block media uploads display a custom error message when there is no internet connection [https://github.com/wordpress-mobile/WordPress-Android/pull/19878]
+ * [**] Block Editor: Media uploads that failed due to lack of internet connectivity automatically retry once a connection is re-established [https://github.com/wordpress-mobile/WordPress-Android/pull/19803]
+ * [*] [Jetpack-only] Added opening domain management from the Site Domain screen by tapping on the domain cards [https://github.com/wordpress-mobile/WordPress-Android/pull/19910]
++* [*] [Jetpack-only] Fix Prompt response posts not having one of the `dailyprompt` tags [https://github.com/wordpress-mobile/WordPress-Android/pull/19971]
+ 
+ 24.0
+ -----
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/bloggingprompts/BloggingPromptsPostTagProvider.kt b/WordPress/src/main/java/org/wordpress/android/ui/bloggingprompts/BloggingPromptsPostTagProvider.kt
+index 4aef7e8c43dd..9bac2972def3 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/bloggingprompts/BloggingPromptsPostTagProvider.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/bloggingprompts/BloggingPromptsPostTagProvider.kt
+@@ -10,15 +10,15 @@ class BloggingPromptsPostTagProvider @Inject constructor(
+     private val readerUtilsWrapper: ReaderUtilsWrapper,
+ ) {
+     fun promptIdTag(
+-        tagUrl: String
+-    ): String = readerUtilsWrapper.getTagFromTagUrl(tagUrl)
+-        .takeIf { it.isNotBlank() }
++        id: Int
++    ): String = "$BLOGGING_PROMPT_ID_TAG_PREFIX$id"
++        .takeIf { id > 0 }
+         ?: BLOGGING_PROMPT_TAG
+ 
+-    fun promptIdSearchReaderTag(
++    fun promptSearchReaderTag(
+         tagUrl: String
+     ): ReaderTag {
+-        val promptIdTag = promptIdTag(tagUrl)
++        val promptIdTag = promptTagFromUrl(tagUrl)
+         return ReaderTag(
+             promptIdTag,
+             promptIdTag,
+@@ -28,8 +28,15 @@ class BloggingPromptsPostTagProvider @Inject constructor(
+         )
+     }
+ 
++    private fun promptTagFromUrl(
++        tagUrl: String
++    ): String = readerUtilsWrapper.getTagFromTagUrl(tagUrl)
++        .takeIf { it.isNotBlank() }
++        ?: BLOGGING_PROMPT_TAG
++
+     companion object {
+         const val BLOGGING_PROMPT_TAG = "dailyprompt"
++        const val BLOGGING_PROMPT_ID_TAG_PREFIX = "dailyprompt-"
+         const val BLOGANUARY_TAG = "bloganuary"
+     }
+ }
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/mysite/cards/dashboard/bloggingprompts/BloggingPromptCardViewModelSlice.kt b/WordPress/src/main/java/org/wordpress/android/ui/mysite/cards/dashboard/bloggingprompts/BloggingPromptCardViewModelSlice.kt
+index 93bc45fe6f0a..5aa88a57aff7 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/mysite/cards/dashboard/bloggingprompts/BloggingPromptCardViewModelSlice.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/mysite/cards/dashboard/bloggingprompts/BloggingPromptCardViewModelSlice.kt
+@@ -95,7 +95,7 @@ class BloggingPromptCardViewModelSlice @Inject constructor(
+ 
+     private fun onBloggingPromptViewAnswersClick(tagUrl: String) {
+         bloggingPromptsCardAnalyticsTracker.trackMySiteCardViewAnswersClicked()
+-        val tag = bloggingPromptsPostTagProvider.promptIdSearchReaderTag(tagUrl)
++        val tag = bloggingPromptsPostTagProvider.promptSearchReaderTag(tagUrl)
+         _onNavigation.value = Event(BloggingPromptCardNavigationAction.ViewAnswers(tag))
+     }
+ 
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/posts/EditorBloggingPromptsViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/posts/EditorBloggingPromptsViewModel.kt
+index d3c2edfceeb5..5904b86980bf 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/posts/EditorBloggingPromptsViewModel.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/posts/EditorBloggingPromptsViewModel.kt
+@@ -55,7 +55,7 @@ class EditorBloggingPromptsViewModel
+ 
+     private fun createPromptTags(prompt: BloggingPromptModel): List<String> = mutableListOf<String>().apply {
+         add(BloggingPromptsPostTagProvider.BLOGGING_PROMPT_TAG)
+-        add(bloggingPromptsPostTagProvider.promptIdTag(prompt.answeredLink))
++        add(bloggingPromptsPostTagProvider.promptIdTag(prompt.id))
+         prompt.bloganuaryId?.let { bloganuaryIdTag ->
+             add(BloggingPromptsPostTagProvider.BLOGANUARY_TAG)
+             add(bloganuaryIdTag)

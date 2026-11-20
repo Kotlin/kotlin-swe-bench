@@ -1,0 +1,70 @@
+diff --git a/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/ArgumentTest.kt b/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/ArgumentTest.kt
+index aa7f8332..ad7778a0 100644
+--- a/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/ArgumentTest.kt
++++ b/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/ArgumentTest.kt
+@@ -476,9 +476,7 @@ class ArgumentTest {
+     @Test
+     @JsName("punctuation_in_arg_prefix_unix_style_error")
+     fun `punctuation in arg prefix unix style error`() {
+-        class C : TestCommand(called = false) {
+-            val x by argument()
+-        }
++        class C : TestCommand(called = false)
+         shouldThrow<NoSuchOption> { C().parse("-foo") }
+     }
+ 
+@@ -509,8 +507,6 @@ class ArgumentTest {
+             init {
+                 context { helpOptionNames = setOf("/help") }
+             }
+-
+-            val x by argument()
+         }
+         shouldThrow<NoSuchOption> { C().parse("/foo") }
+     }
+diff --git a/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/MultiUsageErrorTest.kt b/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/MultiUsageErrorTest.kt
+index 6c6a3141..8e74708b 100644
+--- a/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/MultiUsageErrorTest.kt
++++ b/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/MultiUsageErrorTest.kt
+@@ -29,9 +29,15 @@ class MultiUsageErrorTest {
+         ),
+         row("--x=0 --y=0 1", listOf("invalid value for A: 1")),
+         row(
++            // don't report unknown arg error after unknown opts
+             "--y=0 --x=0 --n 1 2 3",
+             listOf("no such option --n. (Possible options: --x, --y)")
+-        ), // don't report arg error after unknown opts
++        ),
++        row(
++            // do report missing arg after unknown opts
++            "--y=0 --x=0 --n",
++            listOf("no such option --n. (Possible options: --x, --y)", "missing argument A")
++        )
+     ) { argv, ex ->
+         class C : TestCommand(called = false) {
+             val x by option().int().required().check { it == 0 }
+diff --git a/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/OptionTest.kt b/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/OptionTest.kt
+index fd675af9..2bcfbd87 100644
+--- a/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/OptionTest.kt
++++ b/test/src/commonTest/kotlin/com/github/ajalt/clikt/parameters/OptionTest.kt
+@@ -88,6 +88,20 @@ class OptionTest {
+         c.getFormattedHelp(err) shouldContain "Error: custom message"
+     }
+ 
++    @Test
++    @JsName("no_such_option_subcommand_hint")
++    fun `no such option subcommand hint`() {
++        class C : TestCommand(called = false)
++        class Sub: TestCommand(called = false) {
++            val foo by option()
++        }
++
++        val c = C().subcommands(Sub())
++        shouldThrow<NoSuchOption> {
++            c.parse("--foo")
++        }.formattedMessage shouldBe "no such option --foo. hint: sub has an option --foo"
++    }
++
+     @Test
+     @JsName("one_option")
+     fun `one option`() = forAll(

@@ -1,0 +1,377 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 313a64f12..fe29a0c15 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -48,6 +48,7 @@ rewritten to their query representation
+ - Fix alias collision problem when multiple table references need auto-generated aliases
+ - Add `ABS` function support on `INTERVAL` field
+ - Display of `Ion` in PartiQL CLI output
++- Support `INTERVAL` times and divide with numerics
+ 
+ ### Removed
+ 
+diff --git a/partiql-spi/src/main/java/org/partiql/spi/types/PType.java b/partiql-spi/src/main/java/org/partiql/spi/types/PType.java
+index 9ba8ad200..4ff6b283b 100644
+--- a/partiql-spi/src/main/java/org/partiql/spi/types/PType.java
++++ b/partiql-spi/src/main/java/org/partiql/spi/types/PType.java
+@@ -326,7 +326,7 @@ public static int[] codes() {
+     public static final int BIGINT = 5;
+ 
+     /**
+-     * PartiQL's big integer type.
++     * SQL's numeric type.
+      * <br>
+      * <br>
+      * <b>Type Syntax</b>: <code>NUMERIC</code>
+diff --git a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/DiadicOperator.kt b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/DiadicOperator.kt
+index 5531e8d99..7b89ae61b 100644
+--- a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/DiadicOperator.kt
++++ b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/DiadicOperator.kt
+@@ -287,6 +287,24 @@ internal abstract class DiadicOperator(
+         return null
+     }
+ 
++    /**
++     * @param lhs a type of number
++     * @param rhs a type of interval
++     * @return an instance of a function
++     */
++    open fun getNumberIntervalInstance(lhs: PType, rhs: PType): Fn? {
++        return null
++    }
++
++    /**
++     * @param lhs a type of interval
++     * @param rhs a type of number
++     * @return an instance of a function
++     */
++    open fun getIntervalNumberInstance(lhs: PType, rhs: PType): Fn? {
++        return null
++    }
++
+     /**
+      * This is used when all operands are NULL/MISSING.
+      * @return an instance of a function
+@@ -386,6 +404,56 @@ internal abstract class DiadicOperator(
+         fillTable(PType.TIMESTAMPZ, PType.INTERVAL_DT) { lhs, rhs -> instance(lhs, rhs) }
+     }
+ 
++    private fun fillIntervalTable() {
++        // TinyInt
++        fillTable(PType.INTERVAL_YM, PType.TINYINT) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.INTERVAL_DT, PType.TINYINT) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.TINYINT, PType.INTERVAL_YM) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++        fillTable(PType.TINYINT, PType.INTERVAL_DT) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++
++        // SmallInt
++        fillTable(PType.INTERVAL_YM, PType.SMALLINT) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.INTERVAL_DT, PType.SMALLINT) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.SMALLINT, PType.INTERVAL_YM) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++        fillTable(PType.SMALLINT, PType.INTERVAL_DT) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++
++        // Integer
++        fillTable(PType.INTERVAL_YM, PType.INTEGER) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.INTERVAL_DT, PType.INTEGER) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.INTEGER, PType.INTERVAL_YM) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++        fillTable(PType.INTEGER, PType.INTERVAL_DT) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++
++        // BigInt
++        fillTable(PType.INTERVAL_YM, PType.BIGINT) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.INTERVAL_DT, PType.BIGINT) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.BIGINT, PType.INTERVAL_YM) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++        fillTable(PType.BIGINT, PType.INTERVAL_DT) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++
++        // Numeric
++        fillTable(PType.INTERVAL_YM, PType.NUMERIC) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.INTERVAL_DT, PType.NUMERIC) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.NUMERIC, PType.INTERVAL_YM) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++        fillTable(PType.NUMERIC, PType.INTERVAL_DT) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++
++        // Decimal
++        fillTable(PType.INTERVAL_YM, PType.DECIMAL) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.INTERVAL_DT, PType.DECIMAL) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.DECIMAL, PType.INTERVAL_YM) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++        fillTable(PType.DECIMAL, PType.INTERVAL_DT) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++
++        // REAL
++        fillTable(PType.INTERVAL_YM, PType.REAL) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.INTERVAL_DT, PType.REAL) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.REAL, PType.INTERVAL_YM) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++        fillTable(PType.REAL, PType.INTERVAL_DT) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++
++        // DOUBLE
++        fillTable(PType.INTERVAL_YM, PType.DOUBLE) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.INTERVAL_DT, PType.DOUBLE) { lhs, rhs -> getIntervalNumberInstance(lhs, rhs) }
++        fillTable(PType.DOUBLE, PType.INTERVAL_YM) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++        fillTable(PType.DOUBLE, PType.INTERVAL_DT) { lhs, rhs -> getNumberIntervalInstance(lhs, rhs) }
++    }
++
+     private fun fillBlobTable(instance: (PType, PType) -> Fn?) {
+         fillTable(PType.BLOB, PType.BLOB) { lhs, rhs -> instance(lhs, rhs) }
+         fillTable(PType.BLOB, PType.UNKNOWN) { lhs, _ -> instance(lhs, lhs) }
+@@ -458,6 +526,7 @@ internal abstract class DiadicOperator(
+         fillNumberTable(PType.DOUBLE, ::getDoubleInstance)
+         fillTimeTable(::getTimeInstance)
+         fillDateTable(::getDateInstance)
++        fillIntervalTable()
+         fillIntervalTable(::getIntervalInstance)
+         fillTable(PType.DATE, PType.INTERVAL_YM, ::getDateIntervalInstance)
+         fillTable(PType.DATE, PType.INTERVAL_DT, ::getDateIntervalInstance)
+@@ -476,6 +545,7 @@ internal abstract class DiadicOperator(
+         fillTable(PType.INTERVAL_DT, PType.TIMESTAMP, ::getIntervalTimestampInstance)
+         fillTable(PType.INTERVAL_YM, PType.TIMESTAMPZ, ::getIntervalTimestampInstance) // TODO: Create a specific timezone impl
+         fillTable(PType.INTERVAL_DT, PType.TIMESTAMPZ, ::getIntervalTimestampInstance) // TODO: Create a specific timezone impl
++
+         fillBlobTable(::getBlobInstance)
+         fillTimestampTable(::getTimestampInstance)
+         fillCharacterStringTable(PType.STRING, ::getStringInstance)
+diff --git a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnDivide.kt b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnDivide.kt
+index 63b2ad25c..a169d26a9 100644
+--- a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnDivide.kt
++++ b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnDivide.kt
+@@ -6,7 +6,9 @@ package org.partiql.spi.function.builtins
+ import org.partiql.spi.function.Fn
+ import org.partiql.spi.function.builtins.internal.PErrors
+ import org.partiql.spi.types.PType
++import org.partiql.spi.utils.IntervalUtils
+ import org.partiql.spi.utils.NumberUtils.isZero
++import org.partiql.spi.utils.getNumber
+ import org.partiql.spi.value.Datum
+ import java.math.RoundingMode
+ 
+@@ -129,4 +131,17 @@ internal object FnDivide : DiadicArithmeticOperator("divide") {
+             Datum.doublePrecision(arg0 / arg1)
+         }
+     }
++
++    override fun getIntervalNumberInstance(lhs: PType, rhs: PType): Fn {
++        val op = IntervalUtils.intervalDivide(lhs)
++        return basic(lhs, lhs, rhs) { args ->
++            val interval = args[0]
++            val number = args[1].getNumber()
++            if (number.isZero()) {
++                throw PErrors.divisionByZeroException(interval, lhs)
++            }
++
++            op(interval, number)
++        }
++    }
+ }
+diff --git a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnTimes.kt b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnTimes.kt
+index 731a430db..5abc164c3 100644
+--- a/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnTimes.kt
++++ b/partiql-spi/src/main/kotlin/org/partiql/spi/function/builtins/FnTimes.kt
+@@ -6,8 +6,10 @@ package org.partiql.spi.function.builtins
+ import org.partiql.spi.function.Fn
+ import org.partiql.spi.function.builtins.internal.PErrors
+ import org.partiql.spi.types.PType
++import org.partiql.spi.utils.IntervalUtils
+ import org.partiql.spi.utils.NumberUtils.byteOverflows
+ import org.partiql.spi.utils.NumberUtils.shortOverflows
++import org.partiql.spi.utils.getNumber
+ import org.partiql.spi.value.Datum
+ 
+ internal object FnTimes : DiadicArithmeticOperator("times") {
+@@ -116,4 +118,22 @@ internal object FnTimes : DiadicArithmeticOperator("times") {
+             Datum.doublePrecision(arg0 * arg1)
+         }
+     }
++
++    override fun getIntervalNumberInstance(lhs: PType, rhs: PType): Fn {
++        val op = IntervalUtils.intervalMultiply(lhs)
++        return basic(lhs, lhs, rhs) { args ->
++            val interval = args[0]
++            val number = args[1].getNumber()
++            op(interval, number)
++        }
++    }
++
++    override fun getNumberIntervalInstance(lhs: PType, rhs: PType): Fn {
++        val op = IntervalUtils.intervalMultiply(rhs)
++        return basic(rhs, lhs, rhs) { args ->
++            val number = args[0].getNumber()
++            val interval = args[1]
++            op(interval, number)
++        }
++    }
+ }
+diff --git a/partiql-spi/src/main/kotlin/org/partiql/spi/utils/IntervalUtils.kt b/partiql-spi/src/main/kotlin/org/partiql/spi/utils/IntervalUtils.kt
+new file mode 100644
+index 000000000..19139218f
+--- /dev/null
++++ b/partiql-spi/src/main/kotlin/org/partiql/spi/utils/IntervalUtils.kt
+@@ -0,0 +1,174 @@
++package org.partiql.spi.utils
++
++import org.partiql.spi.types.IntervalCode
++import org.partiql.spi.types.PType
++import org.partiql.spi.value.Datum
++import java.math.BigDecimal
++import java.math.BigInteger
++import java.math.RoundingMode
++
++internal object IntervalUtils {
++    // According to SQL1992, whether to truncate or round in the least significant
++    // field of the result is implementation-defined. We implemented as truncation for Interval as most database systems do.
++    private val INTERVAL_ROUNDING_MODE = RoundingMode.DOWN
++
++    private const val INTERVAL_DEFAULT_FRACTIONAL_PRECISION = 6
++    private const val NANO_MAX_PRECISION = 9
++    private const val MONTHS_PER_YEAR = 12L
++    private const val SECONDS_PER_MINUTE = 60L
++    private const val MINUTES_PER_HOUR = 60L
++    private const val HOURS_PER_DAY = 24L
++    private const val SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
++    private const val SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY
++    private const val NANOS_PER_SECOND = 1_000_000_000L
++
++    /**
++     * Divides an interval by a numeric value.
++     *
++     * @param interval The interval type to divide
++     * @return A function that takes an interval Datum and BigDecimal divisor, returns the divided interval
++     */
++    fun intervalDivide(interval: PType): ((Datum, Number) -> Datum) {
++        return when (interval.intervalCode) {
++            IntervalCode.YEAR,
++            IntervalCode.MONTH,
++            IntervalCode.YEAR_MONTH -> { i, number ->
++                // get total months from the interval as Long Type as it can hold the interval with max precision = 9.
++                val totalMonths: Long = i.years * MONTHS_PER_YEAR + i.months
++                // For approximate number type, it will introduce inaccuracy when converting to BigDecimal,
++                // so we keep it as approximate type for the calculation.
++                // Intermediate result is converted to Long type, which will lead to fractional part truncated
++                val resultTotalMonths: Long = when (number) {
++                    is Float,
++                    is Double -> (totalMonths / number.toDouble()).toLong()
++                    else -> NumberUtils.bigDecimalOf(totalMonths).divide(NumberUtils.bigDecimalOf(number), INTERVAL_ROUNDING_MODE).toLong()
++                }
++
++                val years = (resultTotalMonths / MONTHS_PER_YEAR).toInt()
++                val months = (resultTotalMonths % MONTHS_PER_YEAR).toInt()
++                Datum.intervalYearMonth(years, months, interval.precision)
++            }
++
++            IntervalCode.DAY,
++            IntervalCode.DAY_HOUR,
++            IntervalCode.DAY_MINUTE,
++            IntervalCode.DAY_SECOND,
++            IntervalCode.HOUR,
++            IntervalCode.HOUR_MINUTE,
++            IntervalCode.HOUR_SECOND,
++            IntervalCode.MINUTE,
++            IntervalCode.MINUTE_SECOND,
++            IntervalCode.SECOND -> { i, number ->
++                // When float/double is converted to BigDecimal, NumberUtils.bigDecimalOf will introduce inaccuracy for double due to the nature of approximate type
++                // For example, 0.1 could be 0.100000000000000111 which leads to computing inaccuracy.
++                val numberInBigDecimal = NumberUtils.bigDecimalOf(number)
++                val totalSecondsInBigDecimal = toSeconds(i)
++                val resultInBigDecimal = totalSecondsInBigDecimal.divide(numberInBigDecimal, NANO_MAX_PRECISION, INTERVAL_ROUNDING_MODE)
++                fromSecond(resultInBigDecimal, interval.precision, getFractionPrecision(interval))
++            }
++
++            else -> throw IllegalArgumentException("Unable to calculate division for INTERVAL expression")
++        }
++    }
++
++    /**
++     * Multiplies an interval by a numeric value.
++     *
++     * @param interval The interval type to multiply
++     * @return A function that takes an interval Datum and BigDecimal multiplier, returns the multiplied interval
++     */
++    fun intervalMultiply(interval: PType): ((Datum, Number) -> Datum) {
++        return when (interval.intervalCode) {
++            IntervalCode.YEAR,
++            IntervalCode.MONTH,
++            IntervalCode.YEAR_MONTH -> { i, number ->
++                // get total months from the interval as Long Type as it can hold the interval with max precision = 9.
++                val totalMonths: Long = i.years * MONTHS_PER_YEAR + i.months
++                // For approximate number type, it will introduce inaccuracy when converting to BigDecimal,
++                // so we keep it as approximate type for the calculation.
++                // Intermediate result is converted to Long type, which will lead to fractional part truncated
++                val resultTotalMonths: Long = when (number) {
++                    is Float,
++                    is Double -> (totalMonths * number.toDouble()).toLong()
++                    else -> NumberUtils.bigDecimalOf(totalMonths).multiply(NumberUtils.bigDecimalOf(number)).toLong()
++                }
++                val years = (resultTotalMonths / MONTHS_PER_YEAR).toInt()
++                val months = (resultTotalMonths % MONTHS_PER_YEAR).toInt()
++                Datum.intervalYearMonth(years, months, interval.precision)
++            }
++
++            IntervalCode.DAY,
++            IntervalCode.DAY_HOUR,
++            IntervalCode.DAY_MINUTE,
++            IntervalCode.DAY_SECOND,
++            IntervalCode.HOUR,
++            IntervalCode.HOUR_MINUTE,
++            IntervalCode.HOUR_SECOND,
++            IntervalCode.MINUTE,
++            IntervalCode.MINUTE_SECOND,
++            IntervalCode.SECOND -> { i, number ->
++                // When float/double is converted to BigDecimal, NumberUtils.bigDecimalOf will introduce inaccuracy for double due to the nature of approximate type
++                // For example, 0.1 could be 0.100000000000000111 which leads to computing inaccuracy.
++                val numberInBigDecimal = BigDecimal(number.toString())
++                val totalSecondsInBigDecimal = toSeconds(i)
++                val resultInBigDecimal = totalSecondsInBigDecimal.multiply(numberInBigDecimal)
++                fromSecond(resultInBigDecimal, interval.precision, getFractionPrecision(interval))
++            }
++
++            else -> throw IllegalArgumentException("Unable to calculate multiplication for INTERVAL expression")
++        }
++    }
++
++    private fun toSeconds(i: Datum): BigDecimal {
++        if (i.type.code() == PType.INTERVAL_DT) {
++            val daysInSeconds = i.days * SECONDS_PER_DAY
++            val hoursInSeconds = i.hours * SECONDS_PER_HOUR
++            val minutesInSeconds = i.minutes * SECONDS_PER_MINUTE
++            val totalSeconds = daysInSeconds + hoursInSeconds + minutesInSeconds + i.seconds
++            return BigDecimal.valueOf(totalSeconds).add(BigDecimal.valueOf(i.nanos.toLong(), NANO_MAX_PRECISION))
++        } else {
++            throw UnsupportedOperationException("Unable to convert non-INTERVAL_DT type to seconds")
++        }
++    }
++
++    private fun fromSecond(totalSeconds: BigDecimal, precision: Int, fractionalPrecision: Int): Datum {
++        val resultTotalNanos: BigInteger = totalSeconds.movePointRight(NANO_MAX_PRECISION).toBigIntegerExact()
++        val divRem = resultTotalNanos.divideAndRemainder(BigInteger.valueOf(NANOS_PER_SECOND))
++        val resultTotalSeconds = divRem[0].toLong()
++
++        val days = (resultTotalSeconds / SECONDS_PER_DAY).toInt()
++        val remainingSeconds = resultTotalSeconds % SECONDS_PER_DAY
++
++        val hours = (remainingSeconds / SECONDS_PER_HOUR).toInt()
++        val remainingSecondsAfterHours = remainingSeconds % SECONDS_PER_HOUR
++
++        val minutes = (remainingSecondsAfterHours / SECONDS_PER_MINUTE).toInt()
++        val seconds = remainingSecondsAfterHours % SECONDS_PER_MINUTE
++
++        return Datum.intervalDaySecond(
++            days,
++            hours,
++            minutes,
++            seconds.toInt(),
++            divRem[1].toInt(),
++            precision,
++            fractionalPrecision
++        )
++    }
++
++    private fun getFractionPrecision(interval: PType): Int {
++        return when (interval.intervalCode) {
++            IntervalCode.SECOND,
++            IntervalCode.MINUTE_SECOND,
++            IntervalCode.HOUR_SECOND,
++            IntervalCode.DAY_SECOND -> interval.fractionalPrecision
++            IntervalCode.DAY,
++            IntervalCode.DAY_HOUR,
++            IntervalCode.DAY_MINUTE,
++            IntervalCode.HOUR,
++            IntervalCode.HOUR_MINUTE,
++            IntervalCode.MINUTE -> INTERVAL_DEFAULT_FRACTIONAL_PRECISION
++            else -> throw IllegalArgumentException("Cannot get fractional precision for non-INTERVAL_DT type")
++        }
++    }
++}

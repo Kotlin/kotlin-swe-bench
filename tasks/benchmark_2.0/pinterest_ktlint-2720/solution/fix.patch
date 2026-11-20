@@ -1,0 +1,161 @@
+diff --git a/ktlint-rule-engine-core/api/ktlint-rule-engine-core.api b/ktlint-rule-engine-core/api/ktlint-rule-engine-core.api
+index f04686499e..47b48e6457 100644
+--- a/ktlint-rule-engine-core/api/ktlint-rule-engine-core.api
++++ b/ktlint-rule-engine-core/api/ktlint-rule-engine-core.api
+@@ -358,6 +358,9 @@ public abstract interface annotation class com/pinterest/ktlint/rule/engine/core
+ public abstract interface annotation class com/pinterest/ktlint/rule/engine/core/api/FeatureInBetaState : java/lang/annotation/Annotation {
+ }
+
++public abstract interface class com/pinterest/ktlint/rule/engine/core/api/IgnoreKtlintSuppressions {
++}
++
+ public final class com/pinterest/ktlint/rule/engine/core/api/IndentConfig {
+ 	public static final field Companion Lcom/pinterest/ktlint/rule/engine/core/api/IndentConfig$Companion;
+ 	public fun <init> (Lcom/pinterest/ktlint/rule/engine/core/api/IndentConfig$IndentStyle;I)V
+diff --git a/ktlint-rule-engine-core/src/main/kotlin/com/pinterest/ktlint/rule/engine/core/api/IgnoreKtlintSuppressions.kt b/ktlint-rule-engine-core/src/main/kotlin/com/pinterest/ktlint/rule/engine/core/api/IgnoreKtlintSuppressions.kt
+new file mode 100644
+index 0000000000..51b76af880
+--- /dev/null
++++ b/ktlint-rule-engine-core/src/main/kotlin/com/pinterest/ktlint/rule/engine/core/api/IgnoreKtlintSuppressions.kt
+@@ -0,0 +1,7 @@
++package com.pinterest.ktlint.rule.engine.core.api
++
++/**
++ * Marker interface to indicate that this [Rule] should ignore any rule suppression hints. This class is not intended to be used by Custom
++ * RuleSetProviders. No backward compatibility is guaranteed.
++ */
++public interface IgnoreKtlintSuppressions
+diff --git a/ktlint-rule-engine/api/ktlint-rule-engine.api b/ktlint-rule-engine/api/ktlint-rule-engine.api
+index a63e2d76cb..4f98578583 100644
+--- a/ktlint-rule-engine/api/ktlint-rule-engine.api
++++ b/ktlint-rule-engine/api/ktlint-rule-engine.api
+@@ -147,7 +147,7 @@ public class com/pinterest/ktlint/rule/engine/internal/rules/InternalRule : com/
+ 	public fun getVisitorModifiers ()Ljava/util/Set;
+ }
+
+-public final class com/pinterest/ktlint/rule/engine/internal/rules/KtlintSuppressionRule : com/pinterest/ktlint/rule/engine/internal/rules/InternalRule {
++public final class com/pinterest/ktlint/rule/engine/internal/rules/KtlintSuppressionRule : com/pinterest/ktlint/rule/engine/internal/rules/InternalRule, com/pinterest/ktlint/rule/engine/core/api/IgnoreKtlintSuppressions {
+ 	public fun <init> (Ljava/util/List;)V
+ 	public fun beforeVisitChildNodes (Lorg/jetbrains/kotlin/com/intellij/lang/ASTNode;Lkotlin/jvm/functions/Function3;)V
+ }
+diff --git a/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/RuleExecutionContext.kt b/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/RuleExecutionContext.kt
+index 220f4d6ee0..13175310c0 100644
+--- a/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/RuleExecutionContext.kt
++++ b/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/RuleExecutionContext.kt
+@@ -89,7 +89,7 @@ internal class RuleExecutionContext private constructor(
+          * The [suppressionLocator] can be changed during each visit of node when running [KtLintRuleEngine.format]. So a new handler is to
+          * be built before visiting the nodes.
+          */
+-        val suppress = suppressionLocator(node.startOffset, rule.ruleId)
++        val suppress = suppressionLocator(node.startOffset, rule)
+         if (rule.shouldContinueTraversalOfAST()) {
+             try {
+                 if (rule is RuleAutocorrectApproveHandler) {
+diff --git a/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/SuppressionLocatorBuilder.kt b/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/SuppressionLocatorBuilder.kt
+index e3c16ebd66..ed710135e9 100644
+--- a/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/SuppressionLocatorBuilder.kt
++++ b/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/SuppressionLocatorBuilder.kt
+@@ -1,12 +1,13 @@
+ package com.pinterest.ktlint.rule.engine.internal
+
+ import com.pinterest.ktlint.rule.engine.core.api.ElementType.RBRACE
++import com.pinterest.ktlint.rule.engine.core.api.IgnoreKtlintSuppressions
++import com.pinterest.ktlint.rule.engine.core.api.Rule
+ import com.pinterest.ktlint.rule.engine.core.api.RuleId
+ import com.pinterest.ktlint.rule.engine.core.api.editorconfig.EditorConfig
+ import com.pinterest.ktlint.rule.engine.core.api.nextSibling
+ import com.pinterest.ktlint.rule.engine.internal.SuppressionLocatorBuilder.CommentSuppressionHint.Type.BLOCK_END
+ import com.pinterest.ktlint.rule.engine.internal.SuppressionLocatorBuilder.CommentSuppressionHint.Type.BLOCK_START
+-import com.pinterest.ktlint.rule.engine.internal.rules.KTLINT_SUPPRESSION_RULE_ID
+ import org.jetbrains.kotlin.com.intellij.lang.ASTNode
+ import org.jetbrains.kotlin.com.intellij.psi.PsiComment
+ import org.jetbrains.kotlin.psi.KtAnnotated
+@@ -18,7 +19,7 @@ import org.jetbrains.kotlin.psi.psiUtil.startOffset
+ /**
+  * Detects if given `ruleId` at given `offset` is suppressed.
+  */
+-internal typealias SuppressionLocator = (offset: Int, ruleId: RuleId) -> Boolean
++internal typealias SuppressionLocator = (offset: Int, rule: Rule) -> Boolean
+
+ internal object SuppressionLocatorBuilder {
+     /**
+@@ -65,15 +66,13 @@ internal object SuppressionLocatorBuilder {
+     }
+
+     private fun toSuppressedRegionsLocator(hintsList: List<SuppressionHint>): SuppressionLocator =
+-        { offset, ruleId ->
+-            if (ruleId == KTLINT_SUPPRESSION_RULE_ID) {
+-                // The rule to detect deprecated rule directives may not be disabled itself as otherwise the directives
+-                // will not be reported and fixed.
++        { offset, rule ->
++            if (rule is IgnoreKtlintSuppressions) {
+                 false
+             } else {
+                 hintsList
+                     .filter { offset in it.range }
+-                    .any { hint -> hint.disabledRuleIds.isEmpty() || hint.disabledRuleIds.contains(ruleId.value) }
++                    .any { hint -> hint.disabledRuleIds.isEmpty() || hint.disabledRuleIds.contains(rule.ruleId.value) }
+             }
+         }
+
+diff --git a/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/rules/KtlintSuppressionRule.kt b/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/rules/KtlintSuppressionRule.kt
+index d0fa821694..43ec288cb8 100644
+--- a/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/rules/KtlintSuppressionRule.kt
++++ b/ktlint-rule-engine/src/main/kotlin/com/pinterest/ktlint/rule/engine/internal/rules/KtlintSuppressionRule.kt
+@@ -8,6 +8,7 @@ import com.pinterest.ktlint.rule.engine.core.api.ElementType.BLOCK_COMMENT
+ import com.pinterest.ktlint.rule.engine.core.api.ElementType.EOL_COMMENT
+ import com.pinterest.ktlint.rule.engine.core.api.ElementType.STRING_TEMPLATE
+ import com.pinterest.ktlint.rule.engine.core.api.ElementType.VALUE_ARGUMENT
++import com.pinterest.ktlint.rule.engine.core.api.IgnoreKtlintSuppressions
+ import com.pinterest.ktlint.rule.engine.core.api.RuleId
+ import com.pinterest.ktlint.rule.engine.core.api.ifAutocorrectAllowed
+ import com.pinterest.ktlint.rule.engine.core.api.isWhiteSpace
+@@ -65,7 +66,10 @@ import org.jetbrains.kotlin.utils.addToStdlib.applyIf
+  */
+ public class KtlintSuppressionRule(
+     private val allowedRuleIds: List<RuleId>,
+-) : InternalRule("ktlint-suppression") {
++) : InternalRule("ktlint-suppression"),
++    // The SuppressionLocatorBuilder no longer support the old ktlint suppression directives using comments. This rule may not be disabled
++    // in any way as it would fail to process suppressions.
++    IgnoreKtlintSuppressions {
+     private val allowedRuleIdAsStrings = allowedRuleIds.map { it.value }
+
+     private val ruleIdValidator: (String) -> Boolean = { ruleId -> allowedRuleIdAsStrings.contains(ruleId) }
+diff --git a/ktlint-ruleset-standard/api/ktlint-ruleset-standard.api b/ktlint-ruleset-standard/api/ktlint-ruleset-standard.api
+index e3ef3b0894..1a13908a2b 100644
+--- a/ktlint-ruleset-standard/api/ktlint-ruleset-standard.api
++++ b/ktlint-ruleset-standard/api/ktlint-ruleset-standard.api
+@@ -622,7 +622,7 @@ public final class com/pinterest/ktlint/ruleset/standard/rules/NoUnitReturnRuleK
+ 	public static final fun getNO_UNIT_RETURN_RULE_ID ()Lcom/pinterest/ktlint/rule/engine/core/api/RuleId;
+ }
+
+-public final class com/pinterest/ktlint/ruleset/standard/rules/NoUnusedImportsRule : com/pinterest/ktlint/ruleset/standard/StandardRule {
++public final class com/pinterest/ktlint/ruleset/standard/rules/NoUnusedImportsRule : com/pinterest/ktlint/ruleset/standard/StandardRule, com/pinterest/ktlint/rule/engine/core/api/IgnoreKtlintSuppressions {
+ 	public fun <init> ()V
+ 	public fun afterVisitChildNodes (Lorg/jetbrains/kotlin/com/intellij/lang/ASTNode;Lkotlin/jvm/functions/Function3;)V
+ 	public fun beforeVisitChildNodes (Lorg/jetbrains/kotlin/com/intellij/lang/ASTNode;Lkotlin/jvm/functions/Function3;)V
+diff --git a/ktlint-ruleset-standard/src/main/kotlin/com/pinterest/ktlint/ruleset/standard/rules/NoUnusedImportsRule.kt b/ktlint-ruleset-standard/src/main/kotlin/com/pinterest/ktlint/ruleset/standard/rules/NoUnusedImportsRule.kt
+index 9300369cc0..9b5a498e3b 100644
+--- a/ktlint-ruleset-standard/src/main/kotlin/com/pinterest/ktlint/ruleset/standard/rules/NoUnusedImportsRule.kt
++++ b/ktlint-ruleset-standard/src/main/kotlin/com/pinterest/ktlint/ruleset/standard/rules/NoUnusedImportsRule.kt
+@@ -9,6 +9,7 @@ import com.pinterest.ktlint.rule.engine.core.api.ElementType.IMPORT_DIRECTIVE
+ import com.pinterest.ktlint.rule.engine.core.api.ElementType.OPERATION_REFERENCE
+ import com.pinterest.ktlint.rule.engine.core.api.ElementType.PACKAGE_DIRECTIVE
+ import com.pinterest.ktlint.rule.engine.core.api.ElementType.REFERENCE_EXPRESSION
++import com.pinterest.ktlint.rule.engine.core.api.IgnoreKtlintSuppressions
+ import com.pinterest.ktlint.rule.engine.core.api.RuleId
+ import com.pinterest.ktlint.rule.engine.core.api.SinceKtlint
+ import com.pinterest.ktlint.rule.engine.core.api.SinceKtlint.Status.STABLE
+@@ -37,7 +38,10 @@ import org.jetbrains.kotlin.psi.KtPackageDirective
+ import org.jetbrains.kotlin.resolve.ImportPath
+
+ @SinceKtlint("0.2", STABLE)
+-public class NoUnusedImportsRule : StandardRule("no-unused-imports") {
++public class NoUnusedImportsRule :
++    StandardRule("no-unused-imports"),
++    // Prevent that imports which are only used inside code that is suppressed are (falsely) reported as unused.
++    IgnoreKtlintSuppressions {
+     private val ref =
+         mutableSetOf(
+             Reference("*", false),

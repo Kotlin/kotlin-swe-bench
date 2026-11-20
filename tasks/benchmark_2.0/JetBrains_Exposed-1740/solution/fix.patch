@@ -1,0 +1,135 @@
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ColumnType.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ColumnType.kt
+index 2854c5e883..14f05ca386 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ColumnType.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ColumnType.kt
+@@ -6,12 +6,7 @@ import org.jetbrains.exposed.dao.id.IdTable
+ import org.jetbrains.exposed.sql.statements.DefaultValueMarker
+ import org.jetbrains.exposed.sql.statements.api.ExposedBlob
+ import org.jetbrains.exposed.sql.statements.api.PreparedStatementApi
+-import org.jetbrains.exposed.sql.vendors.H2Dialect
+-import org.jetbrains.exposed.sql.vendors.MariaDBDialect
+-import org.jetbrains.exposed.sql.vendors.OracleDialect
+-import org.jetbrains.exposed.sql.vendors.SQLServerDialect
+-import org.jetbrains.exposed.sql.vendors.currentDialect
+-import org.jetbrains.exposed.sql.vendors.h2Mode
++import org.jetbrains.exposed.sql.vendors.*
+ import java.io.InputStream
+ import java.math.BigDecimal
+ import java.math.MathContext
+@@ -743,7 +738,12 @@ class BlobColumnType : ColumnType() {
+         }
+     }
+ 
+-    override fun nonNullValueToString(value: Any): String = "?"
++    override fun nonNullValueToString(value: Any): String {
++        if (value !is ExposedBlob)
++            error("Unexpected value of type Blob: $value of ${value::class.qualifiedName}")
++
++        return currentDialect.dataTypeProvider.hexToDb(value.hexString())
++    }
+ 
+     override fun readObject(rs: ResultSet, index: Int) = when {
+         currentDialect is SQLServerDialect -> rs.getBytes(index)?.let(::ExposedBlob)
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/statements/api/ExposedBlob.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/statements/api/ExposedBlob.kt
+index 2ea25210cb..0317163b9f 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/statements/api/ExposedBlob.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/statements/api/ExposedBlob.kt
+@@ -23,4 +23,9 @@ class ExposedBlob(inputStream: InputStream) {
+     }
+ 
+     override fun hashCode(): Int = bytes.contentHashCode()
++
++    fun hexString(): String = bytes.toHexString()
++
++    /** Returns the hex-encoded string of a ByteArray. */
++    private fun ByteArray.toHexString(): String = joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
+ }
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/Default.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/Default.kt
+index f9eac601fe..81e675f743 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/Default.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/Default.kt
+@@ -118,6 +118,9 @@ abstract class DataTypeProvider {
+     open fun precessOrderByClause(queryBuilder: QueryBuilder, expression: Expression<*>, sortOrder: SortOrder) {
+         queryBuilder.append((expression as? ExpressionAlias<*>)?.alias ?: expression, " ", sortOrder.code)
+     }
++
++    /** Returns the hex-encoded value to be inserted into the database. */
++    abstract fun hexToDb(hexString: String): String
+ }
+ 
+ /**
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/H2.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/H2.kt
+index 014c73206f..ba2c02df6d 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/H2.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/H2.kt
+@@ -13,6 +13,7 @@ internal object H2DataTypeProvider : DataTypeProvider() {
+ 
+     override fun uuidType(): String = "UUID"
+     override fun dateTimeType(): String = "DATETIME(9)"
++    override fun hexToDb(hexString: String): String = "X'$hexString'"
+ }
+ 
+ internal object H2FunctionProvider : FunctionProvider() {
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/Mysql.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/Mysql.kt
+index 84f765b282..1dfc8c8a48 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/Mysql.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/Mysql.kt
+@@ -49,6 +49,8 @@ internal object MysqlDataTypeProvider : DataTypeProvider() {
+             }
+         }
+     }
++
++    override fun hexToDb(hexString: String): String = "0x$hexString"
+ }
+ 
+ internal open class MysqlFunctionProvider : FunctionProvider() {
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/OracleDialect.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/OracleDialect.kt
+index b8a3ccf8a5..16ba827e74 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/OracleDialect.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/OracleDialect.kt
+@@ -44,6 +44,8 @@ internal object OracleDataTypeProvider : DataTypeProvider() {
+         e is LiteralOp<*> && e.columnType is IDateColumnType -> "TIMESTAMP ${super.processForDefaultValue(e)}"
+         else -> super.processForDefaultValue(e)
+     }
++
++    override fun hexToDb(hexString: String): String = "HEXTORAW('$hexString')"
+ }
+ 
+ internal object OracleFunctionProvider : FunctionProvider() {
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/PostgreSQL.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/PostgreSQL.kt
+index 99aff59b42..193c93e688 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/PostgreSQL.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/PostgreSQL.kt
+@@ -20,6 +20,7 @@ internal object PostgreSQLDataTypeProvider : DataTypeProvider() {
+     override fun uuidToDB(value: UUID): Any = value
+     override fun dateTimeType(): String = "TIMESTAMP"
+     override fun ubyteType(): String = "SMALLINT"
++    override fun hexToDb(hexString: String): String = """E'\\x$hexString'"""
+ }
+ 
+ internal object PostgreSQLFunctionProvider : FunctionProvider() {
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLServerDialect.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLServerDialect.kt
+index b0812ee16c..02cb65e07e 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLServerDialect.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLServerDialect.kt
+@@ -48,6 +48,8 @@ internal object SQLServerDataTypeProvider : DataTypeProvider() {
+             }
+         }
+     }
++
++    override fun hexToDb(hexString: String): String = "0x$hexString"
+ }
+ 
+ internal object SQLServerFunctionProvider : FunctionProvider() {
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLiteDialect.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLiteDialect.kt
+index 4edf7a865a..d893994b49 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLiteDialect.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/vendors/SQLiteDialect.kt
+@@ -16,6 +16,7 @@ internal object SQLiteDataTypeProvider : DataTypeProvider() {
+     override fun binaryType(): String = "BLOB"
+     override fun dateTimeType(): String = "TEXT"
+     override fun booleanToStatementString(bool: Boolean) = if (bool) "1" else "0"
++    override fun hexToDb(hexString: String): String = "X'$hexString'"
+ }
+ 
+ internal object SQLiteFunctionProvider : FunctionProvider() {

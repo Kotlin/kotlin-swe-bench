@@ -1,0 +1,128 @@
+diff --git a/core/api/core.api b/core/api/core.api
+index df2c21454b..0879252e01 100644
+--- a/core/api/core.api
++++ b/core/api/core.api
+@@ -2609,6 +2609,8 @@ public final class org/jetbrains/kotlinx/dataframe/api/InsertKt {
+ 	public static final fun after (Lorg/jetbrains/kotlinx/dataframe/api/InsertClause;Lorg/jetbrains/kotlinx/dataframe/columns/ColumnAccessor;)Lorg/jetbrains/kotlinx/dataframe/DataFrame;
+ 	public static final fun after (Lorg/jetbrains/kotlinx/dataframe/api/InsertClause;Lorg/jetbrains/kotlinx/dataframe/columns/ColumnPath;)Lorg/jetbrains/kotlinx/dataframe/DataFrame;
+ 	public static final fun at (Lorg/jetbrains/kotlinx/dataframe/api/InsertClause;I)Lorg/jetbrains/kotlinx/dataframe/DataFrame;
++	public static final fun before (Lorg/jetbrains/kotlinx/dataframe/api/InsertClause;Ljava/lang/String;)Lorg/jetbrains/kotlinx/dataframe/DataFrame;
++	public static final fun before (Lorg/jetbrains/kotlinx/dataframe/api/InsertClause;Lkotlin/jvm/functions/Function2;)Lorg/jetbrains/kotlinx/dataframe/DataFrame;
+ 	public static final fun insert (Lorg/jetbrains/kotlinx/dataframe/DataFrame;Lorg/jetbrains/kotlinx/dataframe/DataColumn;)Lorg/jetbrains/kotlinx/dataframe/api/InsertClause;
+ 	public static final fun under (Lorg/jetbrains/kotlinx/dataframe/api/InsertClause;Ljava/lang/String;)Lorg/jetbrains/kotlinx/dataframe/DataFrame;
+ 	public static final fun under (Lorg/jetbrains/kotlinx/dataframe/api/InsertClause;Lkotlin/jvm/functions/Function2;)Lorg/jetbrains/kotlinx/dataframe/DataFrame;
+diff --git a/core/src/main/kotlin/org/jetbrains/kotlinx/dataframe/api/insert.kt b/core/src/main/kotlin/org/jetbrains/kotlinx/dataframe/api/insert.kt
+index 8e93e6b0a4..c0454a6edd 100644
+--- a/core/src/main/kotlin/org/jetbrains/kotlinx/dataframe/api/insert.kt
++++ b/core/src/main/kotlin/org/jetbrains/kotlinx/dataframe/api/insert.kt
+@@ -16,6 +16,8 @@ import org.jetbrains.kotlinx.dataframe.documentation.ExcludeFromSources
+ import org.jetbrains.kotlinx.dataframe.documentation.Indent
+ import org.jetbrains.kotlinx.dataframe.documentation.LineBreak
+ import org.jetbrains.kotlinx.dataframe.documentation.SelectingColumns
++import org.jetbrains.kotlinx.dataframe.impl.api.afterImpl
++import org.jetbrains.kotlinx.dataframe.impl.api.beforeImpl
+ import org.jetbrains.kotlinx.dataframe.impl.api.insertImpl
+ import org.jetbrains.kotlinx.dataframe.impl.columnName
+ import org.jetbrains.kotlinx.dataframe.impl.removeAt
+@@ -338,10 +340,59 @@ public fun <T> InsertClause<T>.after(columnPath: ColumnPath): DataFrame<T> {
+     return df.insertImpl(dstPath, column).move { dstPath }.after { columnPath }
+ }
+ 
+-internal fun <T> InsertClause<T>.afterImpl(columnPath: ColumnPath): DataFrame<T> {
+-    val dstPath = ColumnPath(columnPath.removeAt(columnPath.size - 1) + column.name())
+-    return df.insertImpl(dstPath, column).move { dstPath }.after { columnPath }
+-}
++// endregion
++
++// region before
++
++/**
++ * Inserts the new column previously specified with [insert]
++ * at the position immediately before the selected [column] (on the same level).
++ *
++ * For more information: {@include [DocumentationUrls.Insert]}
++ *
++ * See [Grammar][InsertDocs.Grammar] for more details.
++ *
++ * See also: [SelectingColumns.Dsl].
++ *
++ * ### Examples:
++ * ```kotlin
++ * // Insert a new column "age" before the "name" column
++ * df.insert(age).before { name }
++ *
++ * // Insert a new column "sum" before the nested "min" column (inside the "stats" column group)
++ * val dfWithSum = df.insert("sum") { a + b }.before { stats.min }
++ * ```
++ *
++ * @param [column] The [ColumnSelector] used to choose an existing column in this [DataFrame],
++ * before which the new column will be inserted.
++ * @return A new [DataFrame] with the inserted column placed before the selected column.
++ */
++@Refine
++@Interpretable("InsertBefore0")
++public fun <T> InsertClause<T>.before(column: ColumnSelector<T, *>): DataFrame<T> = beforeImpl(df.getColumnPath(column))
++
++/**
++ * Inserts the new column previously specified with [insert]
++ * at the position immediately before the column with the given [name][column].
++ *
++ * For more information: {@include [DocumentationUrls.Insert]}
++ *
++ * See [Grammar][InsertDocs.Grammar] for more details.
++ *
++ * See also: [SelectingColumns.ColumnNames].
++ *
++ * ### Example
++ * ```kotlin
++ * // Insert a new column "age" before the "name" column
++ * df.insert(age).before("name")
++ * ```
++ *
++ * @param [column] The [String] name of the column in this [DataFrame]
++ * before which the new column will be inserted.
++ * @return A new [DataFrame] with the inserted column placed before the specified column.
++ */
++public fun <T> InsertClause<T>.before(column: String): DataFrame<T> =
++    df.add(this.column).move(this.column).before(column)
+ 
+ // endregion
+ 
+diff --git a/core/src/main/kotlin/org/jetbrains/kotlinx/dataframe/impl/api/insert.kt b/core/src/main/kotlin/org/jetbrains/kotlinx/dataframe/impl/api/insert.kt
+index d8a0a6ba3b..3934b6187b 100644
+--- a/core/src/main/kotlin/org/jetbrains/kotlinx/dataframe/impl/api/insert.kt
++++ b/core/src/main/kotlin/org/jetbrains/kotlinx/dataframe/impl/api/insert.kt
+@@ -4,7 +4,11 @@ import org.jetbrains.kotlinx.dataframe.AnyBaseCol
+ import org.jetbrains.kotlinx.dataframe.AnyCol
+ import org.jetbrains.kotlinx.dataframe.DataColumn
+ import org.jetbrains.kotlinx.dataframe.DataFrame
++import org.jetbrains.kotlinx.dataframe.api.InsertClause
++import org.jetbrains.kotlinx.dataframe.api.after
++import org.jetbrains.kotlinx.dataframe.api.before
+ import org.jetbrains.kotlinx.dataframe.api.cast
++import org.jetbrains.kotlinx.dataframe.api.move
+ import org.jetbrains.kotlinx.dataframe.api.toDataFrame
+ import org.jetbrains.kotlinx.dataframe.columns.ColumnGroup
+ import org.jetbrains.kotlinx.dataframe.columns.ColumnPath
+@@ -12,6 +16,7 @@ import org.jetbrains.kotlinx.dataframe.impl.columns.tree.ReadonlyTreeNode
+ import org.jetbrains.kotlinx.dataframe.impl.columns.tree.ReferenceData
+ import org.jetbrains.kotlinx.dataframe.impl.columns.tree.getAncestor
+ import org.jetbrains.kotlinx.dataframe.impl.columns.withDf
++import org.jetbrains.kotlinx.dataframe.impl.removeAt
+ 
+ internal data class ColumnToInsert(
+     val insertionPath: ColumnPath,
+@@ -148,3 +153,13 @@ internal fun <T> insertImpl(
+ 
+     return newColumns.toDataFrame().cast()
+ }
++
++internal fun <T> InsertClause<T>.afterImpl(columnPath: ColumnPath): DataFrame<T> {
++    val dstPath = ColumnPath(columnPath.removeAt(columnPath.size - 1) + column.name())
++    return df.insertImpl(dstPath, column).move { dstPath }.after { columnPath }
++}
++
++internal fun <T> InsertClause<T>.beforeImpl(columnPath: ColumnPath): DataFrame<T> {
++    val dstPath = ColumnPath(columnPath.removeAt(columnPath.size - 1) + column.name())
++    return df.insertImpl(dstPath, column).move { dstPath }.before { columnPath }
++}

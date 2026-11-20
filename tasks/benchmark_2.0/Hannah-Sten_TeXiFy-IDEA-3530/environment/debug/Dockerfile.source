@@ -1,0 +1,10 @@
+FROM kotlinai/hannah-sten_texify-idea:base
+
+COPY debug/exclude-flaky-tests.gradle.kts /home/
+COPY debug/check_git_changes.sh /home/
+COPY debug/prepare.sh /home/
+COPY debug/seal_git_history.sh /home/
+
+RUN bash /home/prepare.sh
+RUN chmod +x /home/*.sh
+WORKDIR /home/TeXiFy-IDEA

@@ -1,0 +1,426 @@
+diff --git a/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/data/FakeMessageCountsProvider.kt b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/data/FakeMessageCountsProvider.kt
+new file mode 100644
+index 00000000000..5cd94e1e891
+--- /dev/null
++++ b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/data/FakeMessageCountsProvider.kt
+@@ -0,0 +1,36 @@
++package app.k9mail.feature.navigation.drawer.data
++
++import app.k9mail.legacy.account.Account
++import app.k9mail.legacy.message.controller.MessageCounts
++import app.k9mail.legacy.message.controller.MessageCountsProvider
++import app.k9mail.legacy.search.LocalSearch
++import app.k9mail.legacy.search.SearchAccount
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.flowOf
++
++internal class FakeMessageCountsProvider(
++    private val messageCounts: MessageCounts,
++) : MessageCountsProvider {
++    var recordedSearch: LocalSearch = LocalSearch()
++
++    override fun getMessageCounts(account: Account): MessageCounts {
++        TODO("Not yet implemented")
++    }
++
++    override fun getMessageCounts(searchAccount: SearchAccount): MessageCounts {
++        TODO("Not yet implemented")
++    }
++
++    override fun getMessageCounts(search: LocalSearch): MessageCounts {
++        TODO("Not yet implemented")
++    }
++
++    override fun getMessageCountsFlow(search: LocalSearch): Flow<MessageCounts> {
++        recordedSearch = search
++        return flowOf(messageCounts)
++    }
++
++    override fun getUnreadMessageCount(account: Account, folderId: Long): Int {
++        TODO("Not yet implemented")
++    }
++}
+diff --git a/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/data/UnifiedFolderRepositoryTest.kt b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/data/UnifiedFolderRepositoryTest.kt
+new file mode 100644
+index 00000000000..29205048f41
+--- /dev/null
++++ b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/data/UnifiedFolderRepositoryTest.kt
+@@ -0,0 +1,47 @@
++package app.k9mail.feature.navigation.drawer.data
++
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolder
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolderType
++import app.k9mail.legacy.message.controller.MessageCounts
++import app.k9mail.legacy.search.api.SearchAttribute
++import app.k9mail.legacy.search.api.SearchField
++import assertk.assertThat
++import assertk.assertions.isEqualTo
++import kotlin.test.Test
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.test.runTest
++
++internal class UnifiedFolderRepositoryTest {
++
++    @Test
++    fun `should return DisplayUnifiedFolder for unified inbox`() = runTest {
++        val messageCountsProvider = FakeMessageCountsProvider(
++            messageCounts = MessageCounts(
++                unread = 2,
++                starred = 2,
++            ),
++        )
++        val testSubject = UnifiedFolderRepository(
++            messageCountsProvider = messageCountsProvider,
++        )
++        val folderType = DisplayUnifiedFolderType.INBOX
++
++        val result = testSubject.getDisplayUnifiedFolderFlow(folderType).first()
++
++        assertThat(result).isEqualTo(
++            DisplayUnifiedFolder(
++                id = "unified_inbox",
++                unifiedType = folderType,
++                unreadMessageCount = 2,
++                starredMessageCount = 2,
++            ),
++        )
++
++        val search = messageCountsProvider.recordedSearch
++        assertThat(search.id).isEqualTo("unified_inbox")
++        val condition = search.conditions.condition
++        assertThat(condition.value).isEqualTo("1")
++        assertThat(condition.attribute).isEqualTo(SearchAttribute.EQUALS)
++        assertThat(condition.field).isEqualTo(SearchField.INTEGRATE)
++    }
++}
+diff --git a/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/FakeDisplayFolderRepository.kt b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/FakeDisplayFolderRepository.kt
+new file mode 100644
+index 00000000000..71e8632070f
+--- /dev/null
++++ b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/FakeDisplayFolderRepository.kt
+@@ -0,0 +1,21 @@
++package app.k9mail.feature.navigation.drawer.domain.usecase
++
++import app.k9mail.legacy.account.Account
++import app.k9mail.legacy.ui.folder.DisplayFolder
++import app.k9mail.legacy.ui.folder.DisplayFolderRepository
++import kotlinx.coroutines.flow.Flow
++
++internal class FakeDisplayFolderRepository(
++    private val foldersFlow: Flow<List<DisplayFolder>>,
++) : DisplayFolderRepository {
++    override fun getDisplayFoldersFlow(
++        account: Account,
++        includeHiddenFolders: Boolean,
++    ): Flow<List<DisplayFolder>> {
++        TODO("Not yet implemented")
++    }
++
++    override fun getDisplayFoldersFlow(accountUuid: String): Flow<List<DisplayFolder>> {
++        return foldersFlow
++    }
++}
+diff --git a/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/FakeUnifiedFolderRepository.kt b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/FakeUnifiedFolderRepository.kt
+new file mode 100644
+index 00000000000..bb27588a9c8
+--- /dev/null
++++ b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/FakeUnifiedFolderRepository.kt
+@@ -0,0 +1,14 @@
++package app.k9mail.feature.navigation.drawer.domain.usecase
++
++import app.k9mail.feature.navigation.drawer.domain.DomainContract.UnifiedFolderRepository
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolder
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolderType
++import kotlinx.coroutines.flow.Flow
++
++internal class FakeUnifiedFolderRepository(
++    private val displayUnifiedFolderFlow: Flow<DisplayUnifiedFolder>,
++) : UnifiedFolderRepository {
++    override fun getDisplayUnifiedFolderFlow(unifiedFolderType: DisplayUnifiedFolderType): Flow<DisplayUnifiedFolder> {
++        return displayUnifiedFolderFlow
++    }
++}
+diff --git a/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/GetDisplayFoldersForAccountTest.kt b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/GetDisplayFoldersForAccountTest.kt
+new file mode 100644
+index 00000000000..3668ef3fbe9
+--- /dev/null
++++ b/feature/navigation/drawer/src/test/kotlin/app/k9mail/feature/navigation/drawer/domain/usecase/GetDisplayFoldersForAccountTest.kt
+@@ -0,0 +1,154 @@
++package app.k9mail.feature.navigation.drawer.domain.usecase
++
++import app.cash.turbine.test
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayAccountFolder
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayFolder
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolder
++import app.k9mail.feature.navigation.drawer.domain.entity.DisplayUnifiedFolderType
++import app.k9mail.feature.navigation.drawer.ui.FakeData
++import assertk.assertThat
++import assertk.assertions.isEqualTo
++import kotlin.test.Test
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.test.runTest
++import app.k9mail.legacy.ui.folder.DisplayFolder as LegacyDisplayFolder
++
++internal class GetDisplayFoldersForAccountTest {
++
++    @Test
++    fun `should return only account folders when includeUnifiedFolders is false`() = runTest {
++        val accountId = "account_id"
++        val legacyDisplayFolderFlow = MutableStateFlow(LEGACY_DISPLAY_FOLDERS)
++        val displayFolderRepository = FakeDisplayFolderRepository(legacyDisplayFolderFlow)
++        val unifiedFolderFlow = MutableStateFlow(DISPLAY_UNIFIED_FOLDER)
++        val unifiedFolderRepository = FakeUnifiedFolderRepository(unifiedFolderFlow)
++        val testSubject = GetDisplayFoldersForAccount(
++            displayFolderRepository = displayFolderRepository,
++            unifiedFolderRepository = unifiedFolderRepository,
++        )
++
++        val result = testSubject(accountId, includeUnifiedFolders = false).first()
++
++        assertThat(result).isEqualTo(DISPLAY_ACCOUNT_FOLDERS)
++    }
++
++    @Test
++    fun `should return account folders and unified folders when includeUnifiedFolders is true`() = runTest {
++        val accountId = "account_id"
++        val legacyDisplayFolderFlow = MutableStateFlow(LEGACY_DISPLAY_FOLDERS)
++        val displayFolderRepository = FakeDisplayFolderRepository(legacyDisplayFolderFlow)
++        val unifiedFolderFlow = MutableStateFlow(DISPLAY_UNIFIED_FOLDER)
++        val unifiedFolderRepository = FakeUnifiedFolderRepository(unifiedFolderFlow)
++        val testSubject = GetDisplayFoldersForAccount(
++            displayFolderRepository = displayFolderRepository,
++            unifiedFolderRepository = unifiedFolderRepository,
++        )
++
++        val result = testSubject(accountId, includeUnifiedFolders = true).first()
++
++        assertThat(result).isEqualTo(DISPLAY_UNIFIED_FOLDERS + DISPLAY_ACCOUNT_FOLDERS)
++    }
++
++    @Test
++    fun `should emit new list when account folders or unified folders emit new items`() = runTest {
++        val accountId = "account_id"
++        val legacyDisplayFolderFlow = MutableStateFlow(LEGACY_DISPLAY_FOLDERS)
++        val displayFolderRepository = FakeDisplayFolderRepository(legacyDisplayFolderFlow)
++        val unifiedFolderFlow = MutableStateFlow(DISPLAY_UNIFIED_FOLDER)
++        val unifiedFolderRepository = FakeUnifiedFolderRepository(unifiedFolderFlow)
++        val testSubject = GetDisplayFoldersForAccount(
++            displayFolderRepository = displayFolderRepository,
++            unifiedFolderRepository = unifiedFolderRepository,
++        )
++
++        testSubject(accountId, includeUnifiedFolders = true).test {
++            assertThat(awaitItem()).isEqualTo(DISPLAY_UNIFIED_FOLDERS + DISPLAY_ACCOUNT_FOLDERS)
++
++            legacyDisplayFolderFlow.emit(LEGACY_DISPLAY_FOLDERS_2)
++
++            assertThat(awaitItem()).isEqualTo(DISPLAY_UNIFIED_FOLDERS + DISPLAY_ACCOUNT_FOLDERS_2)
++
++            unifiedFolderFlow.emit(DISPLAY_UNIFIED_FOLDER_2)
++
++            assertThat(awaitItem()).isEqualTo(listOf(DISPLAY_UNIFIED_FOLDER_2) + DISPLAY_ACCOUNT_FOLDERS_2)
++        }
++    }
++
++    private companion object {
++        val LEGACY_DISPLAY_FOLDERS = listOf(
++            LegacyDisplayFolder(
++                folder = FakeData.FOLDER,
++                isInTopGroup = false,
++                unreadMessageCount = 0,
++                starredMessageCount = 0,
++            ),
++            LegacyDisplayFolder(
++                folder = FakeData.FOLDER.copy(
++                    id = 2,
++                    name = "Folder 2",
++                ),
++                isInTopGroup = false,
++                unreadMessageCount = 1,
++                starredMessageCount = 0,
++            ),
++        )
++
++        val LEGACY_DISPLAY_FOLDERS_2 = LEGACY_DISPLAY_FOLDERS + LegacyDisplayFolder(
++            folder = FakeData.FOLDER.copy(
++                id = 3,
++                name = "Folder 3",
++            ),
++            isInTopGroup = false,
++            unreadMessageCount = 0,
++            starredMessageCount = 0,
++        )
++
++        val DISPLAY_UNIFIED_FOLDER = DisplayUnifiedFolder(
++            id = "unified_inbox",
++            unifiedType = DisplayUnifiedFolderType.INBOX,
++            unreadMessageCount = 2,
++            starredMessageCount = 2,
++        )
++
++        val DISPLAY_UNIFIED_FOLDER_2 = DisplayUnifiedFolder(
++            id = "unified_inbox",
++            unifiedType = DisplayUnifiedFolderType.INBOX,
++            unreadMessageCount = 3,
++            starredMessageCount = 3,
++        )
++
++        val DISPLAY_UNIFIED_FOLDERS = listOf(DISPLAY_UNIFIED_FOLDER)
++
++        val DISPLAY_ACCOUNT_FOLDERS = listOf<DisplayFolder>(
++            DisplayAccountFolder(
++                accountId = "account_id",
++                folder = FakeData.FOLDER,
++                isInTopGroup = false,
++                unreadMessageCount = 0,
++                starredMessageCount = 0,
++            ),
++            DisplayAccountFolder(
++                accountId = "account_id",
++                folder = FakeData.FOLDER.copy(
++                    id = 2,
++                    name = "Folder 2",
++                ),
++                isInTopGroup = false,
++                unreadMessageCount = 1,
++                starredMessageCount = 0,
++            ),
++        )
++
++        val DISPLAY_ACCOUNT_FOLDERS_2 = DISPLAY_ACCOUNT_FOLDERS + DisplayAccountFolder(
++            accountId = "account_id",
++            folder = FakeData.FOLDER.copy(
++                id = 3,
++                name = "Folder 3",
++            ),
++            isInTopGroup = false,
++            unreadMessageCount = 0,
++            starredMessageCount = 0,
++        )
++    }
++}
+diff --git a/feature/widget/unread/src/test/kotlin/app/k9mail/feature/widget/unread/UnreadWidgetDataProviderTest.kt b/feature/widget/unread/src/test/kotlin/app/k9mail/feature/widget/unread/UnreadWidgetDataProviderTest.kt
+index d770889aaab..f7d2c0ccf1c 100644
+--- a/feature/widget/unread/src/test/kotlin/app/k9mail/feature/widget/unread/UnreadWidgetDataProviderTest.kt
++++ b/feature/widget/unread/src/test/kotlin/app/k9mail/feature/widget/unread/UnreadWidgetDataProviderTest.kt
+@@ -16,6 +16,7 @@ import assertk.assertions.isNull
+ import com.fsck.k9.CoreResourceProvider
+ import com.fsck.k9.Preferences
+ import com.fsck.k9.ui.messagelist.DefaultFolderProvider
++import kotlinx.coroutines.flow.Flow
+ import org.junit.Before
+ import org.junit.Test
+ import org.junit.runner.RunWith
+@@ -141,6 +142,10 @@ class UnreadWidgetDataProviderTest : AutoCloseKoinTest() {
+             throw UnsupportedOperationException()
+         }
+ 
++        override fun getMessageCountsFlow(search: LocalSearch): Flow<MessageCounts> {
++            throw UnsupportedOperationException()
++        }
++
+         override fun getUnreadMessageCount(account: Account, folderId: Long): Int {
+             return FOLDER_UNREAD_COUNT
+         }
+diff --git a/legacy/core/src/test/java/com/fsck/k9/controller/DefaultMessageCountsProviderTest.kt b/legacy/core/src/test/java/com/fsck/k9/controller/DefaultMessageCountsProviderTest.kt
+index 0860a046148..001d097992e 100644
+--- a/legacy/core/src/test/java/com/fsck/k9/controller/DefaultMessageCountsProviderTest.kt
++++ b/legacy/core/src/test/java/com/fsck/k9/controller/DefaultMessageCountsProviderTest.kt
+@@ -1,14 +1,22 @@
+ package com.fsck.k9.controller
+ 
++import app.cash.turbine.test
+ import app.k9mail.legacy.account.Account
++import app.k9mail.legacy.account.AccountManager
+ import app.k9mail.legacy.mailstore.ListenableMessageStore
+ import app.k9mail.legacy.mailstore.MessageStoreManager
++import app.k9mail.legacy.message.controller.MessageCounts
++import app.k9mail.legacy.message.controller.MessagingControllerRegistry
++import app.k9mail.legacy.message.controller.MessagingListener
++import app.k9mail.legacy.message.controller.SimpleMessagingListener
+ import app.k9mail.legacy.search.ConditionsTreeNode
++import app.k9mail.legacy.search.LocalSearch
+ import assertk.assertThat
+ import assertk.assertions.isEqualTo
+-import com.fsck.k9.Preferences
++import kotlinx.coroutines.test.runTest
+ import org.junit.Test
+ import org.mockito.kotlin.anyOrNull
++import org.mockito.kotlin.doAnswer
+ import org.mockito.kotlin.doReturn
+ import org.mockito.kotlin.mock
+ 
+@@ -17,8 +25,11 @@ private const val UNREAD_COUNT = 2
+ private const val STARRED_COUNT = 3
+ 
+ class DefaultMessageCountsProviderTest {
+-    private val preferences = mock<Preferences>()
++
+     private val account = Account(ACCOUNT_UUID)
++    private val accountManager = mock<AccountManager> {
++        on { getAccounts() } doReturn listOf(account)
++    }
+     private val messageStore = mock<ListenableMessageStore> {
+         on { getUnreadMessageCount(anyOrNull<ConditionsTreeNode>()) } doReturn UNREAD_COUNT
+         on { getStarredMessageCount(anyOrNull()) } doReturn STARRED_COUNT
+@@ -27,7 +38,13 @@ class DefaultMessageCountsProviderTest {
+         on { getMessageStore(account) } doReturn messageStore
+     }
+ 
+-    private val messageCountsProvider = DefaultMessageCountsProvider(preferences, messageStoreManager)
++    private val messagingControllerRegistry = mock<MessagingControllerRegistry> {}
++
++    private val messageCountsProvider = DefaultMessageCountsProvider(
++        accountManager = accountManager,
++        messageStoreManager = messageStoreManager,
++        messagingControllerRegistry = messagingControllerRegistry,
++    )
+ 
+     @Test
+     fun `getMessageCounts() without any special folders`() {
+@@ -43,4 +60,44 @@ class DefaultMessageCountsProviderTest {
+         assertThat(messageCounts.unread).isEqualTo(UNREAD_COUNT)
+         assertThat(messageCounts.starred).isEqualTo(STARRED_COUNT)
+     }
++
++    @Test
++    fun `getMessageCountsFlow should emit for every change`() = runTest {
++        var currentListener: SimpleMessagingListener? = null
++        val registry = object : MessagingControllerRegistry {
++            override fun addListener(listener: MessagingListener) {
++                currentListener = listener as SimpleMessagingListener
++            }
++
++            override fun removeListener(listener: MessagingListener) {
++                currentListener = null
++            }
++        }
++        var currentCount = 0
++        val messageStore = mock<ListenableMessageStore> {
++            on { getUnreadMessageCount(anyOrNull<ConditionsTreeNode>()) } doAnswer { currentCount }
++            on { getStarredMessageCount(anyOrNull()) } doAnswer { currentCount }
++        }
++        val messageStoreManager = mock<MessageStoreManager> {
++            on { getMessageStore(account) } doReturn messageStore
++        }
++        val testSubject = DefaultMessageCountsProvider(
++            accountManager = accountManager,
++            messageStoreManager = messageStoreManager,
++            messagingControllerRegistry = registry,
++        )
++        val search = LocalSearch().apply {
++            addAccountUuid(account.uuid)
++        }
++
++        testSubject.getMessageCountsFlow(search).test {
++            assertThat(awaitItem()).isEqualTo(MessageCounts(0, 0))
++            currentCount = 1
++            currentListener?.folderStatusChanged(account, 0)
++            assertThat(awaitItem()).isEqualTo(MessageCounts(1, 1))
++            currentCount = 2
++            currentListener?.folderStatusChanged(account, 0)
++            assertThat(awaitItem()).isEqualTo(MessageCounts(2, 2))
++        }
++    }
+ }

@@ -1,0 +1,66 @@
+[metadata.source]
+repository_owner = "JetBrains"
+repository_name = "Exposed"
+repository_url = "https://github.com/JetBrains/Exposed"
+license = "Apache-2.0"
+code_change_type = "pr"
+code_change_id = "1728"
+code_change_url = "https://github.com/JetBrains/Exposed/pull/1728"
+task_revision = 6
+maintainer = "serhii.fedusov@jetbrains.com"
+
+[metadata.taxonomy]
+ecosystem = ["kotlin"]
+language = ["kotlin"]
+visibility = "open_source"
+difficulty = "medium"
+task_type = ["bugfix"]
+skills = ["debugging", "multi_file_reasoning", "test_analysis"]
+subsystem = ["database"]
+
+[metadata.verifier]
+workdir = "/Exposed"
+env = []
+test_command = "./gradlew h2Test --no-daemon --console=plain && find exposed-tests/build/test-results -name '*.xml' -exec cat {} +"
+
+[verifier]
+implemented = false
+timeout_sec = 900.0
+network_mode = "public"
+environment_mode = "separate"
+
+[[verifier.collect]]
+# The agent's changes for the separate verifier; see reward_hacking/separate_verifier.py.
+command = '''set -eu
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'
+export GIT_CONFIG_KEY_1=core.fsmonitor GIT_CONFIG_VALUE_1=false
+mkdir -p /logs/artifacts
+rm -f /logs/artifacts/agent_changes.patch
+cd /Exposed
+index=$(mktemp)
+patch=$(mktemp /logs/artifacts/.agent_changes.XXXXXX)
+cp "$(git rev-parse --git-path index)" "$index"
+GIT_INDEX_FILE="$index" git add -A
+GIT_INDEX_FILE="$index" git diff --cached --binary --no-ext-diff --no-textconv b4cbe97d76d4bb19fff914de1c601e883648e974 >"$patch"
+rm -f "$index"
+chmod 644 "$patch"
+mv "$patch" /logs/artifacts/agent_changes.patch
+'''
+timeout_sec = 300.0
+
+[agent]
+timeout_sec = 1800.0
+network_mode = "no-network"
+
+[environment]
+docker_image = "docker.io/swerebenchv2/jetbrains-exposed:1728-b4cbe97"
+workdir = "/Exposed"
+storage_mb = 5120
+build_timeout_sec = 1800.0
+cpus = 4
+memory_mb = 10240
+network_mode = "public"
+
+[environment.env]
+_JAVA_OPTIONS = "-Djava.net.preferIPv4Stack=true"

@@ -1,0 +1,9 @@
+
+allprojects {
+    tasks.withType(Test).configureEach {
+        filter {
+            excludeTestsMatching "*ClearlyDefinedPackageCurationProviderTest"
+            setFailOnNoMatchingTests(false)
+        }
+    }
+}

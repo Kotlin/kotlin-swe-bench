@@ -1,0 +1,46 @@
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/Column.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/Column.kt
+index 05f5b7f431..19762859ae 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/Column.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/Column.kt
+@@ -43,7 +43,8 @@ class Column<T>(
+ 
+     fun nameInDatabaseCase(): String = name.inProperCase()
+ 
+-    private val isLastColumnInPK: Boolean get() = table.primaryKey?.columns?.last() == this
++    private val isLastColumnInPK: Boolean
++        get() = this == table.primaryKey?.columns?.last()
+ 
+     internal val isPrimaryConstraintWillBeDefined: Boolean get() = when {
+         currentDialect is SQLiteDialect && columnType.isAutoInc -> false
+@@ -75,7 +76,7 @@ class Column<T>(
+         return listOf("ALTER TABLE ${tr.identity(table)} DROP COLUMN ${tr.identity(this)}")
+     }
+ 
+-    internal fun isOneColumnPK(): Boolean = table.primaryKey?.columns?.singleOrNull() == this
++    internal fun isOneColumnPK(): Boolean = this == table.primaryKey?.columns?.singleOrNull()
+ 
+     /** Returns the SQL representation of this column. */
+     fun descriptionDdl(modify: Boolean = false): String = buildString {
+diff --git a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ColumnType.kt b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ColumnType.kt
+index 6a969b085e..89397685ee 100644
+--- a/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ColumnType.kt
++++ b/exposed-core/src/main/kotlin/org/jetbrains/exposed/sql/ColumnType.kt
+@@ -213,13 +213,12 @@ class EntityIDColumnType<T : Comparable<T>>(val idColumn: Column<T>) : ColumnTyp
+ 
+     override fun equals(other: Any?): Boolean {
+         if (this === other) return true
+-        if (javaClass != other?.javaClass) return false
+-
+-        other as EntityIDColumnType<*>
+-
+-        if (idColumn != other.idColumn) return false
+ 
+-        return true
++        return when (other) {
++            is EntityIDColumnType<*> -> idColumn == other.idColumn
++            is IColumnType -> idColumn.columnType == other
++            else -> false
++        }
+     }
+ 
+     override fun hashCode(): Int = 31 * super.hashCode() + idColumn.hashCode()

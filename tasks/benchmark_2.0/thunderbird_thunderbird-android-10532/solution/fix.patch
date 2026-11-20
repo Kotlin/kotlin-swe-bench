@@ -1,0 +1,105 @@
+diff --git a/feature/mail/message/list/api/src/main/kotlin/net/thunderbird/feature/mail/message/list/LocalDeleteOperationDecider.kt b/feature/mail/message/list/api/src/main/kotlin/net/thunderbird/feature/mail/message/list/LocalDeleteOperationDecider.kt
+new file mode 100644
+index 00000000000..5216f55eecb
+--- /dev/null
++++ b/feature/mail/message/list/api/src/main/kotlin/net/thunderbird/feature/mail/message/list/LocalDeleteOperationDecider.kt
+@@ -0,0 +1,20 @@
++package net.thunderbird.feature.mail.message.list
++
++import net.thunderbird.core.android.account.LegacyAccountDto
++
++/**
++ * Decides whether deleting a message in the app moves it to the trash folder or deletes it immediately.
++ *
++ * Note: This only applies to local messages. What remote operation is performed when deleting a message is controlled
++ * by [LegacyAccountDto.deletePolicy].
++ */
++interface LocalDeleteOperationDecider {
++    /**
++     * Returns `true` if messages in the given folder should be deleted immediately
++     * rather than moved to the trash folder.
++     *
++     * @param account The account the message belongs to.
++     * @param folderId The ID of the folder the message is being deleted from.
++     */
++    fun isDeleteImmediately(account: LegacyAccountDto, folderId: Long): Boolean
++}
+diff --git a/legacy/core/src/main/java/com/fsck/k9/controller/LocalDeleteOperationDecider.kt b/feature/mail/message/list/internal/src/main/kotlin/net/thunderbird/feature/mail/message/list/internal/DefaultLocalDeleteOperationDecider.kt
+similarity index 56%
+rename from legacy/core/src/main/java/com/fsck/k9/controller/LocalDeleteOperationDecider.kt
+rename to feature/mail/message/list/internal/src/main/kotlin/net/thunderbird/feature/mail/message/list/internal/DefaultLocalDeleteOperationDecider.kt
+index 9b532c237a7..e5c951b05c9 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/controller/LocalDeleteOperationDecider.kt
++++ b/feature/mail/message/list/internal/src/main/kotlin/net/thunderbird/feature/mail/message/list/internal/DefaultLocalDeleteOperationDecider.kt
+@@ -1,15 +1,13 @@
+-package com.fsck.k9.controller
++package net.thunderbird.feature.mail.message.list.internal
+ 
+ import net.thunderbird.core.android.account.LegacyAccountDto
++import net.thunderbird.feature.mail.message.list.LocalDeleteOperationDecider
+ 
+-/**
+- * Decides whether deleting a message in the app moves it to the trash folder or deletes it immediately.
+- *
+- * Note: This only applies to local messages. What remote operation is performed when deleting a message is controlled
+- * by [LegacyAccountDto.deletePolicy].
+- */
+-internal class LocalDeleteOperationDecider {
+-    fun isDeleteImmediately(account: LegacyAccountDto, folderId: Long): Boolean {
++class DefaultLocalDeleteOperationDecider : LocalDeleteOperationDecider {
++    override fun isDeleteImmediately(
++        account: LegacyAccountDto,
++        folderId: Long,
++    ): Boolean {
+         // If there's no trash folder configured, all messages are deleted immediately.
+         if (!account.hasTrashFolder()) {
+             return true
+diff --git a/feature/mail/message/list/internal/src/main/kotlin/net/thunderbird/feature/mail/message/list/internal/FeatureMessageListModule.kt b/feature/mail/message/list/internal/src/main/kotlin/net/thunderbird/feature/mail/message/list/internal/FeatureMessageListModule.kt
+index 27b35a3080c..e3a7bc58f9f 100644
+--- a/feature/mail/message/list/internal/src/main/kotlin/net/thunderbird/feature/mail/message/list/internal/FeatureMessageListModule.kt
++++ b/feature/mail/message/list/internal/src/main/kotlin/net/thunderbird/feature/mail/message/list/internal/FeatureMessageListModule.kt
+@@ -2,6 +2,7 @@ package net.thunderbird.feature.mail.message.list.internal
+ 
+ import net.thunderbird.core.common.inject.factoryListOf
+ import net.thunderbird.core.common.inject.getList
++import net.thunderbird.feature.mail.message.list.LocalDeleteOperationDecider
+ import net.thunderbird.feature.mail.message.list.domain.DomainContract
+ import net.thunderbird.feature.mail.message.list.internal.domain.usecase.BuildSwipeActions
+ import net.thunderbird.feature.mail.message.list.internal.domain.usecase.CreateArchiveFolder
+@@ -117,4 +118,5 @@ val featureMessageListModule = module {
+             stateSideEffectHandlersFactories = getList { parameters },
+         )
+     }
++    single<LocalDeleteOperationDecider> { DefaultLocalDeleteOperationDecider() }
+ }
+diff --git a/legacy/core/src/main/java/com/fsck/k9/controller/KoinModule.kt b/legacy/core/src/main/java/com/fsck/k9/controller/KoinModule.kt
+index 042772c9f57..ef4286c3ff1 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/controller/KoinModule.kt
++++ b/legacy/core/src/main/java/com/fsck/k9/controller/KoinModule.kt
+@@ -14,6 +14,7 @@ import com.fsck.k9.notification.NotificationStrategy
+ import net.thunderbird.core.featureflag.FeatureFlagProvider
+ import net.thunderbird.core.logging.Logger
+ import net.thunderbird.feature.mail.folder.api.OutboxFolderManager
++import net.thunderbird.feature.mail.message.list.LocalDeleteOperationDecider
+ import net.thunderbird.feature.notification.api.NotificationManager
+ import org.koin.core.qualifier.named
+ import org.koin.dsl.binds
+@@ -57,6 +58,4 @@ val controllerModule = module {
+             outboxFolderManager = get(),
+         )
+     }
+-
+-    single { LocalDeleteOperationDecider() }
+ }
+diff --git a/legacy/core/src/main/java/com/fsck/k9/controller/MessagingController.java b/legacy/core/src/main/java/com/fsck/k9/controller/MessagingController.java
+index bd8a143a7a3..d5a86f5b038 100644
+--- a/legacy/core/src/main/java/com/fsck/k9/controller/MessagingController.java
++++ b/legacy/core/src/main/java/com/fsck/k9/controller/MessagingController.java
+@@ -88,6 +88,7 @@
+ import net.thunderbird.core.featureflag.compat.FeatureFlagProviderCompat;
+ import net.thunderbird.core.logging.Logger;
+ import net.thunderbird.core.logging.legacy.Log;
++import net.thunderbird.feature.mail.message.list.LocalDeleteOperationDecider;
+ import net.thunderbird.feature.mail.folder.api.OutboxFolderManager;
+ import net.thunderbird.feature.mail.folder.api.OutboxFolderManagerKt;
+ import net.thunderbird.feature.notification.api.NotificationManager;

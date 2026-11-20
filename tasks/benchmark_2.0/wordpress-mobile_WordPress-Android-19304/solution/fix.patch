@@ -1,0 +1,732 @@
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/domains/DomainRegistrationCheckoutWebViewNavigationDelegate.kt b/WordPress/src/main/java/org/wordpress/android/ui/domains/DomainRegistrationCheckoutWebViewNavigationDelegate.kt
+index cac0b26ebdc7..131276e76175 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/domains/DomainRegistrationCheckoutWebViewNavigationDelegate.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/domains/DomainRegistrationCheckoutWebViewNavigationDelegate.kt
+@@ -8,6 +8,7 @@ object DomainRegistrationCheckoutWebViewNavigationDelegate {
+         UrlMatcher(
+             ".*wordpress.com".toRegex(),
+             listOf(
++                "/jetpack-app".toRegex(),
+                 "/plans.*?.*".toRegex(),
+                 "/automattic-domain-name-registration-agreement.*".toRegex(),
+                 "/checkout.*".toRegex(),
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationActivity.kt b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationActivity.kt
+index f1c742345b34..a892881e0f7b 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationActivity.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationActivity.kt
+@@ -34,6 +34,7 @@ import org.wordpress.android.ui.sitecreation.SiteCreationResult.Created
+ import org.wordpress.android.ui.sitecreation.SiteCreationResult.CreatedButNotFetched
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.DOMAINS
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.INTENTS
++import org.wordpress.android.ui.sitecreation.SiteCreationStep.PLANS
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.PROGRESS
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.SITE_DESIGNS
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.SITE_NAME
+@@ -43,6 +44,9 @@ import org.wordpress.android.ui.sitecreation.domains.DomainsScreenListener
+ import org.wordpress.android.ui.sitecreation.domains.SiteCreationDomainsFragment
+ import org.wordpress.android.ui.sitecreation.misc.OnHelpClickedListener
+ import org.wordpress.android.ui.sitecreation.misc.SiteCreationSource
++import org.wordpress.android.ui.sitecreation.plans.PlanModel
++import org.wordpress.android.ui.sitecreation.plans.PlansScreenListener
++import org.wordpress.android.ui.sitecreation.plans.SiteCreationPlansFragment
+ import org.wordpress.android.ui.sitecreation.previews.SiteCreationPreviewFragment
+ import org.wordpress.android.ui.sitecreation.previews.SitePreviewViewModel
+ import org.wordpress.android.ui.sitecreation.progress.SiteCreationProgressFragment
+@@ -70,6 +74,7 @@ class SiteCreationActivity : LocaleAwareActivity(),
+     IntentsScreenListener,
+     SiteNameScreenListener,
+     DomainsScreenListener,
++    PlansScreenListener,
+     OnHelpClickedListener,
+     BasicDialogPositiveClickInterface,
+     BasicDialogNegativeClickInterface {
+@@ -220,6 +225,10 @@ class SiteCreationActivity : LocaleAwareActivity(),
+         mainViewModel.onDomainsScreenFinished(domain)
+     }
+ 
++    override fun onPlanSelected(plan: PlanModel) {
++        mainViewModel.onPlanSelection(plan)
++    }
++
+     override fun onHelpClicked(origin: Origin) {
+         ActivityLauncher.viewHelp(this, origin, null, null)
+     }
+@@ -235,6 +244,7 @@ class SiteCreationActivity : LocaleAwareActivity(),
+                 HomePagePickerFragment.newInstance(target.wizardState.siteIntent)
+             }
+             DOMAINS -> SiteCreationDomainsFragment.newInstance(screenTitle)
++            PLANS -> SiteCreationPlansFragment.newInstance(target.wizardState)
+             PROGRESS -> SiteCreationProgressFragment.newInstance(target.wizardState)
+             SITE_PREVIEW -> SiteCreationPreviewFragment.newInstance(screenTitle, target.wizardState)
+         }
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationMainVM.kt b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationMainVM.kt
+index 8b2249636750..3c52ce378bf6 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationMainVM.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationMainVM.kt
+@@ -32,6 +32,7 @@ import org.wordpress.android.ui.sitecreation.SiteCreationResult.NotCreated
+ import org.wordpress.android.ui.sitecreation.domains.DomainModel
+ import org.wordpress.android.ui.sitecreation.misc.SiteCreationSource
+ import org.wordpress.android.ui.sitecreation.misc.SiteCreationTracker
++import org.wordpress.android.ui.sitecreation.plans.PlanModel
+ import org.wordpress.android.ui.sitecreation.usecases.FetchHomePageLayoutsUseCase
+ import org.wordpress.android.ui.utils.UiString.UiStringRes
+ import org.wordpress.android.util.AppLog
+@@ -59,6 +60,7 @@ data class SiteCreationState(
+     val segmentId: Long? = null,
+     val siteDesign: String? = null,
+     val domain: DomainModel? = null,
++    val plan: PlanModel? = null,
+     val result: SiteCreationResult = NotCreated,
+ ) : WizardState, Parcelable
+ 
+@@ -260,6 +262,11 @@ class SiteCreationMainVM @Inject constructor(
+                 siteCreationState = siteCreationState.copy(domain = null)
+             }
+         }
++        if (wizardStep == SiteCreationStep.PLANS) {
++            siteCreationState.plan?.let {
++                siteCreationState = siteCreationState.copy(plan = null)
++            }
++        }
+     }
+ 
+     fun onDomainsScreenFinished(domain: DomainModel) {
+@@ -267,6 +274,23 @@ class SiteCreationMainVM @Inject constructor(
+         wizardManager.showNextStep()
+     }
+ 
++    fun onPlanSelection(plan: PlanModel) {
++        siteCreationState = siteCreationState.copy(plan = plan)
++        if (plan.productSlug == "free_plan") {
++            // if they select a paid domain, then choose a free plan, with free domain on plan selection screen
++            siteCreationState = siteCreationState.copy(
++                domain = DomainModel(
++                    domainName = plan.productName.orEmpty(),
++                    isFree = true,
++                    cost = "",
++                    productId = 0,
++                    supportsPrivacy = false
++                )
++            )
++        }
++        wizardManager.showNextStep()
++    }
++
+     fun screenTitleForWizardStep(step: SiteCreationStep): SiteCreationScreenTitle {
+         val stepPosition = wizardManager.stepPosition(step)
+         val stepCount = wizardManager.stepsCount
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationStep.kt b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationStep.kt
+index 6a2e52a4fead..86afa3549d90 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationStep.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/SiteCreationStep.kt
+@@ -2,6 +2,7 @@ package org.wordpress.android.ui.sitecreation
+ 
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.DOMAINS
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.INTENTS
++import org.wordpress.android.ui.sitecreation.SiteCreationStep.PLANS
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.PROGRESS
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.SITE_DESIGNS
+ import org.wordpress.android.ui.sitecreation.SiteCreationStep.SITE_NAME
+@@ -13,7 +14,7 @@ import javax.inject.Inject
+ import javax.inject.Singleton
+ 
+ enum class SiteCreationStep : WizardStep {
+-    SITE_DESIGNS, DOMAINS, PROGRESS, SITE_PREVIEW, INTENTS, SITE_NAME;
++    SITE_DESIGNS, DOMAINS, PLANS, PROGRESS, SITE_PREVIEW, INTENTS, SITE_NAME;
+ }
+ 
+ @Singleton
+@@ -26,7 +27,7 @@ class SiteCreationStepsProvider @Inject constructor(
+ 
+     fun getSteps(): List<SiteCreationStep> = when {
+         isSiteNameEnabled -> listOf(INTENTS, SITE_NAME, SITE_DESIGNS, PROGRESS, SITE_PREVIEW)
+-        isIntentsEnabled -> listOf(INTENTS, SITE_DESIGNS, DOMAINS, PROGRESS, SITE_PREVIEW)
+-        else -> listOf(SITE_DESIGNS, DOMAINS, PROGRESS, SITE_PREVIEW)
++        isIntentsEnabled -> listOf(INTENTS, SITE_DESIGNS, DOMAINS, PLANS, PROGRESS, SITE_PREVIEW)
++        else -> listOf(SITE_DESIGNS, DOMAINS, PLANS, PROGRESS, SITE_PREVIEW)
+     }
+ }
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/PlansScreenListener.kt b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/PlansScreenListener.kt
+new file mode 100644
+index 000000000000..7e3ed9f1eee2
+--- /dev/null
++++ b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/PlansScreenListener.kt
+@@ -0,0 +1,17 @@
++package org.wordpress.android.ui.sitecreation.plans
++
++import android.os.Parcelable
++import kotlinx.parcelize.Parcelize
++
++interface PlansScreenListener {
++    fun onPlanSelected(plan: PlanModel)
++}
++
++@Parcelize
++data class PlanModel(
++    val productId: Int?,
++    val productSlug: String?,
++    val productName: String?,
++    val isCurrentPlan: Boolean,
++    val hasDomainCredit: Boolean
++) : Parcelable
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansFragment.kt b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansFragment.kt
+new file mode 100644
+index 000000000000..e60918086813
+--- /dev/null
++++ b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansFragment.kt
+@@ -0,0 +1,210 @@
++package org.wordpress.android.ui.sitecreation.plans
++
++import android.annotation.SuppressLint
++import android.net.Uri
++import android.os.Bundle
++import android.view.LayoutInflater
++import android.view.View
++import android.view.ViewGroup
++import android.webkit.WebView
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.material.Button
++import androidx.compose.material.MaterialTheme
++import androidx.compose.material.Scaffold
++import androidx.compose.material.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.ComposeView
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.viewinterop.AndroidView
++import androidx.fragment.app.Fragment
++import androidx.fragment.app.viewModels
++import androidx.lifecycle.lifecycleScope
++import androidx.lifecycle.viewmodel.compose.viewModel
++import dagger.hilt.android.AndroidEntryPoint
++import kotlinx.coroutines.flow.launchIn
++import kotlinx.coroutines.flow.onEach
++import org.wordpress.android.R
++import org.wordpress.android.ui.WPWebViewActivity
++import org.wordpress.android.ui.compose.components.MainTopAppBar
++import org.wordpress.android.ui.compose.components.NavigationIcons
++import org.wordpress.android.ui.compose.theme.AppTheme
++import org.wordpress.android.ui.compose.utils.uiStringText
++import org.wordpress.android.ui.main.jetpack.migration.compose.state.LoadingState
++import org.wordpress.android.ui.sitecreation.SiteCreationActivity.Companion.ARG_STATE
++import org.wordpress.android.ui.sitecreation.SiteCreationState
++import org.wordpress.android.ui.sitecreation.plans.SiteCreationPlansWebViewClient.SiteCreationPlansWebViewClientListener
++import org.wordpress.android.util.extensions.getParcelableCompat
++
++@AndroidEntryPoint
++class SiteCreationPlansFragment : Fragment(), SiteCreationPlansWebViewClientListener {
++    private val viewModel: SiteCreationPlansViewModel by viewModels()
++
++    override fun onCreateView(
++        inflater: LayoutInflater, container: ViewGroup?,
++        savedInstanceState: Bundle?
++    ): View = ComposeView(requireContext()).apply {
++        setContent {
++            AppTheme {
++                SiteCreationPlansPage(
++                    navigationUp = requireActivity().onBackPressedDispatcher::onBackPressed
++                )
++            }
++        }
++    }
++
++    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
++        super.onViewCreated(view, savedInstanceState)
++
++        viewModel.start(requireNotNull(requireArguments().getParcelableCompat(ARG_STATE)))
++        viewModel.actionEvents.onEach(this::handleActionEvents).launchIn(viewLifecycleOwner.lifecycleScope)
++    }
++
++    private fun handleActionEvents(actionEvent: SiteCreationPlansActionEvent) {
++        when (actionEvent) {
++            is SiteCreationPlansActionEvent.CreateSite -> {
++                (requireActivity() as PlansScreenListener).onPlanSelected(actionEvent.planModel)
++            }
++        }
++    }
++
++    // SiteCreationWebViewClient
++    override fun onPlanSelected(uri: Uri) {
++        viewModel.onPlanSelected(uri)
++    }
++
++    override fun onWebViewPageLoaded() {
++        viewModel.onUrlLoaded()
++    }
++
++    override fun onWebViewReceivedError() {
++        viewModel.onWebViewError()
++    }
++
++    @Composable
++    @SuppressLint("UnusedMaterialScaffoldPaddingParameter")
++    fun SiteCreationPlansPage(
++        navigationUp: () -> Unit = { },
++        viewModel: SiteCreationPlansViewModel = viewModel(),
++    ) {
++        val uiState by viewModel.uiState.collectAsState()
++        Scaffold(
++            topBar = {
++                MainTopAppBar(
++                    title = stringResource(R.string.site_creation_plans_selection_title),
++                    navigationIcon = NavigationIcons.BackIcon,
++                    onNavigationIconClick = navigationUp
++                )
++            },
++            content = { SiteCreationPlansContent(uiState) }
++        )
++    }
++
++    @SuppressLint("SetJavaScriptEnabled")
++    @Composable
++    private fun SiteCreationPlansContent(uiState: SiteCreationPlansUiState) {
++        when (uiState) {
++            is SiteCreationPlansUiState.Preparing -> LoadingState()
++            is SiteCreationPlansUiState.Prepared,
++            is SiteCreationPlansUiState.Loaded -> SiteCreationPlansWebView(uiState)
++            is SiteCreationPlansUiState.Error -> SiteCreationPlansError(uiState)
++        }
++    }
++
++    @Composable
++    fun SiteCreationPlansError(error: SiteCreationPlansUiState.Error) {
++        Column(
++            horizontalAlignment = Alignment.CenterHorizontally,
++            verticalArrangement = Arrangement.Center,
++            modifier = Modifier
++                .padding(20.dp)
++                .fillMaxWidth()
++                .fillMaxHeight(),
++        ) {
++            Text(
++                text = uiStringText(uiString = error.title),
++                style = MaterialTheme.typography.h5,
++                textAlign = TextAlign.Center
++            )
++            Text(
++                text = uiStringText(uiString = error.description),
++                style = MaterialTheme.typography.body1,
++                textAlign = TextAlign.Center,
++                modifier = Modifier.padding(top = 8.dp)
++            )
++            if (error.button != null) {
++                Button(
++                    modifier = Modifier.padding(top = 8.dp),
++                    onClick = error.button.click
++                ) {
++                    Text(text = uiStringText(uiString = error.button.text))
++                }
++            }
++        }
++    }
++
++    @SuppressLint("SetJavaScriptEnabled")
++    @Composable
++    private fun SiteCreationPlansWebView(uiState: SiteCreationPlansUiState) {
++        var webView: WebView? by remember { mutableStateOf(null) }
++
++        if (uiState is SiteCreationPlansUiState.Prepared) {
++            val model = uiState.model
++            LaunchedEffect(true) {
++                webView = WebView(requireContext()).apply {
++                    layoutParams = ViewGroup.LayoutParams(
++                        ViewGroup.LayoutParams.MATCH_PARENT,
++                        ViewGroup.LayoutParams.MATCH_PARENT
++                    )
++                    scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
++                    settings.userAgentString = model.userAgent
++                    settings.javaScriptEnabled = model.enableJavascript
++                    settings.domStorageEnabled = model.enableDomStorage
++                    webViewClient = SiteCreationPlansWebViewClient(this@SiteCreationPlansFragment)
++                    postUrl(WPWebViewActivity.WPCOM_LOGIN_URL, model.addressToLoad.toByteArray())
++                }
++            }
++        }
++
++        Box(
++            modifier = Modifier.fillMaxSize(),
++            contentAlignment = Alignment.Center
++        ) {
++            if (uiState is SiteCreationPlansUiState.Prepared) {
++                LoadingState()
++            } else {
++                webView?.let { theWebView ->
++                    AndroidView(
++                        factory = { theWebView },
++                        modifier = Modifier.fillMaxSize()
++                    )
++                }
++            }
++        }
++    }
++
++    companion object {
++        const val TAG = "site_creation_plans_fragment_tag"
++
++        fun newInstance(siteCreationState: SiteCreationState) = SiteCreationPlansFragment().apply {
++            arguments = Bundle().apply {
++                putParcelable(ARG_STATE, siteCreationState)
++            }
++        }
++    }
++}
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansUiState.kt b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansUiState.kt
+new file mode 100644
+index 000000000000..281e8cf24fa5
+--- /dev/null
++++ b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansUiState.kt
+@@ -0,0 +1,52 @@
++package org.wordpress.android.ui.sitecreation.plans
++
++import org.wordpress.android.R
++import org.wordpress.android.ui.utils.UiString
++
++sealed class SiteCreationPlansUiState {
++    object Preparing : SiteCreationPlansUiState()
++
++    data class Prepared(
++        val model: SiteCreationPlansModel
++    ) : SiteCreationPlansUiState()
++
++    object Loaded : SiteCreationPlansUiState()
++
++    open class Error(
++        val title: UiString,
++        val description: UiString,
++        val button: ErrorButton? = null
++    ) : SiteCreationPlansUiState() {
++        data class ErrorButton(
++            val text: UiString,
++            val click: () -> Unit
++        )
++    }
++
++    data class NoNetworkError(val buttonClick: () -> Unit): Error(
++        title = UiString.UiStringRes(R.string.no_network_title),
++        description = UiString.UiStringRes(R.string.request_failed_message),
++        button = ErrorButton(
++            text = UiString.UiStringRes(R.string.retry),
++            click = buttonClick
++        )
++    )
++
++    data class GenericError(val buttonClick: () -> Unit): Error(
++        title = UiString.UiStringRes(R.string.jp_migration_generic_error_title),
++        description = UiString.UiStringRes(R.string.request_failed_message),
++        button = ErrorButton(
++            text = UiString.UiStringRes(R.string.retry),
++            click = buttonClick
++        )
++    )
++}
++
++data class SiteCreationPlansModel(
++    val enableJavascript: Boolean = true,
++    val enableDomStorage: Boolean = true,
++    val enableChromeClient: Boolean = true,
++    val userAgent: String = "",
++    val url: String = "",
++    val addressToLoad: String = ""
++)
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansViewModel.kt
+new file mode 100644
+index 000000000000..2bd322fea5c8
+--- /dev/null
++++ b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansViewModel.kt
+@@ -0,0 +1,178 @@
++package org.wordpress.android.ui.sitecreation.plans
++
++import android.net.Uri
++import android.text.TextUtils
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.viewModelScope
++import dagger.hilt.android.lifecycle.HiltViewModel
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.receiveAsFlow
++import kotlinx.coroutines.launch
++import org.wordpress.android.WordPress
++import org.wordpress.android.fluxc.model.SiteModel
++import org.wordpress.android.fluxc.store.AccountStore
++import org.wordpress.android.fluxc.store.SiteStore
++import org.wordpress.android.ui.WPWebViewActivity
++import org.wordpress.android.ui.sitecreation.SiteCreationState
++import org.wordpress.android.ui.sitecreation.domains.DomainModel
++import org.wordpress.android.util.AppLog
++import org.wordpress.android.util.NetworkUtilsWrapper
++import javax.inject.Inject
++
++@HiltViewModel
++class SiteCreationPlansViewModel @Inject constructor(
++    private val accountStore: AccountStore,
++    private val siteStore: SiteStore,
++    private val networkUtilsWrapper: NetworkUtilsWrapper
++) : ViewModel() {
++    private val _uiState = MutableStateFlow<SiteCreationPlansUiState>(SiteCreationPlansUiState.Preparing)
++    val uiState = _uiState as StateFlow<SiteCreationPlansUiState>
++
++    private val _actionEvents = Channel<SiteCreationPlansActionEvent>(Channel.BUFFERED)
++    val actionEvents = _actionEvents.receiveAsFlow()
++
++    private lateinit var domainName: DomainModel
++
++    fun start(siteCreationState: SiteCreationState) {
++        domainName = requireNotNull(siteCreationState.domain)
++        showPlans()
++    }
++
++    fun onPlanSelected(uri: Uri) {
++        AppLog.d(AppLog.T.PLANS, uri.toString())
++
++        val planId = uri.getQueryParameter(PLAN_ID_PARAM)?.toInt() ?: 0
++        val planSlug = uri.getQueryParameter(PLAN_SLUG_PARAM).orEmpty()
++        val domainName = uri.getQueryParameter(PAID_DOMAIN_NAME).orEmpty()
++
++        val planModel = PlanModel(
++            productId = planId,
++            productSlug = planSlug,
++            productName = domainName, // using domainName here
++            isCurrentPlan = false,
++            hasDomainCredit = false
++        )
++        postActionEvent(SiteCreationPlansActionEvent.CreateSite(planModel))
++    }
++
++    fun onUrlLoaded() {
++        postUiState(SiteCreationPlansUiState.Loaded)
++    }
++
++    fun onWebViewError() {
++        postUiState(SiteCreationPlansUiState.GenericError(this@SiteCreationPlansViewModel::launchPlans))
++    }
++
++    private fun showPlans() {
++        postUiState(SiteCreationPlansUiState.Preparing)
++        if (!checkForInternetConnectivityAndPostErrorIfNeeded()) return
++        if (!validateAndPostErrorIfNeeded()) return
++        launchPlans()
++    }
++
++    private fun launchPlans() {
++        val url = createURL()
++        AppLog.d(AppLog.T.PLANS, url)
++
++        val addressToLoad = prepareAddressToLoad(url)
++        postUiState(SiteCreationPlansUiState.Prepared(
++            SiteCreationPlansModel(
++                enableJavascript = true,
++                enableDomStorage = true,
++                userAgent = WordPress.getUserAgent(),
++                enableChromeClient = true,
++                url = url,
++                addressToLoad = addressToLoad
++            )
++        ))
++    }
++
++    private fun createURL(): String {
++        val uriBuilder =  Uri.Builder().apply {
++            scheme(SCHEME)
++            authority(AUTHORITY)
++            appendPath(JETPACK_APP_PATH)
++            appendPath(PLANS_PATH)
++            appendQueryParameter(PLAN_ID_PARAM, "")
++            appendQueryParameter(PLAN_SLUG_PARAM, "")
++        }
++
++        if (!domainName.isFree) uriBuilder.apply {
++            appendQueryParameter(PAID_DOMAIN_NAME, domainName.domainName)
++        }
++
++        return uriBuilder.build().toString()
++    }
++
++    private fun prepareAddressToLoad(url: String): String {
++        val username = accountStore.account.userName
++        val accessToken = accountStore.accessToken
++
++        var addressToLoad = url
++
++        // Custom domains are not properly authenticated due to a server side(?) issue, so this gets around that
++        if (!addressToLoad.contains(WPCOM_DOMAIN)) {
++            val wpComSites: List<SiteModel> = siteStore.wPComSites
++            for (siteModel in wpComSites) {
++                // Only replace the url if we know the unmapped url and if it's a custom domain
++                if (!TextUtils.isEmpty(siteModel.unmappedUrl)
++                    && !siteModel.url.contains(WPCOM_DOMAIN)
++                ) {
++                    addressToLoad = addressToLoad.replace(siteModel.url, siteModel.unmappedUrl)
++                }
++            }
++        }
++        return WPWebViewActivity.getAuthenticationPostData(
++            WPCOM_LOGIN_URL,
++            addressToLoad,
++            username,
++            "",
++            accessToken?:""
++        )
++    }
++
++    private fun validateAndPostErrorIfNeeded(): Boolean {
++        if (accountStore.account.userName.isNullOrEmpty() || accountStore.accessToken.isNullOrEmpty()) {
++            postUiState(SiteCreationPlansUiState.GenericError(this@SiteCreationPlansViewModel::showPlans))
++            return false
++        }
++        return true
++    }
++
++    private fun checkForInternetConnectivityAndPostErrorIfNeeded(): Boolean {
++        if (networkUtilsWrapper.isNetworkAvailable()) return true
++        postUiState(SiteCreationPlansUiState.NoNetworkError(this@SiteCreationPlansViewModel::showPlans))
++        return false
++    }
++
++    private fun postUiState(state: SiteCreationPlansUiState) {
++        viewModelScope.launch {
++            _uiState.value = state
++        }
++    }
++
++    private fun postActionEvent(actionEvent: SiteCreationPlansActionEvent) {
++        viewModelScope.launch {
++            _actionEvents.send(actionEvent)
++        }
++    }
++
++    companion object {
++        const val WPCOM_LOGIN_URL = "https://wordpress.com/wp-login.php"
++        const val WPCOM_DOMAIN = ".wordpress.com"
++
++        const val SCHEME = "https"
++        const val AUTHORITY = "wordpress.com"
++        const val JETPACK_APP_PATH = "jetpack-app"
++        const val PLANS_PATH = "plans"
++        const val PLAN_ID_PARAM = "plan_id"
++        const val PLAN_SLUG_PARAM = "plan_slug"
++        const val PAID_DOMAIN_NAME = "paid_domain_name"
++    }
++}
++
++sealed class SiteCreationPlansActionEvent {
++    data class CreateSite(val planModel: PlanModel) : SiteCreationPlansActionEvent()
++}
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansWebViewClient.kt b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansWebViewClient.kt
+new file mode 100644
+index 000000000000..6bc1dc72942d
+--- /dev/null
++++ b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/plans/SiteCreationPlansWebViewClient.kt
+@@ -0,0 +1,31 @@
++package org.wordpress.android.ui.sitecreation.plans
++
++import android.net.Uri
++import android.webkit.WebResourceRequest
++import android.webkit.WebView
++import org.wordpress.android.util.ErrorManagedWebViewClient
++
++class SiteCreationPlansWebViewClient(
++    private val listener: SiteCreationPlansWebViewClientListener
++) : ErrorManagedWebViewClient(listener) {
++    interface SiteCreationPlansWebViewClientListener : ErrorManagedWebViewClientListener {
++        fun onPlanSelected(uri: Uri)
++    }
++
++    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
++        if (request.url.toString().startsWith(JETPACK_APP_PLANS_PATH)) {
++            val planSlug = request.url.getQueryParameter(PLAN_SLUG).orEmpty()
++            if (planSlug.isNotBlank()) {
++                listener.onPlanSelected(request.url)
++            }
++            return false
++        }
++
++        return true
++    }
++
++    companion object {
++        private const val PLAN_SLUG = "plan_slug"
++        private const val JETPACK_APP_PLANS_PATH = "https://wordpress.com/jetpack-app/plans"
++    }
++}
+diff --git a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/progress/SiteCreationProgressViewModel.kt b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/progress/SiteCreationProgressViewModel.kt
+index 14211f62bfe5..8d5196536066 100644
+--- a/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/progress/SiteCreationProgressViewModel.kt
++++ b/WordPress/src/main/java/org/wordpress/android/ui/sitecreation/progress/SiteCreationProgressViewModel.kt
+@@ -21,6 +21,7 @@ import org.wordpress.android.ui.sitecreation.domains.DomainModel
+ import org.wordpress.android.ui.sitecreation.misc.SiteCreationErrorType.INTERNET_UNAVAILABLE_ERROR
+ import org.wordpress.android.ui.sitecreation.misc.SiteCreationErrorType.UNKNOWN
+ import org.wordpress.android.ui.sitecreation.misc.SiteCreationTracker
++import org.wordpress.android.ui.sitecreation.plans.PlanModel
+ import org.wordpress.android.ui.sitecreation.progress.SiteCreationProgressViewModel.SiteProgressUiState.Error.CartError
+ import org.wordpress.android.ui.sitecreation.progress.SiteCreationProgressViewModel.SiteProgressUiState.Error.ConnectionError
+ import org.wordpress.android.ui.sitecreation.progress.SiteCreationProgressViewModel.SiteProgressUiState.Error.GenericError
+@@ -63,6 +64,7 @@ class SiteCreationProgressViewModel @Inject constructor(
+ 
+     private lateinit var siteCreationState: SiteCreationState
+     private lateinit var domain: DomainModel
++    private lateinit var plan: PlanModel
+     private lateinit var site: SiteModel
+ 
+     private var lastReceivedServiceState: SiteCreationServiceState? = null
+@@ -96,7 +98,7 @@ class SiteCreationProgressViewModel @Inject constructor(
+         if (siteCreationState.result is Created) {
+             check(siteCreationState.result !is Completed) { "Unexpected state on progress screen." }
+             // reuse the previously blog when returning with the same domain
+-            if (siteCreationState.domain == domain) {
++            if (siteCreationState.domain == domain && siteCreationState.plan == plan) {
+                 site = siteCreationState.result.site
+                 if (siteCreationState.result is InCart) {
+                     createCart()
+@@ -106,6 +108,7 @@ class SiteCreationProgressViewModel @Inject constructor(
+         }
+         this.siteCreationState = siteCreationState
+         domain = requireNotNull(siteCreationState.domain) { "domain required to create a site" }
++        plan = requireNotNull(siteCreationState.plan) { "plan purchased to create a site" }
+ 
+         runLoadingAnimationUi()
+         startCreateSiteService()
+@@ -173,7 +176,7 @@ class SiteCreationProgressViewModel @Inject constructor(
+             SUCCESS -> {
+                 site = mapPayloadToSiteModel(event.payload)
+                 _onFreeSiteCreated.postValue(site) // MainVM will navigate forward if the domain is free
+-                if (!domain.isFree) {
++                if (!domain.isFree && plan.productId != 0) {
+                     createCart()
+                 }
+             }
+@@ -207,6 +210,7 @@ class SiteCreationProgressViewModel @Inject constructor(
+             domain.domainName,
+             domain.supportsPrivacy,
+             false,
++            planProductId = plan.productId
+         )
+ 
+         if (event.isError) {
+diff --git a/WordPress/src/main/res/values/strings.xml b/WordPress/src/main/res/values/strings.xml
+index 5b9ee14b3b3d..426cf693df4e 100644
+--- a/WordPress/src/main/res/values/strings.xml
++++ b/WordPress/src/main/res/values/strings.xml
+@@ -3418,6 +3418,7 @@
+     <string name="notification_new_site_creation_title">Create Site</string>
+     <string name="notification_new_site_creation_failed">There was a problem</string>
+     <string name="notification_new_site_creation_creating_site_subtitle">We\'re creating your new site</string>
++    <string name="site_creation_plans_selection_title">Select a plan</string>
+ 
+     <!-- Site Creation : Domains - Updated designs -->
+     <string name="site_creation_domain_header_subtitle">Search for a short and memorable domain to help people find and visit your site.</string>

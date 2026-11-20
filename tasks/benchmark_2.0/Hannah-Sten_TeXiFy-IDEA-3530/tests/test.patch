@@ -1,0 +1,15 @@
+diff --git a/test/nl/hannahsten/texifyidea/psi/LatexParserTest.kt b/test/nl/hannahsten/texifyidea/psi/LatexParserTest.kt
+index 6565013e61..d6ecd59eb5 100644
+--- a/test/nl/hannahsten/texifyidea/psi/LatexParserTest.kt
++++ b/test/nl/hannahsten/texifyidea/psi/LatexParserTest.kt
+@@ -255,6 +255,10 @@ class LatexParserTest : BasePlatformTestCase() {
+                 \begin{multicols}{2}
+             }
+             \newcommand{\cmd}{${'$'}x${'$'}}
++            
++            \AfterEndEnvironment{minted}{
++                \end{tcolorbox}
++            }
+             """.trimIndent()
+         )
+         myFixture.checkHighlighting()

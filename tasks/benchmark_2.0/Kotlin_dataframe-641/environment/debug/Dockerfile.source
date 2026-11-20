@@ -1,0 +1,9 @@
+FROM kotlinai/kotlin_dataframe:base-JDK-17
+
+COPY debug/check_git_changes.sh /home/
+COPY debug/prepare.sh /home/
+COPY debug/seal_git_history.sh /home/
+
+RUN bash /home/prepare.sh
+RUN chmod +x /home/*.sh
+WORKDIR /home/dataframe

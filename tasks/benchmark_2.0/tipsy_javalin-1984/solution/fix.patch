@@ -1,0 +1,329 @@
+diff --git a/javalin/src/main/java/io/javalin/config/PrivateConfig.kt b/javalin/src/main/java/io/javalin/config/PrivateConfig.kt
+index c8fe1933a..f6d1e85cd 100644
+--- a/javalin/src/main/java/io/javalin/config/PrivateConfig.kt
++++ b/javalin/src/main/java/io/javalin/config/PrivateConfig.kt
+@@ -28,7 +28,7 @@ class PrivateConfig(val cfg: JavalinConfig) {
+     @JvmField var singlePageHandler = SinglePageHandler()
+     @JvmField var wsLogger: WsConfig? = null
+     @JvmField var compressionStrategy = CompressionStrategy.GZIP
+-    @JvmField var servletRequestLifecycle = listOf(DefaultTasks.BEFORE, DefaultTasks.HTTP, DefaultTasks.ERROR, DefaultTasks.AFTER)
++    @JvmField var servletRequestLifecycle = listOf(DefaultTasks.BEFORE, DefaultTasks.BEFORE_MATCHED, DefaultTasks.HTTP, DefaultTasks.AFTER_MATCHED, DefaultTasks.ERROR, DefaultTasks.AFTER)
+     // Jetty
+     @JvmField var server: Server? = null
+ 
+diff --git a/javalin/src/main/java/io/javalin/http/HandlerType.kt b/javalin/src/main/java/io/javalin/http/HandlerType.kt
+index bdfb72f0c..ec7cedd78 100644
+--- a/javalin/src/main/java/io/javalin/http/HandlerType.kt
++++ b/javalin/src/main/java/io/javalin/http/HandlerType.kt
+@@ -20,6 +20,8 @@ enum class HandlerType(val isHttpMethod: Boolean = true) {
+     BEFORE(isHttpMethod = false),
+     BEFORE_MATCHED(isHttpMethod = false),
+     AFTER_MATCHED(isHttpMethod = false),
++    WEBSOCKET_BEFORE_UPGRADE(isHttpMethod = false),
++    WEBSOCKET_AFTER_UPGRADE(isHttpMethod = false),
+     AFTER(isHttpMethod = false),
+     INVALID(isHttpMethod = false);
+ 
+diff --git a/javalin/src/main/java/io/javalin/http/SinglePageHandler.kt b/javalin/src/main/java/io/javalin/http/SinglePageHandler.kt
+index 677f8c447..2d6be41b6 100644
+--- a/javalin/src/main/java/io/javalin/http/SinglePageHandler.kt
++++ b/javalin/src/main/java/io/javalin/http/SinglePageHandler.kt
+@@ -41,6 +41,16 @@ class SinglePageHandler {
+         pathHandlerMap[hostedPath] = handler
+     }
+ 
++    fun canHandle(ctx: Context): Boolean {
++        val accept = ctx.header(Header.ACCEPT) ?: ""
++        return when {
++            ContentType.HTML !in accept && "*/*" !in accept && accept != "" -> false
++            pathPageMap.findByPath(ctx.path()) != null -> true
++            pathHandlerMap.findByPath(ctx.path()) != null -> true
++            else -> false
++        }
++    }
++
+     fun handle(ctx: Context): Boolean {
+         val accept = ctx.header(Header.ACCEPT) ?: ""
+         if (ContentType.HTML !in accept && "*/*" !in accept && accept != "") return false
+diff --git a/javalin/src/main/java/io/javalin/http/servlet/DefaultTasks.kt b/javalin/src/main/java/io/javalin/http/servlet/DefaultTasks.kt
+index bfd72634a..e827ba219 100644
+--- a/javalin/src/main/java/io/javalin/http/servlet/DefaultTasks.kt
++++ b/javalin/src/main/java/io/javalin/http/servlet/DefaultTasks.kt
+@@ -1,6 +1,5 @@
+ package io.javalin.http.servlet
+ 
+-import io.javalin.http.Context
+ import io.javalin.http.HandlerType
+ import io.javalin.http.HandlerType.GET
+ import io.javalin.http.HandlerType.HEAD
+@@ -10,18 +9,39 @@ import io.javalin.http.servlet.SubmitOrder.FIRST
+ import io.javalin.http.servlet.SubmitOrder.LAST
+ import io.javalin.http.util.MethodNotAllowedUtil
+ import io.javalin.security.accessManagerNotConfiguredException
+-import jakarta.servlet.ServletOutputStream
+ import io.javalin.util.Util.firstOrNull
+-import jakarta.servlet.http.HttpServletResponseWrapper
+ 
+ object DefaultTasks {
+ 
+     val BEFORE = TaskInitializer<JavalinServletContext> { submitTask, servlet, ctx, requestUri ->
+-        servlet.cfg.pvt.internalRouter.findHttpHandlerEntries(HandlerType.BEFORE, requestUri).forEach { entry ->
++        servlet.router.findHttpHandlerEntries(HandlerType.BEFORE, requestUri).forEach { entry ->
+             submitTask(LAST, Task(skipIfExceptionOccurred = true) { entry.handle(ctx, requestUri) })
+         }
+     }
+ 
++    val BEFORE_MATCHED = TaskInitializer<JavalinServletContext> { submitTask, servlet, ctx, requestUri ->
++        val willMatch = willMatch(servlet, ctx, requestUri)
++        servlet.router.findHttpHandlerEntries(HandlerType.BEFORE_MATCHED, requestUri).forEach { entry ->
++            if (willMatch) {
++                submitTask(LAST, Task(skipIfExceptionOccurred = true) { entry.handle(ctx, requestUri) })
++            }
++        }
++    }
++
++    private fun willMatch(
++        servlet: JavalinServlet,
++        ctx: JavalinServletContext,
++        requestUri: String
++    ): Boolean {
++        return when {
++            ctx.method() == HEAD && servlet.router.hasHttpHandlerEntry(GET, requestUri) -> true
++            servlet.router.findHttpHandlerEntries(ctx.method(), requestUri).firstOrNull() != null -> true
++            servlet.cfg.pvt.resourceHandler?.canHandle(ctx) == true -> true
++            servlet.cfg.pvt.singlePageHandler.canHandle(ctx) -> true
++            else -> false
++        }
++    }
++
+     val HTTP = TaskInitializer<JavalinServletContext> { submitTask, servlet, ctx, requestUri ->
+         servlet.router.findHttpHandlerEntries(ctx.method(), requestUri).firstOrNull { entry ->
+             submitTask(
+@@ -35,7 +55,7 @@ object DefaultTasks {
+                                 handler = { submitTask(FIRST, Task { entry.handle(ctx, requestUri) }) }, // we wrap the handler with [submitTask] to treat it as a separate task
+                                 ctx = ctx,
+                                 routeRoles = entry.roles
+-                            )
++                           )
+                         }
+                         else -> entry.handle(ctx, requestUri)
+                     }
+@@ -62,6 +82,15 @@ object DefaultTasks {
+         })
+     }
+ 
++    val AFTER_MATCHED = TaskInitializer<JavalinServletContext> { submitTask, servlet, ctx, requestUri ->
++        val willMatch = willMatch(servlet, ctx, requestUri)
++        servlet.router.findHttpHandlerEntries(HandlerType.AFTER_MATCHED, requestUri).forEach { entry ->
++            if (willMatch) {
++                submitTask(LAST, Task(skipIfExceptionOccurred = false) { entry.handle(ctx, requestUri) })
++            }
++        }
++    }
++
+     val ERROR = TaskInitializer<JavalinServletContext> { submitTask, servlet, ctx, _ ->
+         submitTask(LAST, Task(skipIfExceptionOccurred = false) { servlet.router.handleHttpError(ctx.statusCode(), ctx) })
+     }
+diff --git a/javalin/src/main/java/io/javalin/http/servlet/JavalinServletContext.kt b/javalin/src/main/java/io/javalin/http/servlet/JavalinServletContext.kt
+index f2a79a10e..5cb2c387a 100644
+--- a/javalin/src/main/java/io/javalin/http/servlet/JavalinServletContext.kt
++++ b/javalin/src/main/java/io/javalin/http/servlet/JavalinServletContext.kt
+@@ -141,7 +141,9 @@ class JavalinServletContext(
+         userFutureSupplier = future
+     }
+ 
+-    override fun skipRemainingHandlers(): Context = also { tasks.clear() }
++    override fun skipRemainingHandlers(): Context = also {
++        tasks.clear()
++    }
+ 
+     override fun writeJsonStream(stream: Stream<*>) {
+         minSizeForCompression = 0
+diff --git a/javalin/src/main/java/io/javalin/http/staticfiles/ResourceHandler.java b/javalin/src/main/java/io/javalin/http/staticfiles/ResourceHandler.java
+index d0797406c..4f7f2b1e2 100644
+--- a/javalin/src/main/java/io/javalin/http/staticfiles/ResourceHandler.java
++++ b/javalin/src/main/java/io/javalin/http/staticfiles/ResourceHandler.java
+@@ -3,6 +3,8 @@
+ import io.javalin.http.Context;
+ 
+ public interface ResourceHandler {
++    boolean canHandle(Context context);
++
+     boolean handle(Context context);
+ 
+     boolean addStaticFileConfig(StaticFileConfig config);
+diff --git a/javalin/src/main/java/io/javalin/jetty/JavalinJettyServlet.kt b/javalin/src/main/java/io/javalin/jetty/JavalinJettyServlet.kt
+index 0a90aeadf..c685a1bb5 100644
+--- a/javalin/src/main/java/io/javalin/jetty/JavalinJettyServlet.kt
++++ b/javalin/src/main/java/io/javalin/jetty/JavalinJettyServlet.kt
+@@ -9,11 +9,13 @@ package io.javalin.jetty
+ import io.javalin.config.JavalinConfig
+ import io.javalin.http.Context
+ import io.javalin.http.Handler
++import io.javalin.http.HandlerType
+ import io.javalin.http.Header
+ import io.javalin.http.HttpStatus
+ import io.javalin.http.servlet.JavalinServlet
+ import io.javalin.http.servlet.JavalinServletContext
+ import io.javalin.http.servlet.JavalinServletContextConfig
++import io.javalin.http.servlet.Task
+ import io.javalin.security.accessManagerNotConfiguredException
+ import io.javalin.websocket.*
+ import jakarta.servlet.http.HttpServletRequest
+@@ -70,7 +72,24 @@ class JavalinJettyServlet(val cfg: JavalinConfig, private val httpServlet: Javal
+         if (!allowedByAccessManager(entry, upgradeContext)) return res.sendError(HttpStatus.UNAUTHORIZED.code, HttpStatus.UNAUTHORIZED.message)
+         req.setAttribute(upgradeContextKey, upgradeContext)
+         setWsProtocolHeader(req, res)
+-        super.service(req, res) // everything is okay, perform websocket upgrade
++        // add before handlers
++        cfg.pvt.internalRouter.findHttpHandlerEntries(HandlerType.WEBSOCKET_BEFORE_UPGRADE, requestUri)
++            .forEach { handler -> upgradeContext.tasks.offer(Task { handler.handle(upgradeContext, requestUri) }) }
++        // add actual upgrade handler
++        upgradeContext.tasks.offer(Task { super.service(req, res) })
++        // add after handlers
++        cfg.pvt.internalRouter.findHttpHandlerEntries(HandlerType.WEBSOCKET_AFTER_UPGRADE, requestUri)
++            .forEach { handler -> upgradeContext.tasks.offer(Task { handler.handle(upgradeContext, requestUri) }) }
++
++        while (upgradeContext.tasks.isNotEmpty()) {
++            try {
++                val task = upgradeContext.tasks.poll()
++                task.handler.handle()
++            } catch (e: Exception) {
++                cfg.pvt.internalRouter.handleHttpException(upgradeContext, e)
++                break
++            }
++        }
+     }
+ 
+     private val setUpgradeAllowed = Handler { it.attribute("javalin-ws-upgrade-allowed", true) }
+diff --git a/javalin/src/main/java/io/javalin/jetty/JettyResourceHandler.kt b/javalin/src/main/java/io/javalin/jetty/JettyResourceHandler.kt
+index 443bf5164..1c54982ee 100644
+--- a/javalin/src/main/java/io/javalin/jetty/JettyResourceHandler.kt
++++ b/javalin/src/main/java/io/javalin/jetty/JettyResourceHandler.kt
+@@ -40,10 +40,19 @@ class JettyResourceHandler(val pvt: PrivateConfig) : JavalinResourceHandler {
+     override fun addStaticFileConfig(config: StaticFileConfig): Boolean =
+         if (pvt.server?.isStarted == true) handlers.add(ConfigurableHandler(config, pvt.server!!)) else lateInitConfigs.add(config)
+ 
++    override fun canHandle(ctx: Context) = nonSkippedHandlers().any { handler ->
++        return try {
++            fileOrWelcomeFile(handler, ctx.target) != null
++        } catch (e: Exception) {
++            e.message?.contains("Rejected alias reference") == true ||  // we want to say these are un-handleable (404)
++                e.message?.contains("Failed alias check") == true // we want to say these are un-handleable (404)
++        }
++    }
++
+     override fun handle(ctx: Context): Boolean {
+-        handlers.filter { !it.config.skipFileFunction(ctx.req()) }.forEach { handler ->
++        nonSkippedHandlers().forEach { handler ->
+             try {
+-                val target = ctx.req().requestURI.removePrefix(ctx.req().contextPath)
++                val target = ctx.target
+                 val fileOrWelcomeFile = fileOrWelcomeFile(handler, target)
+                 if (fileOrWelcomeFile != null) {
+                     handler.config.headers.forEach { ctx.header(it.key, it.value) } // set user headers
+@@ -72,6 +81,11 @@ class JettyResourceHandler(val pvt: PrivateConfig) : JavalinResourceHandler {
+ 
+     private fun jettyRequest() = HttpConnection.getCurrentConnection().httpChannel.request as Request
+ 
++    private fun nonSkippedHandlers() =
++        handlers.asSequence().filter { !it.config.skipFileFunction(jettyRequest()) }
++
++    private val Context.target get() = this.req().requestURI.removePrefix(this.req().contextPath)
++
+ }
+ 
+ open class ConfigurableHandler(val config: StaticFileConfig, jettyServer: Server) : ResourceHandler() {
+diff --git a/javalin/src/main/java/io/javalin/router/JavalinDefaultRoutingApi.kt b/javalin/src/main/java/io/javalin/router/JavalinDefaultRoutingApi.kt
+index 4308c86d0..f35141f32 100644
+--- a/javalin/src/main/java/io/javalin/router/JavalinDefaultRoutingApi.kt
++++ b/javalin/src/main/java/io/javalin/router/JavalinDefaultRoutingApi.kt
+@@ -5,7 +5,9 @@ import io.javalin.http.ExceptionHandler
+ import io.javalin.http.Handler
+ import io.javalin.http.HandlerType
+ import io.javalin.http.HandlerType.AFTER
++import io.javalin.http.HandlerType.AFTER_MATCHED
+ import io.javalin.http.HandlerType.BEFORE
++import io.javalin.http.HandlerType.BEFORE_MATCHED
+ import io.javalin.http.HandlerType.DELETE
+ import io.javalin.http.HandlerType.GET
+ import io.javalin.http.HandlerType.HEAD
+@@ -13,6 +15,8 @@ import io.javalin.http.HandlerType.OPTIONS
+ import io.javalin.http.HandlerType.PATCH
+ import io.javalin.http.HandlerType.POST
+ import io.javalin.http.HandlerType.PUT
++import io.javalin.http.HandlerType.WEBSOCKET_AFTER_UPGRADE
++import io.javalin.http.HandlerType.WEBSOCKET_BEFORE_UPGRADE
+ import io.javalin.http.HttpStatus
+ import io.javalin.http.sse.SseClient
+ import io.javalin.http.sse.SseHandler
+@@ -232,6 +236,18 @@ interface JavalinDefaultRoutingApi<API : RoutingApi> : RoutingApi {
+      */
+     fun before(handler: Handler): API = before("*", handler)
+ 
++    /**
++     * Adds a BEFORE_MATCHED request handler for the specified path to the instance.
++     * See: [Handlers in docs](https://javalin.io/documentation.before-handlers)
++     */
++    fun beforeMatched(path: String, handler: Handler): API = addHttpHandler(BEFORE_MATCHED, path, handler)
++
++    /**
++     * Adds a BEFORE_MATCHED request handler for all routes in the instance.
++     * See: [Handlers in docs](https://javalin.io/documentation.before-handlers)
++     */
++    fun beforeMatched(handler: Handler): API = beforeMatched("*", handler)
++
+     /**
+      * Adds an AFTER request handler for the specified path to the instance.
+      * See: [Handlers in docs](https://javalin.io/documentation.before-handlers)
+@@ -244,6 +260,18 @@ interface JavalinDefaultRoutingApi<API : RoutingApi> : RoutingApi {
+      */
+     fun after(handler: Handler): API = after("*", handler)
+ 
++    /**
++     * Adds an AFTER_MATCHED request handler for the specified path to the instance.
++     * See: [Handlers in docs](https://javalin.io/documentation.before-handlers)
++     */
++    fun afterMatched(path: String, handler: Handler): API = addHttpHandler(AFTER_MATCHED, path, handler)
++
++    /**
++     * Adds an AFTER_MATCHED request handler for all routes in the instance.
++     * See: [Handlers in docs](https://javalin.io/documentation.before-handlers)
++     */
++    fun afterMatched(handler: Handler): API = afterMatched("*", handler)
++
+     /**
+      * Adds a WebSocket exception mapper to the instance.
+      * See: [Exception mapping in docs](https://javalin.io/documentation.exception-mapping)
+@@ -280,6 +308,16 @@ interface JavalinDefaultRoutingApi<API : RoutingApi> : RoutingApi {
+      */
+     fun wsBefore(wsConfig: Consumer<WsConfig>): API = wsBefore("*", wsConfig)
+ 
++    /**
++     * Adds a WebSocket before upgrade handler for the specified path to the instance.
++     */
++    fun wsBeforeUpgrade(path: String, handler: Handler): API = addHttpHandler(WEBSOCKET_BEFORE_UPGRADE, path, handler)
++
++    /**
++     * Adds a WebSocket before upgrade handler for all routes in the instance.
++     */
++    fun wsBeforeUpgrade(handler: Handler): API = wsBeforeUpgrade("*", handler)
++
+     /**
+      * Adds a WebSocket after handler for the specified path to the instance.
+      */
+@@ -290,4 +328,14 @@ interface JavalinDefaultRoutingApi<API : RoutingApi> : RoutingApi {
+      */
+     fun wsAfter(wsConfig: Consumer<WsConfig>): API = wsAfter("*", wsConfig)
+ 
++    /**
++     * Adds a WebSocket after upgrade handler for the specified path to the instance.
++     */
++    fun wsAfterUpgrade(path: String, handler: Handler): API = addHttpHandler(WEBSOCKET_AFTER_UPGRADE, path, handler)
++
++    /**
++     * Adds a WebSocket after upgrade handler for all routes in the instance.
++     */
++    fun wsAfterUpgrade(handler: Handler): API = wsAfterUpgrade("*", handler)
++
+ }

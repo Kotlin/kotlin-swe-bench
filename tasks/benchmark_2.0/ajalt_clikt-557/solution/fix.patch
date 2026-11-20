@@ -1,0 +1,207 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 084c78c2..462623ab 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,9 @@
+ - Added completion commands for suspending and chained commands.  ([#553](https://github.com/ajalt/clikt/pull/553))
+ - Added no-op suspending commands. ([#554](https://github.com/ajalt/clikt/pull/554))
+ 
++### Changed
++- Unknown option errors and missing argument errors that occur at the same time will now both be reported. ([#553](https://github.com/ajalt/clikt/pull/553))
++
+ ## 5.0.0
+ ### Added
+ - Publish `iosArm64` and `iosX64` targets.
+diff --git a/clikt/api/clikt.api b/clikt/api/clikt.api
+index 052a8895..25d052cd 100644
+--- a/clikt/api/clikt.api
++++ b/clikt/api/clikt.api
+@@ -412,8 +412,10 @@ public final class com/github/ajalt/clikt/core/NoSuchArgument : com/github/ajalt
+ }
+ 
+ public final class com/github/ajalt/clikt/core/NoSuchOption : com/github/ajalt/clikt/core/UsageError {
++	public fun <init> (Ljava/lang/String;)V
+ 	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+-	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
++	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;)V
++	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+ 	public fun formatMessage (Lcom/github/ajalt/clikt/output/Localization;Lcom/github/ajalt/clikt/output/ParameterFormatter;)Ljava/lang/String;
+ }
+ 
+@@ -686,6 +688,7 @@ public abstract interface class com/github/ajalt/clikt/output/Localization {
+ 	public abstract fun missingOption (Ljava/lang/String;)Ljava/lang/String;
+ 	public abstract fun mutexGroupException (Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;
+ 	public abstract fun noSuchOption (Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;
++	public abstract fun noSuchOptionWithSubCommandPossibility (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+ 	public abstract fun noSuchSubcommand (Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;
+ 	public abstract fun optionsMetavar ()Ljava/lang/String;
+ 	public abstract fun optionsTitle ()Ljava/lang/String;
+@@ -745,6 +748,7 @@ public final class com/github/ajalt/clikt/output/Localization$DefaultImpls {
+ 	public static fun missingOption (Lcom/github/ajalt/clikt/output/Localization;Ljava/lang/String;)Ljava/lang/String;
+ 	public static fun mutexGroupException (Lcom/github/ajalt/clikt/output/Localization;Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;
+ 	public static fun noSuchOption (Lcom/github/ajalt/clikt/output/Localization;Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;
++	public static fun noSuchOptionWithSubCommandPossibility (Lcom/github/ajalt/clikt/output/Localization;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+ 	public static fun noSuchSubcommand (Lcom/github/ajalt/clikt/output/Localization;Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;
+ 	public static fun optionsMetavar (Lcom/github/ajalt/clikt/output/Localization;)Ljava/lang/String;
+ 	public static fun optionsTitle (Lcom/github/ajalt/clikt/output/Localization;)Ljava/lang/String;
+diff --git a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/core/exceptions.kt b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/core/exceptions.kt
+index 18d93a91..66e96624 100644
+--- a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/core/exceptions.kt
++++ b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/core/exceptions.kt
+@@ -5,6 +5,7 @@ import com.github.ajalt.clikt.output.ParameterFormatter
+ import com.github.ajalt.clikt.parameters.arguments.Argument
+ import com.github.ajalt.clikt.parameters.options.Option
+ import com.github.ajalt.clikt.parameters.options.longestName
++import kotlin.jvm.JvmOverloads
+ 
+ /**
+  * An exception during command line processing that should be shown to the user.
+@@ -238,15 +239,21 @@ class NoSuchSubcommand(
+ }
+ 
+ /** An option was provided that does not exist. */
+-class NoSuchOption(
++class NoSuchOption @JvmOverloads constructor(
++    // TODO (6.0): remove JvmOverloads
+     paramName: String,
+     private val possibilities: List<String> = emptyList(),
++    private val subcommand: String? = null,
+ ) : UsageError(null, paramName) {
+     override fun formatMessage(localization: Localization, formatter: ParameterFormatter): String {
+-        return localization.noSuchOption(
+-            paramName?.let(formatter::formatOption) ?: "",
+-            possibilities.map(formatter::formatOption)
+-        )
++        val name = paramName?.let(formatter::formatOption) ?: ""
++        return if (subcommand != null) {
++            localization.noSuchOptionWithSubCommandPossibility(
++                name, formatter.formatSubcommand(formatter.formatSubcommand(subcommand))
++            )
++        } else {
++            localization.noSuchOption(name, possibilities.map(formatter::formatOption))
++        }
+     }
+ }
+ 
+diff --git a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/internal/Finalization.kt b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/internal/Finalization.kt
+index 490f6d3c..9ea58b15 100644
+--- a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/internal/Finalization.kt
++++ b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/internal/Finalization.kt
+@@ -36,7 +36,6 @@ internal fun finalizeParameters(
+ ): List<UsageError> {
+     // Add uninvoked params last so that e.g. we can skip prompting if there's an error in an
+     // invoked option
+-
+     val allGroups = buildMap<ParameterGroup?, Map<Option, List<OptionInvocation>>> {
+         optionInvocations.entries
+             .groupBy({ it.key.group }, { it.key to it.value })
+diff --git a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/output/Localization.kt b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/output/Localization.kt
+index ebef73fd..97a01ac4 100644
+--- a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/output/Localization.kt
++++ b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/output/Localization.kt
+@@ -48,6 +48,13 @@ interface Localization {
+         }
+     }
+ 
++    /**
++     * Message for [NoSuchOption] when a subcommand has an option with the same name
++     */
++    fun noSuchOptionWithSubCommandPossibility(name: String, subcommand: String): String {
++        return "no such option $name. hint: $subcommand has an option $name"
++    }
++
+     /**
+      * Message for [IncorrectOptionValueCount]
+      *
+diff --git a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/parsers/CommandLineParser.kt b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/parsers/CommandLineParser.kt
+index 0523e32f..6afdaeb3 100644
+--- a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/parsers/CommandLineParser.kt
++++ b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/parsers/CommandLineParser.kt
+@@ -105,6 +105,7 @@ object CommandLineParser {
+     fun <T : BaseCliktCommand<T>> parse(command: T, argv: List<String>): CommandLineParseResult<T> {
+         return parseArgv(command, argv)
+     }
++
+     /**
+      * Finalize eager options for a command invocation, running them if they were invoked.
+      *
+@@ -143,15 +144,17 @@ object CommandLineParser {
+         val (_, nonEagerOpts) = getOpts(command)
+         val (_, nonEagerInvs) = getInvs(invocation)
+ 
+-        // throw any parse errors after the eager options are finalized
+-        invocation.throwErrors()
++        // Collect any usage errors to combine with errors from finalization
++        val usageErrors = invocation.getUsageErrorsOrThrow()
+ 
+         // then finalize and validate everything else
+         val nonEagerNonGroupOpts = nonEagerOpts.filter { it.group == null }
+         val argumentInvocations = invocation.argumentInvocations
+-        finalizeParameters(
++        val finalizationErrors = finalizeParameters(
+             context, nonEagerNonGroupOpts, groups, arguments, nonEagerInvs, argumentInvocations
+-        ).throwErrors()
++        )
++        // Throw any errors before validating parameters
++        (usageErrors + finalizationErrors).throwErrors()
+ 
+         validateParameters(context, nonEagerNonGroupOpts, groups, arguments).throwErrors()
+ 
+@@ -175,12 +178,14 @@ object CommandLineParser {
+             .partition { it.eager }
+ }
+ 
+-private fun CommandInvocation<*>.throwErrors() {
+-    // The errors are always UsageErrors, expect for the case of printHelpOnEmptyArgs
+-    when (val first = errors.firstOrNull()) {
+-        is UsageError -> errors.filterIsInstance<UsageError>().throwErrors()
+-        is CliktError -> throw first
+-    }
++/**
++ * Return any UsageErrors. If there's a non-UsageError, throw it.
++ */
++private fun CommandInvocation<*>.getUsageErrorsOrThrow(): List<UsageError> {
++    val usageErrors = errors.filterIsInstance<UsageError>()
++    if (usageErrors.size == errors.size) return usageErrors
++    // `errors` are always UsageErrors, except for the case of printHelpOnEmptyArgs
++    errors.first { it !is UsageError }.let { throw it }
+ }
+ 
+ private fun throwCompletionMessageIfRequested(
+diff --git a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/parsers/ParserInternals.kt b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/parsers/ParserInternals.kt
+index 0e9a4b51..534eacdb 100644
+--- a/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/parsers/ParserInternals.kt
++++ b/clikt/src/commonMain/kotlin/com/github/ajalt/clikt/parsers/ParserInternals.kt
+@@ -232,7 +232,7 @@ private class CommandParser<T : BaseCliktCommand<T>>(
+                 name,
+                 optionsByName.filterNot { it.value.hidden }.keys.toList()
+             )
+-            return OptParseResult(1, err = NoSuchOption(name, possibilities))
++            return OptParseResult(1, err = createNoSuchOption(name, possibilities))
+         }
+ 
+         return parseOptValues(option, name, attachedValue)
+@@ -258,7 +258,7 @@ private class CommandParser<T : BaseCliktCommand<T>>(
+                     prefix == "-" && "-$tok" in optionsByName -> listOf("-$tok")
+                     else -> emptyList()
+                 }
+-                return OptParseResult(1, err = NoSuchOption(name, possibilities))
++                return OptParseResult(1, err = createNoSuchOption(name, possibilities))
+             }
+             if (option.nvalues.last > 0) {
+                 val value = if (i < tok.lastIndex) tok.drop(i + 1) else null
+@@ -271,6 +271,14 @@ private class CommandParser<T : BaseCliktCommand<T>>(
+         return OptParseResult(1, invocations)
+     }
+ 
++    private fun createNoSuchOption(name: String, possibilities: List<String>): NoSuchOption {
++        if (possibilities.isEmpty()) {
++            val c = allSubcommands.values.find { it._options.any { o -> name in o.names } }
++            if (c != null) return NoSuchOption(name, subcommand = c.commandName)
++        }
++        return NoSuchOption(name, possibilities)
++    }
++
+     private fun parseOptValues(
+         option: Option,
+         name: String,

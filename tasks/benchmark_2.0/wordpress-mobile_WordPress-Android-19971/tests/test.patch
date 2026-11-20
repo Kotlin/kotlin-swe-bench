@@ -1,0 +1,76 @@
+diff --git a/WordPress/src/test/java/org/wordpress/android/ui/bloggingprompts/BloggingPromptsPostTagProviderTest.kt b/WordPress/src/test/java/org/wordpress/android/ui/bloggingprompts/BloggingPromptsPostTagProviderTest.kt
+index 942681c91225..73250ba0c7f5 100644
+--- a/WordPress/src/test/java/org/wordpress/android/ui/bloggingprompts/BloggingPromptsPostTagProviderTest.kt
++++ b/WordPress/src/test/java/org/wordpress/android/ui/bloggingprompts/BloggingPromptsPostTagProviderTest.kt
+@@ -27,25 +27,21 @@ class BloggingPromptsPostTagProviderTest : BaseUnitTest() {
+     }
+ 
+     @Test
+-    fun `Should return the expected tag when promptIdTag is called given valid url`() {
+-        whenever(readerUtilsWrapper.getTagFromTagUrl(any())).thenReturn(BLOGGING_PROMPT_ID_TAG)
+-
+-        val actual = tagProvider.promptIdTag("valid-url")
++    fun `Should return the expected tag when promptIdTag is called given valid id`() {
++        val actual = tagProvider.promptIdTag(1234)
+ 
+         assertThat(actual).isEqualTo(BLOGGING_PROMPT_ID_TAG)
+     }
+ 
+     @Test
+-    fun `Should return the generic tag when promptIdTag is called given invalid url`() {
+-        whenever(readerUtilsWrapper.getTagFromTagUrl(any())).thenReturn("")
+-
+-        val actual = tagProvider.promptIdTag("invalid-url")
++    fun `Should return the generic tag when promptIdTag is called given invalid id`() {
++        val actual = tagProvider.promptIdTag(0)
+ 
+         assertThat(actual).isEqualTo(BloggingPromptsPostTagProvider.BLOGGING_PROMPT_TAG)
+     }
+ 
+     @Test
+-    fun `Should return the expected ReaderTag when promptIdSearchReaderTag is called`() {
++    fun `Should return the expected ReaderTag when promptSearchReaderTag is called`() {
+         whenever(readerUtilsWrapper.getTagFromTagUrl(any())).thenReturn(BLOGGING_PROMPT_ID_TAG)
+         val expected = ReaderTag(
+             BLOGGING_PROMPT_ID_TAG,
+@@ -54,11 +50,26 @@ class BloggingPromptsPostTagProviderTest : BaseUnitTest() {
+             ReaderPostLogic.formatFullEndpointForTag(BLOGGING_PROMPT_ID_TAG),
+             ReaderTagType.FOLLOWED,
+         )
+-        val actual = tagProvider.promptIdSearchReaderTag("valid-url")
++        val actual = tagProvider.promptSearchReaderTag("valid-url")
++        assertEquals(expected, actual)
++    }
++
++    @Test
++    fun `Should return the base Prompt ReaderTag when promptSearchReaderTag is called`() {
++        whenever(readerUtilsWrapper.getTagFromTagUrl(any())).thenReturn("")
++        val expected = ReaderTag(
++            BLOGGING_PROMPT_TAG,
++            BLOGGING_PROMPT_TAG,
++            BLOGGING_PROMPT_TAG,
++            ReaderPostLogic.formatFullEndpointForTag(BLOGGING_PROMPT_TAG),
++            ReaderTagType.FOLLOWED,
++        )
++        val actual = tagProvider.promptSearchReaderTag("invalid-url")
+         assertEquals(expected, actual)
+     }
+ 
+     companion object {
+         private const val BLOGGING_PROMPT_ID_TAG = "dailyprompt-1234"
++        private const val BLOGGING_PROMPT_TAG = "dailyprompt"
+     }
+ }
+diff --git a/WordPress/src/test/java/org/wordpress/android/ui/mysite/cards/dashboard/bloggingprompts/BloggingPromptCardViewModelSliceTest.kt b/WordPress/src/test/java/org/wordpress/android/ui/mysite/cards/dashboard/bloggingprompts/BloggingPromptCardViewModelSliceTest.kt
+index d97bb8a4fec9..60de6f2849e0 100644
+--- a/WordPress/src/test/java/org/wordpress/android/ui/mysite/cards/dashboard/bloggingprompts/BloggingPromptCardViewModelSliceTest.kt
++++ b/WordPress/src/test/java/org/wordpress/android/ui/mysite/cards/dashboard/bloggingprompts/BloggingPromptCardViewModelSliceTest.kt
+@@ -141,7 +141,7 @@ class BloggingPromptCardViewModelSliceTest : BaseUnitTest() {
+         val tagUrl = "valid-url"
+ 
+         val expectedTag = mock<ReaderTag>()
+-        whenever(bloggingPromptsPostTagProvider.promptIdSearchReaderTag(tagUrl)).thenReturn(expectedTag)
++        whenever(bloggingPromptsPostTagProvider.promptSearchReaderTag(tagUrl)).thenReturn(expectedTag)
+ 
+         val params = viewModelSlice.getBuilderParams(mock())
+         params.onViewAnswersClick(tagUrl)

@@ -1,0 +1,118 @@
+diff --git a/app/ui/legacy/src/main/java/com/fsck/k9/view/KoinModule.kt b/app/ui/legacy/src/main/java/com/fsck/k9/view/KoinModule.kt
+index 39f7fd1a65b..89a209b7c2e 100644
+--- a/app/ui/legacy/src/main/java/com/fsck/k9/view/KoinModule.kt
++++ b/app/ui/legacy/src/main/java/com/fsck/k9/view/KoinModule.kt
+@@ -16,4 +16,5 @@ val viewModule = module {
+         K9WebViewClient(clipboardManager = get(), attachmentResolver, onPageFinishedListener)
+     }
+     factory { WebViewClientFactory() }
++    factory { UserInputEmailAddressParser() }
+ }
+diff --git a/app/ui/legacy/src/main/java/com/fsck/k9/view/RecipientSelectView.java b/app/ui/legacy/src/main/java/com/fsck/k9/view/RecipientSelectView.java
+index 1cfd2418614..6505c34f53b 100644
+--- a/app/ui/legacy/src/main/java/com/fsck/k9/view/RecipientSelectView.java
++++ b/app/ui/legacy/src/main/java/com/fsck/k9/view/RecipientSelectView.java
+@@ -33,6 +33,7 @@
+ import android.widget.ListView;
+ import android.widget.TextView;
+ 
++import com.fsck.k9.DI;
+ import com.fsck.k9.K9;
+ import com.fsck.k9.ui.R;
+ import com.fsck.k9.activity.AlternateRecipientAdapter;
+@@ -43,7 +44,6 @@
+ import com.fsck.k9.ui.compose.RecipientCircleImageView;
+ import com.fsck.k9.view.RecipientSelectView.Recipient;
+ import com.tokenautocomplete.TokenCompleteTextView;
+-import org.apache.james.mime4j.util.CharsetUtil;
+ import timber.log.Timber;
+ import de.hdodenhof.circleimageview.CircleImageView;
+ 
+@@ -61,6 +61,8 @@ public class RecipientSelectView extends TokenCompleteTextView<Recipient> implem
+     private static final int LOADER_ID_ALTERNATES = 1;
+ 
+ 
++    private final UserInputEmailAddressParser emailAddressParser = DI.get(UserInputEmailAddressParser.class);
++
+     private RecipientAdapter adapter;
+     @Nullable
+     private String cryptoProvider;
+@@ -171,17 +173,19 @@ private void bindObjectView(Recipient recipient, View view) {
+ 
+     @Override
+     protected Recipient defaultObject(String completionText) {
+-        Address[] parsedAddresses = Address.parse(completionText);
+-        if (!CharsetUtil.isASCII(completionText)) {
++        try {
++            List<Address> parsedAddresses = emailAddressParser.parse(completionText);
++
++            if (parsedAddresses.isEmpty()) {
++                setError(getContext().getString(R.string.recipient_error_parse_failed));
++                return null;
++            }
++
++            return new Recipient(parsedAddresses.get(0));
++        } catch (NonAsciiEmailAddressException e) {
+             setError(getContext().getString(R.string.recipient_error_non_ascii));
+             return null;
+         }
+-        if (parsedAddresses.length == 0 || parsedAddresses[0].getAddress() == null) {
+-            setError(getContext().getString(R.string.recipient_error_parse_failed));
+-            return null;
+-        }
+-
+-        return new Recipient(parsedAddresses[0]);
+     }
+ 
+     public void setLoaderManager(@Nullable LoaderManager loaderManager) {
+diff --git a/app/ui/legacy/src/main/java/com/fsck/k9/view/UserInputEmailAddressParser.kt b/app/ui/legacy/src/main/java/com/fsck/k9/view/UserInputEmailAddressParser.kt
+new file mode 100644
+index 00000000000..a14cb14bdb2
+--- /dev/null
++++ b/app/ui/legacy/src/main/java/com/fsck/k9/view/UserInputEmailAddressParser.kt
+@@ -0,0 +1,31 @@
++package com.fsck.k9.view
++
++import com.fsck.k9.mail.Address
++import org.apache.james.mime4j.util.CharsetUtil
++
++/**
++ * Used to parse name & email address pairs entered by the user.
++ *
++ * TODO: Build a custom implementation that can deal with typical inputs from users who are not familiar with the
++ *  RFC 5322 address-list syntax. See (ignored) tests in `UserInputEmailAddressParserTest`.
++ */
++internal class UserInputEmailAddressParser {
++
++    @Throws(NonAsciiEmailAddressException::class)
++    fun parse(input: String): List<Address> {
++        return Address.parseUnencoded(input)
++            .mapNotNull { address ->
++                when {
++                    address.isIncomplete() -> null
++                    address.isNonAsciiAddress() -> throw NonAsciiEmailAddressException(address.address)
++                    else -> Address.parse(address.toEncodedString()).firstOrNull()
++                }
++            }
++    }
++
++    private fun Address.isIncomplete() = hostname.isNullOrBlank()
++
++    private fun Address.isNonAsciiAddress() = !CharsetUtil.isASCII(address)
++}
++
++internal class NonAsciiEmailAddressException(message: String) : Exception(message)
+diff --git a/mail/common/src/main/java/com/fsck/k9/mail/Address.java b/mail/common/src/main/java/com/fsck/k9/mail/Address.java
+index fd272638fa2..8bc3eaa1d22 100644
+--- a/mail/common/src/main/java/com/fsck/k9/mail/Address.java
++++ b/mail/common/src/main/java/com/fsck/k9/mail/Address.java
+@@ -115,7 +115,8 @@ public static Address[] parseUnencoded(String addressList) {
+             for (Rfc822Token token : tokens) {
+                 String address = token.getAddress();
+                 if (!TextUtils.isEmpty(address)) {
+-                    addresses.add(new Address(token.getAddress(), token.getName(), false));
++                    String name = TextUtils.isEmpty(token.getName()) ? null : token.getName();
++                    addresses.add(new Address(token.getAddress(), name, false));
+                 }
+             }
+         }

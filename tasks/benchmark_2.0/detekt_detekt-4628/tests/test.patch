@@ -1,0 +1,21 @@
+diff --git a/detekt-rules-style/src/test/kotlin/io/gitlab/arturbosch/detekt/rules/style/UnnecessaryAbstractClassSpec.kt b/detekt-rules-style/src/test/kotlin/io/gitlab/arturbosch/detekt/rules/style/UnnecessaryAbstractClassSpec.kt
+index 45870fa7c252..df2f3ea884b2 100644
+--- a/detekt-rules-style/src/test/kotlin/io/gitlab/arturbosch/detekt/rules/style/UnnecessaryAbstractClassSpec.kt
++++ b/detekt-rules-style/src/test/kotlin/io/gitlab/arturbosch/detekt/rules/style/UnnecessaryAbstractClassSpec.kt
+@@ -246,6 +246,16 @@ class UnnecessaryAbstractClassSpec : Spek({
+                 """
+                 assertThat(subject.compileAndLintWithContext(env, code)).isEmpty()
+             }
++
++            it("does not report abstract classes with properties in the primary constructor") {
++                val code = """
++                    interface I {
++                        fun test(): Int
++                    }
++                    abstract class Test(val x: Int) : I
++                """
++                assertThat(subject.compileAndLintWithContext(env, code)).isEmpty()
++            }
+         }
+     }
+ })

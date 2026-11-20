@@ -1,0 +1,270 @@
+diff --git a/model/src/test/kotlin/config/PackageConfigurationTest.kt b/model/src/test/kotlin/config/PackageConfigurationTest.kt
+index b959f97494894..c54cd7db11d96 100644
+--- a/model/src/test/kotlin/config/PackageConfigurationTest.kt
++++ b/model/src/test/kotlin/config/PackageConfigurationTest.kt
+@@ -19,6 +19,7 @@
+ 
+ package org.ossreviewtoolkit.model.config
+ 
++import io.kotest.assertions.throwables.shouldThrow
+ import io.kotest.core.spec.style.WordSpec
+ import io.kotest.matchers.shouldBe
+ 
+@@ -30,6 +31,21 @@ import org.ossreviewtoolkit.model.SourceCodeOrigin
+ import org.ossreviewtoolkit.model.VcsInfo
+ import org.ossreviewtoolkit.model.VcsType
+ 
++private val ARTIFACT_PROVENANCE = ArtifactProvenance(
++    sourceArtifact = RemoteArtifact.EMPTY.copy(
++        url = "https://host/path/file.zip"
++    )
++)
++
++private val REPOSITORY_PROVENANCE = RepositoryProvenance(
++    vcsInfo = VcsInfo(
++        type = VcsType.GIT,
++        url = "ssh://git@host/repo.git",
++        revision = ""
++    ),
++    resolvedRevision = "12345678"
++)
++
+ private fun vcsPackageConfig(name: String, revision: String, url: String) =
+     PackageConfiguration(
+         id = Identifier.EMPTY.copy(name = name),
+@@ -53,14 +69,7 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id,
+-                RepositoryProvenance(
+-                    vcsInfo = VcsInfo(
+-                        type = VcsType.GIT,
+-                        url = "ssh://git@host/repo.git",
+-                        revision = ""
+-                    ),
+-                    resolvedRevision = "12345678"
+-                )
++                REPOSITORY_PROVENANCE
+             ) shouldBe true
+         }
+ 
+@@ -69,14 +78,7 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 Identifier.EMPTY.copy(name = "some-other-name"),
+-                RepositoryProvenance(
+-                    vcsInfo = VcsInfo(
+-                        type = VcsType.GIT,
+-                        url = "ssh://git@host/repo.git",
+-                        revision = ""
+-                    ),
+-                    resolvedRevision = "12345678"
+-                )
++                REPOSITORY_PROVENANCE
+             ) shouldBe false
+         }
+ 
+@@ -85,15 +87,8 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id,
+-                RepositoryProvenance(
+-                    vcsInfo = VcsInfo(
+-                        type = VcsType.GIT,
+-                        url = "ssh://host/repo.git",
+-                        revision = ""
+-                    ),
+-                    resolvedRevision = "12345678"
+-                )
+-            ) shouldBe true
++                REPOSITORY_PROVENANCE.copy(vcsInfo = REPOSITORY_PROVENANCE.vcsInfo.copy(url = "ssh://host/repo.git"))
++            )
+         }
+ 
+         "return false if only resolved revision is not equal to the matcher's revision" {
+@@ -101,14 +96,7 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id,
+-                RepositoryProvenance(
+-                    vcsInfo = VcsInfo(
+-                        type = VcsType.GIT,
+-                        url = "ssh://git@host/repo.git",
+-                        revision = "12345678"
+-                    ),
+-                    resolvedRevision = "12"
+-                )
++                REPOSITORY_PROVENANCE.copy(resolvedRevision = "12")
+             ) shouldBe false
+         }
+ 
+@@ -117,11 +105,7 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id,
+-                ArtifactProvenance(
+-                    sourceArtifact = RemoteArtifact.EMPTY.copy(
+-                        url = "https://host/path/file.zip"
+-                    )
+-                )
++                ARTIFACT_PROVENANCE
+             ) shouldBe true
+         }
+ 
+@@ -130,8 +114,8 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id,
+-                ArtifactProvenance(
+-                    sourceArtifact = RemoteArtifact.EMPTY.copy(
++                ARTIFACT_PROVENANCE.copy(
++                    sourceArtifact = ARTIFACT_PROVENANCE.sourceArtifact.copy(
+                         url = "https://host/path/some-other-file.zip"
+                     )
+                 )
+@@ -146,14 +130,7 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id.copy(type = "gradle"),
+-                RepositoryProvenance(
+-                    vcsInfo = VcsInfo(
+-                        type = VcsType.GIT,
+-                        url = "ssh://git@host/repo.git",
+-                        revision = ""
+-                    ),
+-                    resolvedRevision = "12345678"
+-                )
++                REPOSITORY_PROVENANCE
+             ) shouldBe true
+         }
+ 
+@@ -166,14 +143,7 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id,
+-                RepositoryProvenance(
+-                    vcsInfo = VcsInfo(
+-                        type = VcsType.GIT,
+-                        url = "ssh://git@host/repo.git",
+-                        revision = ""
+-                    ),
+-                    resolvedRevision = "12345678"
+-                )
++                REPOSITORY_PROVENANCE
+             ) shouldBe true
+         }
+ 
+@@ -186,11 +156,20 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id,
+-                ArtifactProvenance(
+-                    sourceArtifact = RemoteArtifact.EMPTY.copy(
+-                        url = "https://host/path/some-other-file.zip"
+-                    )
++                ARTIFACT_PROVENANCE
++            ) shouldBe true
++        }
++
++        "return true if source code origin is equal and identifier matches with version is in range" {
++            val config =
++                PackageConfiguration(
++                    id = Identifier.EMPTY.copy(name = "some-name", version = "[51.0.0,60.0.0]"),
++                    sourceCodeOrigin = SourceCodeOrigin.ARTIFACT
+                 )
++
++            config.matches(
++                config.id.copy(version = "55"),
++                ARTIFACT_PROVENANCE
+             ) shouldBe true
+         }
+ 
+@@ -203,14 +182,7 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id,
+-                RepositoryProvenance(
+-                    vcsInfo = VcsInfo(
+-                        type = VcsType.GIT,
+-                        url = "ssh://git@host/repo.git",
+-                        revision = ""
+-                    ),
+-                    resolvedRevision = "12345678"
+-                )
++                REPOSITORY_PROVENANCE
+             ) shouldBe false
+         }
+ 
+@@ -219,11 +191,69 @@ class PackageConfigurationTest : WordSpec({
+ 
+             config.matches(
+                 config.id,
+-                RepositoryProvenance(
+-                    vcsInfo = VcsInfo.EMPTY,
+-                    resolvedRevision = "12345678"
++                REPOSITORY_PROVENANCE
++            ) shouldBe true
++        }
++
++        "return false if only the source code origin is not equal" {
++            val config =
++                PackageConfiguration(
++                    id = Identifier.EMPTY.copy(name = "some-name"),
++                    sourceCodeOrigin = SourceCodeOrigin.VCS
++                )
++
++            config.matches(
++                config.id,
++                ARTIFACT_PROVENANCE
++            ) shouldBe false
++        }
++
++        "return true if only matched by id with a matching version range" {
++            val config =
++                PackageConfiguration(
++                    id = Identifier.EMPTY.copy(name = "some-name", version = "[51.0.0,60.0.0]")
+                 )
++
++            config.matches(
++                config.id.copy(version = "55"),
++                ARTIFACT_PROVENANCE
+             ) shouldBe true
+         }
++
++        "return false if only matched by id with a non-matching version range" {
++            val config =
++                PackageConfiguration(
++                    id = Identifier.EMPTY.copy(name = "some-name", version = "[51.0.0,60.0.0]")
++                )
++
++            config.matches(
++                config.id.copy(version = "6"),
++                ARTIFACT_PROVENANCE
++            ) shouldBe false
++        }
++    }
++
++    "init()" should {
++        "throw an exception if a version range is given while having a vcs" {
++            val baseConfig = vcsPackageConfig(
++                name = "some-name",
++                revision = "12345678",
++                url = "ssh://git@host/repo.git"
++            )
++            shouldThrow<IllegalArgumentException> {
++                baseConfig.copy(
++                    id = baseConfig.id.copy(version = "[51.0.0,60.0.0]")
++                )
++            }
++        }
++
++        "throw an exception if a version range is given while having a source artifact URL" {
++            val baseConfig = sourceArtifactConfig(name = "some-name", url = "https://host/path/file.zip")
++            shouldThrow<IllegalArgumentException> {
++                baseConfig.copy(
++                    id = baseConfig.id.copy(version = "[51.0.0,60.0.0]")
++                )
++            }
++        }
+     }
+ })

@@ -1,0 +1,164 @@
+diff --git a/app-feature-preview/src/main/java/app/k9mail/feature/preview/account/InMemoryAccountStore.kt b/app-feature-preview/src/main/java/app/k9mail/feature/preview/account/InMemoryAccountStore.kt
+index f67e89c88f6..462b75e1987 100644
+--- a/app-feature-preview/src/main/java/app/k9mail/feature/preview/account/InMemoryAccountStore.kt
++++ b/app-feature-preview/src/main/java/app/k9mail/feature/preview/account/InMemoryAccountStore.kt
+@@ -15,10 +15,6 @@ class InMemoryAccountStore(
+     private val accountMap: MutableMap<String, Account> = mutableMapOf(),
+ ) : AccountCreator, AccountServerSettingsUpdater, AccountStateLoader {
+ 
+-    suspend fun load(accountUuid: String): Account? {
+-        return accountMap[accountUuid]
+-    }
+-
+     override suspend fun loadAccountState(accountUuid: String): AccountState? {
+         return accountMap[accountUuid]?.let { mapToAccountState(it) }
+     }
+@@ -33,6 +29,7 @@ class InMemoryAccountStore(
+         accountUuid: String,
+         isIncoming: Boolean,
+         serverSettings: ServerSettings,
++        authorizationState: AuthorizationState?,
+     ): AccountUpdaterResult {
+         return if (!accountMap.containsKey(accountUuid)) {
+             AccountUpdaterResult.Failure(AccountUpdaterFailure.AccountNotFound(accountUuid))
+@@ -40,9 +37,15 @@ class InMemoryAccountStore(
+             val account = accountMap[accountUuid]!!
+ 
+             accountMap[account.uuid] = if (isIncoming) {
+-                account.copy(incomingServerSettings = serverSettings)
++                account.copy(
++                    incomingServerSettings = serverSettings,
++                    authorizationState = authorizationState?.state,
++                )
+             } else {
+-                account.copy(outgoingServerSettings = serverSettings)
++                account.copy(
++                    outgoingServerSettings = serverSettings,
++                    authorizationState = authorizationState?.state,
++                )
+             }
+ 
+             AccountUpdaterResult.Success(account.uuid)
+diff --git a/app/k9mail/src/main/java/com/fsck/k9/account/AccountServerSettingsUpdater.kt b/app/k9mail/src/main/java/com/fsck/k9/account/AccountServerSettingsUpdater.kt
+index 8a2b1b62574..71e0163d902 100644
+--- a/app/k9mail/src/main/java/com/fsck/k9/account/AccountServerSettingsUpdater.kt
++++ b/app/k9mail/src/main/java/com/fsck/k9/account/AccountServerSettingsUpdater.kt
+@@ -1,6 +1,7 @@
+ package com.fsck.k9.account
+ 
+ import app.k9mail.core.common.mail.Protocols
++import app.k9mail.feature.account.common.domain.entity.AuthorizationState
+ import app.k9mail.feature.account.edit.AccountEditExternalContract
+ import app.k9mail.feature.account.edit.AccountEditExternalContract.AccountUpdaterFailure
+ import app.k9mail.feature.account.edit.AccountEditExternalContract.AccountUpdaterResult
+@@ -26,10 +27,11 @@ class AccountServerSettingsUpdater(
+         accountUuid: String,
+         isIncoming: Boolean,
+         serverSettings: ServerSettings,
++        authorizationState: AuthorizationState?,
+     ): AccountUpdaterResult {
+         return try {
+             withContext(coroutineDispatcher) {
+-                updateSettings(accountUuid, isIncoming, serverSettings)
++                updateSettings(accountUuid, isIncoming, serverSettings, authorizationState)
+             }
+         } catch (error: Exception) {
+             Timber.e(error, "Error while updating account server settings with UUID %s", accountUuid)
+@@ -42,6 +44,7 @@ class AccountServerSettingsUpdater(
+         accountUuid: String,
+         isIncoming: Boolean,
+         serverSettings: ServerSettings,
++        authorizationState: AuthorizationState?,
+     ): AccountUpdaterResult {
+         val account = accountManager.getAccount(accountUuid = accountUuid) ?: return AccountUpdaterResult.Failure(
+             AccountUpdaterFailure.AccountNotFound(accountUuid),
+@@ -64,6 +67,8 @@ class AccountServerSettingsUpdater(
+             account.outgoingServerSettings = serverSettings
+         }
+ 
++        account.oAuthState = authorizationState?.state
++
+         accountManager.saveAccount(account)
+ 
+         return AccountUpdaterResult.Success(accountUuid)
+diff --git a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/AccountEditExternalContract.kt b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/AccountEditExternalContract.kt
+index 3f79ff17ac8..43fe979a638 100644
+--- a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/AccountEditExternalContract.kt
++++ b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/AccountEditExternalContract.kt
+@@ -1,5 +1,6 @@
+ package app.k9mail.feature.account.edit
+ 
++import app.k9mail.feature.account.common.domain.entity.AuthorizationState
+ import com.fsck.k9.mail.ServerSettings
+ 
+ interface AccountEditExternalContract {
+@@ -19,6 +20,7 @@ interface AccountEditExternalContract {
+             accountUuid: String,
+             isIncoming: Boolean,
+             serverSettings: ServerSettings,
++            authorizationState: AuthorizationState?,
+         ): AccountUpdaterResult
+     }
+ }
+diff --git a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/domain/usecase/SaveServerSettings.kt b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/domain/usecase/SaveServerSettings.kt
+index 252f095283c..186749fac69 100644
+--- a/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/domain/usecase/SaveServerSettings.kt
++++ b/feature/account/edit/src/main/kotlin/app/k9mail/feature/account/edit/domain/usecase/SaveServerSettings.kt
+@@ -1,5 +1,7 @@
+ package app.k9mail.feature.account.edit.domain.usecase
+ 
++import app.k9mail.feature.account.common.domain.entity.AccountState
++import app.k9mail.feature.account.common.domain.entity.AuthorizationState
+ import app.k9mail.feature.account.edit.AccountEditExternalContract.AccountServerSettingsUpdater
+ import app.k9mail.feature.account.edit.AccountEditExternalContract.AccountUpdaterResult
+ import app.k9mail.feature.account.edit.domain.AccountEditDomainContract.UseCase
+@@ -10,33 +12,37 @@ class SaveServerSettings(
+     private val serverSettingsUpdater: AccountServerSettingsUpdater,
+ ) : UseCase.SaveServerSettings {
+     override suspend fun execute(accountUuid: String, isIncoming: Boolean) {
+-        val serverSettings = loadServerSettings(accountUuid, isIncoming)
++        val accountState = getAccountState.execute(accountUuid)
++
++        val serverSettings = accountState.getServerSettings(isIncoming)
++        val authorizationState = accountState.authorizationState
+ 
+         if (serverSettings != null) {
+-            updateServerSettings(accountUuid, isIncoming, serverSettings)
++            updateServerSettings(accountUuid, isIncoming, serverSettings, authorizationState)
+         } else {
+             error("Server settings not found")
+         }
+     }
+ 
+-    private suspend fun loadServerSettings(accountUuid: String, isIncoming: Boolean): ServerSettings? {
+-        val accountState = getAccountState.execute(accountUuid)
+-        return if (isIncoming) {
+-            accountState.incomingServerSettings
+-        } else {
+-            accountState.outgoingServerSettings
+-        }
+-    }
+-
+-    private suspend fun updateServerSettings(accountUuid: String, isIncoming: Boolean, serverSettings: ServerSettings) {
++    private suspend fun updateServerSettings(
++        accountUuid: String,
++        isIncoming: Boolean,
++        serverSettings: ServerSettings,
++        authorizationState: AuthorizationState?,
++    ) {
+         val result = serverSettingsUpdater.updateServerSettings(
+             accountUuid = accountUuid,
+             isIncoming = isIncoming,
+             serverSettings = serverSettings,
++            authorizationState = authorizationState,
+         )
+ 
+         if (result is AccountUpdaterResult.Failure) {
+             error("Server settings update failed")
+         }
+     }
++
++    private fun AccountState.getServerSettings(isIncoming: Boolean): ServerSettings? {
++        return if (isIncoming) incomingServerSettings else outgoingServerSettings
++    }
+ }

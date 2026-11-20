@@ -1,0 +1,83 @@
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/MailDisplayFolder.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/MailDisplayFolder.kt
+index ee14c89efd4..07b8a6643d4 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/MailDisplayFolder.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/entity/MailDisplayFolder.kt
+@@ -3,13 +3,13 @@ package net.thunderbird.feature.navigation.drawer.dropdown.domain.entity
+ import net.thunderbird.feature.mail.folder.api.Folder
+ 
+ internal data class MailDisplayFolder(
+-    val accountId: String,
++    val accountId: String?,
+     val folder: Folder,
+     val isInTopGroup: Boolean,
+     override val unreadMessageCount: Int,
+     override val starredMessageCount: Int,
+ ) : DisplayFolder {
+-    override val id: String = createMailDisplayAccountFolderId(accountId, folder.id)
++    override val id: String = createMailDisplayAccountFolderId(accountId.orEmpty(), folder.id)
+ }
+ 
+ fun createMailDisplayAccountFolderId(accountId: String, folderId: Long): String {
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolder.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolder.kt
+index 05ade0c3e12..ae75fcae30a 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolder.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/domain/usecase/GetDisplayTreeFolder.kt
+@@ -90,7 +90,7 @@ internal class GetDisplayTreeFolder : UseCase.GetDisplayTreeFolder {
+     private fun createPlaceholderFolder(name: String): MailDisplayFolder {
+         placeholderCounter += 1
+         return MailDisplayFolder(
+-            accountId = "placeholder",
++            accountId = null,
+             folder = Folder(
+                 id = placeholderCounter,
+                 name = name,
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModel.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModel.kt
+index 793e71437e5..c81ab049921 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModel.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/DrawerViewModel.kt
+@@ -240,12 +240,14 @@ internal class DrawerViewModel(
+         selectFolder(folder.id)
+ 
+         if (folder is MailDisplayFolder) {
+-            emitEffect(
+-                Effect.OpenFolder(
+-                    accountId = folder.accountId,
+-                    folderId = folder.folder.id,
+-                ),
+-            )
++            if (folder.accountId != null) {
++                emitEffect(
++                    Effect.OpenFolder(
++                        accountId = folder.accountId,
++                        folderId = folder.folder.id,
++                    ),
++                )
++            }
+         } else if (folder is UnifiedDisplayFolder) {
+             emitEffect(Effect.OpenUnifiedFolder)
+         }
+diff --git a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/folder/FolderListItem.kt b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/folder/FolderListItem.kt
+index 9261aad3726..3dd9ef6fb49 100644
+--- a/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/folder/FolderListItem.kt
++++ b/feature/navigation/drawer/dropdown/src/main/kotlin/net/thunderbird/feature/navigation/drawer/dropdown/ui/folder/FolderListItem.kt
+@@ -76,13 +76,14 @@ internal fun FolderListItem(
+                 )
+             },
+             selected = selectedFolderId == displayFolder.id,
+-            onClick = { onClick(displayFolder) },
+-            modifier = Modifier.fillMaxWidth(),
+-            icon = {
+-                Icon(
+-                    imageVector = mapFolderIcon(displayFolder),
+-                )
++            onClick = {
++                when (displayFolder) {
++                    is MailDisplayFolder if displayFolder.accountId == null -> isExpanded.value = !isExpanded.value
++                    else -> onClick(displayFolder)
++                }
+             },
++            modifier = Modifier.fillMaxWidth(),
++            icon = { Icon(imageVector = mapFolderIcon(displayFolder)) },
+         )
+ 
+         // Managing children

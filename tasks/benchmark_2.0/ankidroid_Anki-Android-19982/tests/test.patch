@@ -1,0 +1,25 @@
+diff --git a/AnkiDroid/src/test/java/com/ichi2/anki/notetype/ManageNoteTypesViewModelTest.kt b/AnkiDroid/src/test/java/com/ichi2/anki/notetype/ManageNoteTypesViewModelTest.kt
+index 30ccc9108624..6cca243750cb 100644
+--- a/AnkiDroid/src/test/java/com/ichi2/anki/notetype/ManageNoteTypesViewModelTest.kt
++++ b/AnkiDroid/src/test/java/com/ichi2/anki/notetype/ManageNoteTypesViewModelTest.kt
+@@ -159,6 +159,20 @@ class ManageNoteTypesViewModelTest : RobolectricTest() {
+             assertTrue(viewModel.noteTypeForName(testName2).isSelected)
+         }
+ 
++    @Test
++    fun `filtering is case insensitive`() =
++        runTest {
++            val testName = "MixedCaseName"
++            addStandardNoteType(testName, arrayOf("front", "back"), "", "")
++            val viewModel = ManageNoteTypesViewModel()
++            viewModel.filter("mixedcasename")
++            val currentlyDisplayed =
++                viewModel.state.value.noteTypes
++                    .filter { it.shouldBeDisplayed }
++            assertThat(currentlyDisplayed, hasSize(1))
++            assertThat(currentlyDisplayed.map { it.name }, hasItems(testName))
++        }
++
+     @Test
+     fun `removal failure in multiple selection returns expected exception`() =
+         runTest {

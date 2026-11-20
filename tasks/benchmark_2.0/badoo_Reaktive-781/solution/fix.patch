@@ -1,0 +1,225 @@
+diff --git a/reaktive/api/android/reaktive.api b/reaktive/api/android/reaktive.api
+index e43502ba6..9f51343fd 100644
+--- a/reaktive/api/android/reaktive.api
++++ b/reaktive/api/android/reaktive.api
+@@ -201,6 +201,10 @@ public final class com/badoo/reaktive/completable/RetryKt {
+ 	public static synthetic fun retry$default (Lcom/badoo/reaktive/completable/Completable;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/badoo/reaktive/completable/Completable;
+ }
+ 
++public final class com/badoo/reaktive/completable/RetryWhenKt {
++	public static final fun retryWhen (Lcom/badoo/reaktive/completable/Completable;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/completable/Completable;
++}
++
+ public final class com/badoo/reaktive/completable/SubscribeKt {
+ 	public static final fun subscribe (Lcom/badoo/reaktive/completable/Completable;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;)Lcom/badoo/reaktive/disposable/Disposable;
+ 	public static synthetic fun subscribe$default (Lcom/badoo/reaktive/completable/Completable;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/badoo/reaktive/disposable/Disposable;
+@@ -492,6 +496,10 @@ public final class com/badoo/reaktive/maybe/RetryKt {
+ 	public static synthetic fun retry$default (Lcom/badoo/reaktive/maybe/Maybe;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/badoo/reaktive/maybe/Maybe;
+ }
+ 
++public final class com/badoo/reaktive/maybe/RetryWhenKt {
++	public static final fun retryWhen (Lcom/badoo/reaktive/maybe/Maybe;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/maybe/Maybe;
++}
++
+ public final class com/badoo/reaktive/maybe/SubscribeKt {
+ 	public static final fun subscribe (Lcom/badoo/reaktive/maybe/Maybe;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/disposable/Disposable;
+ 	public static synthetic fun subscribe$default (Lcom/badoo/reaktive/maybe/Maybe;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lcom/badoo/reaktive/disposable/Disposable;
+@@ -861,6 +869,10 @@ public final class com/badoo/reaktive/observable/RetryKt {
+ 	public static synthetic fun retry$default (Lcom/badoo/reaktive/observable/Observable;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/badoo/reaktive/observable/Observable;
+ }
+ 
++public final class com/badoo/reaktive/observable/RetryWhenKt {
++	public static final fun retryWhen (Lcom/badoo/reaktive/observable/Observable;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/observable/Observable;
++}
++
+ public final class com/badoo/reaktive/observable/SampleKt {
+ 	public static final fun sample-8Mi8wO0 (Lcom/badoo/reaktive/observable/Observable;JLcom/badoo/reaktive/scheduler/Scheduler;)Lcom/badoo/reaktive/observable/Observable;
+ }
+@@ -1246,6 +1258,10 @@ public final class com/badoo/reaktive/single/RetryKt {
+ 	public static synthetic fun retry$default (Lcom/badoo/reaktive/single/Single;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/badoo/reaktive/single/Single;
+ }
+ 
++public final class com/badoo/reaktive/single/RetryWhenKt {
++	public static final fun retryWhen (Lcom/badoo/reaktive/single/Single;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/single/Single;
++}
++
+ public abstract interface class com/badoo/reaktive/single/Single : com/badoo/reaktive/base/Source {
+ }
+ 
+diff --git a/reaktive/api/jvm/reaktive.api b/reaktive/api/jvm/reaktive.api
+index e43502ba6..9f51343fd 100644
+--- a/reaktive/api/jvm/reaktive.api
++++ b/reaktive/api/jvm/reaktive.api
+@@ -201,6 +201,10 @@ public final class com/badoo/reaktive/completable/RetryKt {
+ 	public static synthetic fun retry$default (Lcom/badoo/reaktive/completable/Completable;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/badoo/reaktive/completable/Completable;
+ }
+ 
++public final class com/badoo/reaktive/completable/RetryWhenKt {
++	public static final fun retryWhen (Lcom/badoo/reaktive/completable/Completable;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/completable/Completable;
++}
++
+ public final class com/badoo/reaktive/completable/SubscribeKt {
+ 	public static final fun subscribe (Lcom/badoo/reaktive/completable/Completable;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;)Lcom/badoo/reaktive/disposable/Disposable;
+ 	public static synthetic fun subscribe$default (Lcom/badoo/reaktive/completable/Completable;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;ILjava/lang/Object;)Lcom/badoo/reaktive/disposable/Disposable;
+@@ -492,6 +496,10 @@ public final class com/badoo/reaktive/maybe/RetryKt {
+ 	public static synthetic fun retry$default (Lcom/badoo/reaktive/maybe/Maybe;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/badoo/reaktive/maybe/Maybe;
+ }
+ 
++public final class com/badoo/reaktive/maybe/RetryWhenKt {
++	public static final fun retryWhen (Lcom/badoo/reaktive/maybe/Maybe;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/maybe/Maybe;
++}
++
+ public final class com/badoo/reaktive/maybe/SubscribeKt {
+ 	public static final fun subscribe (Lcom/badoo/reaktive/maybe/Maybe;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/disposable/Disposable;
+ 	public static synthetic fun subscribe$default (Lcom/badoo/reaktive/maybe/Maybe;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lcom/badoo/reaktive/disposable/Disposable;
+@@ -861,6 +869,10 @@ public final class com/badoo/reaktive/observable/RetryKt {
+ 	public static synthetic fun retry$default (Lcom/badoo/reaktive/observable/Observable;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/badoo/reaktive/observable/Observable;
+ }
+ 
++public final class com/badoo/reaktive/observable/RetryWhenKt {
++	public static final fun retryWhen (Lcom/badoo/reaktive/observable/Observable;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/observable/Observable;
++}
++
+ public final class com/badoo/reaktive/observable/SampleKt {
+ 	public static final fun sample-8Mi8wO0 (Lcom/badoo/reaktive/observable/Observable;JLcom/badoo/reaktive/scheduler/Scheduler;)Lcom/badoo/reaktive/observable/Observable;
+ }
+@@ -1246,6 +1258,10 @@ public final class com/badoo/reaktive/single/RetryKt {
+ 	public static synthetic fun retry$default (Lcom/badoo/reaktive/single/Single;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/badoo/reaktive/single/Single;
+ }
+ 
++public final class com/badoo/reaktive/single/RetryWhenKt {
++	public static final fun retryWhen (Lcom/badoo/reaktive/single/Single;Lkotlin/jvm/functions/Function1;)Lcom/badoo/reaktive/single/Single;
++}
++
+ public abstract interface class com/badoo/reaktive/single/Single : com/badoo/reaktive/base/Source {
+ }
+ 
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/completable/RetryWhen.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/completable/RetryWhen.kt
+new file mode 100644
+index 000000000..297e63eee
+--- /dev/null
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/completable/RetryWhen.kt
+@@ -0,0 +1,16 @@
++package com.badoo.reaktive.completable
++
++import com.badoo.reaktive.observable.Observable
++import com.badoo.reaktive.observable.asCompletable
++import com.badoo.reaktive.observable.retryWhen
++
++/**
++ * Returns a [Completable] that automatically resubscribes to this [Completable] if it signals `onError`
++ * and the [Observable] returned by the [handler] function emits a value for that specific [Throwable].
++ *
++ * Please refer to the corresponding RxJava [document](https://reactivex.io/RxJava/javadoc/io/reactivex/Completable.html#retryWhen-io.reactivex.functions.Function-).
++ */
++fun Completable.retryWhen(handler: (Observable<Throwable>) -> Observable<*>): Completable =
++    asObservable()
++        .retryWhen(handler)
++        .asCompletable()
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/maybe/RetryWhen.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/maybe/RetryWhen.kt
+new file mode 100644
+index 000000000..cf1e319f1
+--- /dev/null
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/maybe/RetryWhen.kt
+@@ -0,0 +1,16 @@
++package com.badoo.reaktive.maybe
++
++import com.badoo.reaktive.observable.Observable
++import com.badoo.reaktive.observable.firstOrComplete
++import com.badoo.reaktive.observable.retryWhen
++
++/**
++ * Returns a [Maybe] that automatically resubscribes to this [Maybe] if it signals `onError`
++ * and the [Observable] returned by the [handler] function emits a value for that specific [Throwable].
++ *
++ * Please refer to the corresponding RxJava [document](https://reactivex.io/RxJava/javadoc/io/reactivex/Maybe.html#retryWhen-io.reactivex.functions.Function-).
++ */
++fun <T> Maybe<T>.retryWhen(handler: (Observable<Throwable>) -> Observable<*>): Maybe<T> =
++    asObservable()
++        .retryWhen(handler)
++        .firstOrComplete()
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/observable/RetryWhen.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/observable/RetryWhen.kt
+new file mode 100644
+index 000000000..ddad524a6
+--- /dev/null
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/observable/RetryWhen.kt
+@@ -0,0 +1,57 @@
++package com.badoo.reaktive.observable
++
++import com.badoo.reaktive.base.CompleteCallback
++import com.badoo.reaktive.base.ValueCallback
++import com.badoo.reaktive.completable.CompletableCallbacks
++import com.badoo.reaktive.disposable.CompositeDisposable
++import com.badoo.reaktive.disposable.Disposable
++import com.badoo.reaktive.disposable.SerialDisposable
++import com.badoo.reaktive.disposable.plusAssign
++import com.badoo.reaktive.subject.publish.PublishSubject
++import com.badoo.reaktive.utils.atomic.AtomicBoolean
++
++/**
++ * Returns an [Observable] that automatically resubscribes to this [Observable] if it signals `onError`
++ * and the [Observable] returned by the [handler] function emits a value for that specific [Throwable].
++ *
++ * Please refer to the corresponding RxJava [document](https://reactivex.io/RxJava/javadoc/io/reactivex/Observable.html#retryWhen-io.reactivex.functions.Function-).
++ */
++fun <T> Observable<T>.retryWhen(handler: (Observable<Throwable>) -> Observable<*>): Observable<T> =
++    observable { emitter ->
++        val disposables = CompositeDisposable()
++        emitter.setDisposable(disposables)
++
++        val errorSubject = PublishSubject<Throwable>()
++        val isError = AtomicBoolean()
++
++        val disposableObserver =
++            object : SerialDisposable(), ObservableObserver<T>, ValueCallback<T> by emitter, CompleteCallback by emitter {
++                override fun onSubscribe(disposable: Disposable) {
++                    replace(disposable)
++                }
++
++                override fun onError(error: Throwable) {
++                    replace(null)
++                    isError.value = true
++                    errorSubject.onNext(error)
++                }
++            }
++
++        disposables += disposableObserver
++
++        handler(errorSubject).subscribe(
++            object : ObservableObserver<Any?>, CompletableCallbacks by emitter {
++                override fun onSubscribe(disposable: Disposable) {
++                    disposables += disposable
++                }
++
++                override fun onNext(value: Any?) {
++                    if (isError.compareAndSet(true, false)) {
++                        subscribe(disposableObserver)
++                    }
++                }
++            }
++        )
++
++        subscribe(disposableObserver)
++    }
+diff --git a/reaktive/src/commonMain/kotlin/com/badoo/reaktive/single/RetryWhen.kt b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/single/RetryWhen.kt
+new file mode 100644
+index 000000000..5f0a9acb2
+--- /dev/null
++++ b/reaktive/src/commonMain/kotlin/com/badoo/reaktive/single/RetryWhen.kt
+@@ -0,0 +1,16 @@
++package com.badoo.reaktive.single
++
++import com.badoo.reaktive.observable.Observable
++import com.badoo.reaktive.observable.firstOrError
++import com.badoo.reaktive.observable.retryWhen
++
++/**
++ * Returns a [Single] that automatically resubscribes to this [Single] if it signals `onError`
++ * and the [Observable] returned by the [handler] function emits a value for that specific [Throwable].
++ *
++ * Please refer to the corresponding RxJava [document](https://reactivex.io/RxJava/javadoc/io/reactivex/Single.html#retryWhen-io.reactivex.functions.Function-).
++ */
++fun <T> Single<T>.retryWhen(handler: (Observable<Throwable>) -> Observable<*>): Single<T> =
++    asObservable()
++        .retryWhen(handler)
++        .firstOrError()
