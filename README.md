@@ -51,7 +51,8 @@ The test comparison includes transitions such as:
 The open-task verifier initializes the reward to `0`. If it cannot restore the agent's changes, it removes the reward and exits with an error. A non-zero test-command exit does not by itself determine the reward; the verifier evaluates the collected reports.
 Task results include a reward of `1` for resolved and `0` for not resolved. Infrastructure failures and missing rewards should be reported separately from verified failures. Closed tasks use task-specific test scripts and a different verifier layout.
 
-The published results were produced with an internal Harbor-based harness on Kubernetes (three runs per configuration, 30-minute per-task limit, no agent network, web search disabled), which reconstructs the agent's changes in a separate clean environment before verifying. The published bundle is the exact evaluated material.
+The published results were produced with an internal Harbor-based harness on Kubernetes (three runs per configuration, 30-minute per-task limit, no agent network, web search disabled), which reconstructs the agent's changes in a separate clean environment before verifying. The published task set is the same one we used in our evaluation.
+The harness is tied to our internal infrastructure and is not included in this repository. The tasks follow the standard Harbor format and can be run with the Harbor CLI. When comparing results, account for differences in terms of execution environment and evaluation settings.
 
 ## Task layout
 
@@ -81,4 +82,4 @@ Some tasks also ship `environment/debug/` (from-source image recipes), `environm
 In the evaluated open-task configurations, the agent operates in `no-network` mode, while the verifier and environment phases use `public` network mode. The task's `task.toml` file specifies the configured timeouts, resources, and network policy. Consequently, the harness setup also disables the web search tool and includes a brief instruction indicating that network access is disabled, thereby preventing repeated request errors during task resolution. These measures are intended to prevent reward hacking by the agents.
 
 ## License
-See LICENSE. Tasks are derived from open-source repositories; each upstream project retains its own license. The SPDX identifier of the source project's license is recorded in the `license` field under `[metadata.source]` in every task's `task.toml` (see the table above for the per-repository breakdown).
+See [LICENSE](LICENSE). Tasks are derived from open-source repositories; each upstream project retains its own license. The SPDX identifier of the source project's license is recorded in the `license` field under `[metadata.source]` in every task's `task.toml` (see the table above for the per-repository breakdown).
