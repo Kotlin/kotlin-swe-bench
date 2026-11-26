@@ -61,7 +61,7 @@ timeout_sec = 1800.0
 network_mode = "no-network"
 
 [environment]
-docker_image = "ghcr.io/jetbrains/kotlin-swe-bench-2/ankidroid_anki-android:persistent-pr-19367"
+docker_image = "europe-west4-docker.pkg.dev/gke-dev-dws-jbr/ml/kotlinai/ankidroid_anki-android:persistent-pr-19367"
 workdir = "/home/Anki-Android"
 storage_mb = 5120
 build_timeout_sec = 1800.0

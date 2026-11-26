@@ -54,7 +54,7 @@ timeout_sec = 1800.0
 network_mode = "no-network"
 
 [environment]
-docker_image = "ghcr.io/jetbrains/kotlin-swe-bench-2/detekt_detekt:persistent-pr-4628"
+docker_image = "europe-west4-docker.pkg.dev/gke-dev-dws-jbr/ml/kotlinai/detekt_detekt:persistent-pr-4628"
 workdir = "/home/detekt"
 storage_mb = 5120
 build_timeout_sec = 1800.0

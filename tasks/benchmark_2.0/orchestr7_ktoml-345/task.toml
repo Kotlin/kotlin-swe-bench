@@ -6,7 +6,7 @@ license = "MIT"
 code_change_type = "pr"
 code_change_id = "345"
 code_change_url = "https://github.com/orchestr7/ktoml/pull/345"
-task_revision = 6
+task_revision = 5
 maintainer = "serhii.fedusov@jetbrains.com"
 
 [metadata.taxonomy]
@@ -54,7 +54,6 @@ timeout_sec = 1800.0
 network_mode = "no-network"
 
 [environment]
-docker_image = "ghcr.io/jetbrains/kotlin-swe-bench-2/swerebenchv2_orchestr7-ktoml:345-dbc5278-prewarmed"
 workdir = "/ktoml"
 storage_mb = 5120
 build_timeout_sec = 1800.0
