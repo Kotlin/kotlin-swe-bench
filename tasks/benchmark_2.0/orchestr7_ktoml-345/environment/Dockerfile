@@ -1,24 +1,7 @@
-FROM docker.io/swerebenchv2/orchestr7-ktoml:345-dbc5278
-ENV _JAVA_OPTIONS=-Djava.net.preferIPv4Stack=true
-RUN apt-get update -qq && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
-COPY seal_git_history.sh /tmp/seal_git_history.sh
-RUN bash /tmp/seal_git_history.sh /ktoml
-WORKDIR /ktoml
-
-# The agent sandbox has no network, so everything it needs to build and test
-# against must already be in this image's Gradle cache (GRADLE_USER_HOME, set
-# by the base image). Warm with the verifier's own lifecycle -- allTests, which also downloads
-# the Kotlin/JS toolchain's node distribution -- while the build still has
-# network; test failures are expected on the unfixed code, so the warm
-# tolerates them. The offline check then proves the cache suffices for the
-# jvm test task the agent iterates on: --rerun-tasks forces the re-resolution
-# that up-to-date checks would otherwise skip, and the init script makes
-# verification failures non-fatal, so a failed check means exactly one thing
-# -- the cache is incomplete -- and fails this image build instead of
-# surfacing as an agent failure hours later. (jsTest is warmed but
-# deliberately not checked: node reuse offline is not guaranteed, and a false
-# check failure would cost this task its warmed image. The verifier runs
-# online and needs neither check.)
-RUN ./gradlew --no-daemon --console=plain --continue allTests || true
-RUN printf '%s\n' 'allprojects { tasks.withType(VerificationTask).configureEach { ignoreFailures = true } }' > /tmp/smoke.init.gradle \
-    && ./gradlew --no-daemon --console=plain --continue --offline -I /tmp/smoke.init.gradle --rerun-tasks jvmTest
+# Pre-warmed environment (kotlin-swe-bench issue #14), built once from
+# debug/Dockerfile.warmup-source and published as:
+#   ghcr.io/jetbrains/kotlin-swe-bench-2/swerebenchv2_orchestr7-ktoml:345-dbc5278-prewarmed
+#   (digest sha256:4e58ebc3595678e59dc282fba7b152ed2de70ffa9034b5b908670ecfbc8e67f0)
+# The image contains the sealed repo, the warmed Gradle cache and the offline
+# gate's proof, ready to run.
+FROM ghcr.io/jetbrains/kotlin-swe-bench-2/swerebenchv2_orchestr7-ktoml:345-dbc5278-prewarmed

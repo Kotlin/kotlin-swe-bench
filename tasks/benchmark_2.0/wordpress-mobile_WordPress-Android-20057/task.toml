@@ -60,7 +60,7 @@ timeout_sec = 1800.0
 network_mode = "no-network"
 
 [environment]
-docker_image = "europe-west4-docker.pkg.dev/gke-dev-dws-jbr/ml/kotlinai/wordpress-mobile_wordpress-android:persistent-pr-20057"
+docker_image = "ghcr.io/jetbrains/kotlin-swe-bench-2/wordpress-mobile_wordpress-android:persistent-pr-20057"
 workdir = "/home/WordPress-Android"
 storage_mb = 5120
 build_timeout_sec = 1800.0
